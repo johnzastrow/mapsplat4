@@ -4,6 +4,35 @@ Unordered list of desired usability improvements. Prioritization and implementat
 
 ---
 
+## QGIS4 Compatibility *(Complete before any other work)*
+
+### Remove Qt5/Qt6 Compatibility Shims *(Phase 0)*
+- [ ] Remove Qt5/Qt6 shims from `mapsplat.py` (no longer needed for Qt6-only)
+- [ ] Remove `QAction` import location shim
+- [ ] Remove `RightDockWidgetArea`, `ItemIsEnabled`, `UserRole` enum scoping shims
+
+### Qgis.MessageLevel Enum Migration *(Phase 0)*
+- [ ] Update all `Qgis.Info`, `Qgis.Warning`, `Qgis.Critical`, `Qgis.Success` to `Qgis.MessageLevel.Info`, etc.
+- [ ] Files: `mapsplat_dockwidget.py`, `exporter.py`, `config_manager.py`, `log_utils.py`
+
+### Qt Enum Scoping *(Phase 0)*
+- [ ] Update `Qt.AlignCenter` → `Qt.AlignmentFlag.AlignCenter`
+- [ ] Update `Qt.UserRole` → `Qt.ItemDataRole.UserRole`
+- [ ] Update `Qt.red`, `Qt.darkGreen`, `Qt.darkYellow` → `Qt.GlobalColor.red`, etc.
+- [ ] Files: `mapsplat_dockwidget.py`
+
+### Recompile Resources for Qt6 *(Phase 0)*
+- [ ] Run `pyrcc6 -o resources.py resources.qrc`
+- [ ] Update Makefile: `pyrcc5` → `pyrcc6`
+
+### Verify QGIS4 API Compatibility *(Phase 0)*
+- [ ] Test `QgsVectorFileWriter` API unchanged
+- [ ] Test `QgsProject.instance()` behavior
+- [ ] Test `QgsMapLayer` properties and methods
+- [ ] Test layer tree API (`layerTreeRoot().layerOrder()`)
+
+---
+
 ## UI Improvements
 
 ### Collapsible Advanced Options *(Story 4)*

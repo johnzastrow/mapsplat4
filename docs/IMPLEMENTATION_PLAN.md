@@ -2,13 +2,92 @@
 
 ## Overview
 
-This plan implements usability improvements for MapSplat4 in 3 phases.
+This plan converts MapSplat to QGIS4 and implements usability improvements in 4 phases.
 
 **Backlog:** [FEATURE_BACKLOG.md](./FEATURE_BACKLOG.md)
 
 ---
 
 ## User Stories
+
+### Phase 0: QGIS4 Conversion *(Critical — do first)*
+
+---
+
+#### Story 0: Remove Qt5/Qt6 Compatibility Shims
+
+**As a** developer
+**I want** to remove obsolete Qt5/Qt6 shims
+**So that** the code is clean and uses Qt6 directly
+
+**Tasks:**
+- [ ] Remove `QAction` import location shim from `mapsplat.py`
+- [ ] Remove `RightDockWidgetArea`, `ItemIsEnabled`, `UserRole` enum scoping shims
+- [ ] Update imports to use Qt6-style directly
+
+**Files:** `mapsplat.py`
+
+**Estimation:** 2h
+
+---
+
+#### Story 0b: Qgis.MessageLevel Enum Migration
+
+**As a** developer
+**I want** to update log level enums for QGIS4
+**So that** log messages appear correctly
+
+**Tasks:**
+- [ ] Update all `Qgis.Info` → `Qgis.MessageLevel.Info`
+- [ ] Update all `Qgis.Warning` → `Qgis.MessageLevel.Warning`
+- [ ] Update all `Qgis.Critical` → `Qgis.MessageLevel.Critical`
+- [ ] Update all `Qgis.Success` → `Qgis.MessageLevel.Success`
+
+**Files:** `mapsplat_dockwidget.py`, `exporter.py`, `config_manager.py`, `log_utils.py`
+
+**Implementation Note:** Used in ~10 call sites. Can use compatibility shim if QGIS3 compatibility is ever needed again.
+
+**Estimation:** 2h
+
+---
+
+#### Story 0c: Qt Enum Scoping
+
+**As a** developer
+**I want** to update Qt enums for Qt6 scoping
+**So that** UI components render correctly
+
+**Tasks:**
+- [ ] Update `Qt.AlignCenter` → `Qt.AlignmentFlag.AlignCenter`
+- [ ] Update `Qt.UserRole` → `Qt.ItemDataRole.UserRole`
+- [ ] Update `Qt.red`, `Qt.darkGreen`, `Qt.darkYellow` → `Qt.GlobalColor.red`, etc.
+- [ ] Check for other unscoped Qt enums in codebase
+
+**Files:** `mapsplat_dockwidget.py`
+
+**Estimation:** 2h
+
+---
+
+#### Story 0d: Recompile Resources + Finalize
+
+**As a** developer
+**I want** to recompile resources and verify QGIS4 compatibility
+**So that** the plugin is ready for release
+
+**Tasks:**
+- [ ] Run `pyrcc6 -o resources.py resources.qrc`
+- [ ] Verify Makefile uses `pyrcc6` (already done)
+- [ ] Test export workflow in QGIS4
+- [ ] Test layer selection and UI interactions
+- [ ] Test config save/load
+- [ ] Test viewer generation
+- [ ] Bump version: v0.7.0 (major: QGIS4 compatibility)
+- [ ] Update CHANGELOG.md
+
+**Estimation:** 4h
+
+---
 
 ### Phase 1: Core UX (Est: 1-2 days)
 
@@ -175,6 +254,7 @@ This plan implements usability improvements for MapSplat4 in 3 phases.
 ## Implementation Dependencies
 
 ```
+Phase 0 (QGIS4 Conversion) → REQUIRED FIRST — all other work depends on this
 Story 1 (Open Folder + Progress) → Standalone
 Story 2 (Auto-Launch) → Standalone
 Story 3 (Error Handling) → Standalone
@@ -191,6 +271,13 @@ Story 9 (Tooltips) → Standalone
 ## Sprint Breakdown
 
 **Note:** Sprint lengths vary based on workload. Estimates reflect effort, not fixed timeboxes.
+
+### Sprint 0: QGIS4 Conversion (1-2 days)
+- Story 0: Remove Qt Shims (2h)
+- Story 0b: Qgis.MessageLevel Migration (2h)
+- Story 0c: Qt Enum Scoping (2h)
+- Story 0d: Recompile Resources + Verify (4h)
+- **Total: 10h**
 
 ### Sprint 1: Core UX (2-3 days)
 - Story 1: Open Folder + Progress (4h)
@@ -238,9 +325,12 @@ For each story:
 ### Key Files to Modify
 
 ```
-mapsplat_dockwidget.py  (UI changes, settings persistence)
-exporter.py             (progress messages, error tracking)
+mapsplat_dockwidget.py  (UI changes, settings persistence, QGIS4 enum updates)
+exporter.py             (progress messages, error tracking, QGIS4 enum updates)
 style_converter.py      (scale visibility - Story 7)
+config_manager.py        (QGIS4 enum updates)
+log_utils.py           (QGIS4 enum updates)
+mapsplat.py            (remove Qt5/Qt6 shims)
 ```
 
 ### Existing Patterns to Follow
@@ -250,6 +340,16 @@ style_converter.py      (scale visibility - Story 7)
 - Follow existing code style for UI building
 - Use `QToolButton` for collapsible sections (not QGroupBox)
 
-### QGIS4 Compatibility
+### QGIS4 API Changes
 
-This plugin targets QGIS 4 only. Remove Qt5/Qt6 compatibility shims from `mapsplat.py`.
+| Old (QGIS3) | New (QGIS4) |
+|--------------|--------------|
+| `Qgis.Info` | `Qgis.MessageLevel.Info` |
+| `Qt.AlignCenter` | `Qt.AlignmentFlag.AlignCenter` |
+| `Qt.UserRole` | `Qt.ItemDataRole.UserRole` |
+| `Qt.red` | `Qt.GlobalColor.red` |
+| `pyrcc5` | `pyrcc6` |
+
+### Resources
+
+Recompile with: `pyrcc6 -o resources.py resources.qrc`
