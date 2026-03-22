@@ -13,7 +13,7 @@ MapSplat exports QGIS projects to self-contained static web map packages. It con
 make compile   # runs: pyrcc5 -o resources.py resources.qrc
 
 # Deploy plugin to default QGIS profile
-make deploy    # copies to ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/mapsplat/
+make deploy    # copies to ~/.local/share/QGIS/QGIS4/profiles/default/python/plugins/mapsplat/
 
 # Remove deployed plugin
 make remove
@@ -76,11 +76,13 @@ Rule-based filter syntax supports: `=`, `!=`, `<`, `>`, `<=`, `>=`, `IS NULL`, `
 
 ### Qt5/Qt6 Compatibility
 
-`mapsplat.py` includes shims for enum differences between Qt5/Qt6:
-- `QAction` import location
+This plugin targets QGIS 4 (Qt6). Existing Qt5/Qt6 compatibility shims in `mapsplat.py` can be removed (Qt5 support no longer needed).
+
+Existing shims to remove (no longer needed for QGIS 4 only):
+- `QAction` import location shim
 - `RightDockWidgetArea`, `ItemIsEnabled`, `UserRole` enum scoping
 
-Always use the compatibility pattern already in `mapsplat.py` when adding new Qt enum references.
+Always use Qt6-style enum access going forward.
 
 ## Runtime Settings Dictionary
 

@@ -3,7 +3,7 @@
 PLUGINNAME = mapsplat
 
 # QGIS plugin directory (adjust for your system)
-QGISDIR ?= $(HOME)/.local/share/QGIS/QGIS3/profiles/default/python/plugins
+QGISDIR ?= $(HOME)/.local/share/QGIS/QGIS4/profiles/default/python/plugins
 
 PY_FILES = __init__.py mapsplat.py mapsplat_dockwidget.py exporter.py style_converter.py config_manager.py log_utils.py
 
@@ -20,7 +20,7 @@ default: compile
 compile: $(RESOURCE_FILES)
 
 %.py : %.qrc
-	pyrcc5 -o $@ $<
+	pyrcc6 -o $@ $<
 
 .PHONY: deploy
 deploy: compile

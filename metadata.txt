@@ -1,6 +1,6 @@
 [general]
 name=MapSplat
-qgisMinimumVersion=3.40
+qgisMinimumVersion=4.0
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
 version=0.6.16
 author=John Zastrow
@@ -16,8 +16,8 @@ about=MapSplat exports your QGIS project layers to self-contained web map packag
     - Style roundtripping with Maputnik editor
     - Auto-reprojection to Web Mercator (EPSG:3857)
 
-tracker=https://github.com/johnzastrow/mapsplat/issues
-repository=https://github.com/johnzastrow/mapsplat
+tracker=https://github.com/johnzastrow/mapsplat4/issues
+repository=https://github.com/johnzastrow/mapsplat4
 
 hasProcessingProvider=no
 
@@ -191,7 +191,7 @@ changelog=
 
 tags=export,web,pmtiles,maplibre,tiles,vector tiles,static map
 
-homepage=https://github.com/johnzastrow/mapsplat
+homepage=https://github.com/johnzastrow/mapsplat4
 category=Web
 icon=icon.png
 

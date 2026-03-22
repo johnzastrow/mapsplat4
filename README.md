@@ -4,9 +4,9 @@
 
 ![MapSplat](docs/images/logo.svg)
 
-[![QGIS](https://img.shields.io/badge/QGIS-3.40%2B-green.svg)](https://qgis.org)
+[![QGIS](https://img.shields.io/badge/QGIS-4.0%2B-green.svg)](https://qgis.org)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.6.13-orange.svg)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.6.16-orange.svg)](docs/CHANGELOG.md)
 
 MapSplat is a QGIS plugin that exports (splats) your project layers to self-contained static web map packages. The output can be hosted on any static web server, cloud storage, or run locally — no tile server, no backend, no new stack to learn. Check the [docs/](docs/) directory for design notes, a full changelog, and technical details on the PMTiles + MapLibre GL JS architecture.
 
@@ -124,8 +124,7 @@ This project is based on the work by the folks at Protomaps. They host builds of
 - **Hand-editable**: Every key has an inline comment; open the file in any text editor to tweak settings directly
 
 ### Compatibility
-- **Qt5 / Qt6**: Works with QGIS 3.x (Qt5) and QGIS 4.x (Qt6)
-  *Not really. It works with QGIS 3.44, and it think it works with QGIS 3.99, but not really. I think it can only work with one at a time. So, when 4.0 is released, I'll update the plugin to be compatible with that and drop support for 3.x.*
+- **QGIS 4 only**: This fork targets QGIS 4 (Qt6)
 - **Static hosting**: No server-side processing — works on GitHub Pages, Netlify, S3, Cloudflare Pages, or any web host
 
 ---
@@ -166,7 +165,7 @@ There is no way to represent these effects in the MapLibre GL Style JSON spec, s
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| QGIS | 3.40+ | Also compatible with 4.0 beta |
+| QGIS | 4.0+ | This fork targets QGIS 4 only |
 | GDAL | 3.8+ | Required for native PMTiles support via `ogr2ogr` |
 | Python | 3.9+ | Bundled with QGIS |
 | pmtiles CLI | Any | Required only for basemap overlay mode |
@@ -186,22 +185,22 @@ There is no way to represent these effects in the MapLibre GL Style JSON spec, s
 
 **Linux / macOS:**
 ```bash
-git clone https://github.com/johnzastrow/mapsplat.git
-cd mapsplat
+git clone https://github.com/johnzastrow/mapsplat4.git
+cd mapsplat4
 make deploy
 ```
 
 **Windows (Command Prompt):**
 ```cmd
-git clone https://github.com/johnzastrow/mapsplat.git
-cd mapsplat
+git clone https://github.com/johnzastrow/mapsplat4.git
+cd mapsplat4
 deploy.bat
 ```
 
 **Windows (PowerShell):**
 ```powershell
-git clone https://github.com/johnzastrow/mapsplat.git
-cd mapsplat
+git clone https://github.com/johnzastrow/mapsplat4.git
+cd mapsplat4
 .\deploy.ps1
 ```
 
@@ -213,9 +212,9 @@ Copy the `mapsplat` folder to your QGIS plugins directory:
 
 | OS | Path |
 |----|------|
-| Linux | `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/` |
-| macOS | `~/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins/` |
-| Windows | `%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\` |
+| Linux | `~/.local/share/QGIS/QGIS4/profiles/default/python/plugins/` |
+| macOS | `~/Library/Application Support/QGIS/QGIS4/profiles/default/python/plugins/` |
+| Windows | `%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins\` |
 
 ---
 
@@ -837,7 +836,7 @@ MIT — see [LICENSE](../../LICENSE) for details.
 
 ## Links
 
-- **Repository**: https://github.com/johnzastrow/mapsplat
-- **Issues**: https://github.com/johnzastrow/mapsplat/issues
-- **Releases**: https://github.com/johnzastrow/mapsplat/releases
+- **Repository**: https://github.com/johnzastrow/mapsplat4
+- **Issues**: https://github.com/johnzastrow/mapsplat4/issues
+- **Releases**: https://github.com/johnzastrow/mapsplat4/releases
 - **Documentation**: [docs/](docs/)
