@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pyqt5 pytest
+
+      - name: Compile Qt resources
+        run: pyrcc5 -o resources.py resources.qrc
+
+      - name: Run tests
+        run: python -m pytest test/ -v
+
+      - name: Build plugin ZIP
+        run: |
+          PLUGIN=mapsplat
+          mkdir -p staging/$PLUGIN
+
+          # Production Python files (exclude conftest.py and test/)
+          cp __init__.py mapsplat.py mapsplat_dockwidget.py exporter.py \
+             style_converter.py config_manager.py log_utils.py resources.py \
+             staging/$PLUGIN/
+
+          # Static assets
+          cp metadata.txt icon.png resources.qrc README.md staging/$PLUGIN/
+
+          # Optional directories (silently skip if empty/missing)
+          [ -d lib ] && cp -r lib staging/$PLUGIN/ || true
+          [ -d templates ] && cp -r templates staging/$PLUGIN/ || true
+          [ -d docs ] && cp -r docs staging/$PLUGIN/ || true
+
+          cd staging
+          zip -r ../mapsplat.zip $PLUGIN/
+
+      - name: Extract changelog entry
+        run: |
+          TAG=${{ github.ref_name }}
+          awk -v tag="## $TAG" '
+            $0 ~ ("^" tag) { found=1; next }
+            /^## / && found   { exit }
+            found             { print }
+          ' docs/CHANGELOG.md > release_notes.md
+          # Fallback if version not found in changelog
+          [ -s release_notes.md ] || echo "See [CHANGELOG.md](docs/CHANGELOG.md) for details." > release_notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "MapSplat ${{ github.ref_name }}" \
+            --notes-file release_notes.md \
+            mapsplat.zip

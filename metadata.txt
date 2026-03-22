@@ -1,0 +1,201 @@
+[general]
+name=MapSplat
+qgisMinimumVersion=3.40
+description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
+version=0.6.16
+author=John Zastrow
+email=john@example.com
+
+about=MapSplat exports your QGIS project layers to self-contained web map packages that can be hosted on any static web server. It converts vector and raster layers to PMTiles format and generates a ready-to-deploy HTML viewer using MapLibre GL JS.
+
+    Features:
+    - Export vector layers to PMTiles format
+    - Export raster layers as basemap tiles
+    - Automatic symbology conversion to MapLibre styles
+    - Self-contained offline viewer (no CDN required)
+    - Style roundtripping with Maputnik editor
+    - Auto-reprojection to Web Mercator (EPSG:3857)
+
+tracker=https://github.com/johnzastrow/mapsplat/issues
+repository=https://github.com/johnzastrow/mapsplat
+
+hasProcessingProvider=no
+
+changelog=
+    0.6.16 - Fix scale→zoom constant for MapLibre 512px tiles
+    - Previous constant (559,082,264) assumed 256px tiles; MapLibre uses 512px
+      tiles so zoom values were 1 level too high, requiring extra zoom-in
+    - Corrected to 279,541,132 (= 559,082,264 / 2); features now appear at the
+      same scale as set in QGIS Layer Properties → Rendering
+    0.6.15 - Scale-dependent visibility
+    - Layer scale-based visibility (Layer Properties → Rendering) is now read and
+      converted to MapLibre minzoom/maxzoom on all symbol and label layers
+    - Formula: zoom = log2(559082264 / scale_denominator); clamped to [0, 24]
+    - 13 new unit tests covering scale→zoom conversion and zoom range extraction
+    0.6.14 - Extent layer selector, label halo fix, label docs, Log tab on export
+    - Export Options: dropdown to pick any project layer as the export extent;
+      default is full extent of data; basemap extraction gets +0.5% bbox padding
+    - Label halo no longer always white: text-halo-color/width only emitted when
+      QGIS text buffer is enabled; unchecked buffer = no halo in output
+    - Export button now opens Log tab (was incorrectly opening Offline tab)
+    - README: new Label Settings reference section covering all exported text
+      properties, font variants, halo setup steps, and unsupported features
+    0.6.13 - Legend colors, Advanced Legend, map dimensions, Export tab scroll
+    - Legend swatches now show correct colors for categorized/graduated layers by
+      unwrapping the first literal color from match/step/interpolate expressions
+    - New Advanced Legend checkbox (Viewer tab): shows one swatch + value label per
+      category or class break, parsed from the paint expression at runtime
+    - Map Dimensions group (Viewer tab): width/height spinboxes; 0 = responsive
+      full-window layout; non-zero pins the map div to exact pixel dimensions
+    - Export tab groups wrapped in QScrollArea; Save Config, Load Config, Export
+      button, and progress bar pinned outside scroll so they remain visible on
+      small screens
+    0.6.12 - Better fallback for unsupported symbol layer types
+    - Gradient fills, shape-burst fills, and other unrecognized types now render using
+      the darkest color extracted from the symbol layer instead of a hardcoded blue
+    - Same improvement for unrecognized line and marker symbol layer types
+    0.6.11 - Fix serve.py 403 on root URL
+    - serve.py now serves index.html when browser hits the root URL
+    0.6.10 - Graduated renderer uses interpolate expressions
+    - fill-color, line-color, circle-color now use ["interpolate", ["linear"], ...] for smooth transitions
+    - fill-opacity, line-width, circle-radius also interpolated
+    - Capping stop at upperValue of last range ensures full extent is covered
+    0.6.9 - Label rendering improvements
+    - Bold/italic font selection (Noto Sans Medium / Italic / Regular)
+    - Quadrant-aware text-anchor and em-unit offsets for point labels
+    - Label placement mode UI: "Match QGIS (exact)" or "Auto-place (avoid overlaps)"
+    - Line labels: Curved → symbol-placement line with text-max-angle; Horizontal → line-center
+    - Text opacity, halo opacity (rgba), capitalization, line height, word-wrap, multiline align
+    0.6.8 - UI polish + serve.py improvements
+    - Layer list shows "X of Y layers selected" summary, updates on selection change
+    - Last output folder persisted in QSettings and restored on plugin open
+    - Output folder write-permission check before export starts
+    - Import style.json validates version:8 and layers key; clear error on bad files
+    - serve.py --host flag to bind to specific interface (default 127.0.0.1)
+    - serve.py threaded HTTP server; improved Range parsing; hides server banner
+    0.6.7 - Categorized renderer null/catch-all and layer ordering
+    - Null category values now rendered via "__null__" sentinel (coalesce); no longer silently dropped
+    - Catch-all category ("all other values") used as match expression fallback; unmatched features hidden
+    - Layer order in style.json now matches QGIS panel order (top layer renders on top)
+    0.6.6 - Offline asset bundling
+    - New Offline tab with checkbox to download MapLibre GL JS/CSS and PMTiles JS at export time
+    - Viewer works without internet when bundled; falls back to CDN if download fails
+    0.6.5 - serve.py --port and --no-browser flags
+    - serve.py now accepts --port PORT and --no-browser for headless server deployments
+    0.6.4 - Caddy reverse-proxy instructions
+    - README: document how to run serve.py behind stock Caddy for small deployments
+    0.6.3 - Simplify output path
+    - Output now goes to <output_folder>/<project_name>_webmap/ (one level, no nested _webmap subdirectory)
+    0.6.2 - Fix output path; toolbar icon updated to pink splat logo
+    - Output path is now <output_folder>/<project_name>/_webmap/ (project name preserved)
+    - icon.png replaced with 32x32 render of logo.svg (pink splat mark)
+    0.6.1 - Output dir, embeddable HTML, new logo
+    - Output directory is always _webmap/ (no project-name prefix)
+    - Export log also written to _webmap/export.log
+    - HTML viewer includes BEGIN/END copy-paste demarcation comments for embedding in existing pages
+    - New logo (pink blob) inlined in viewer info panel and README
+    0.6.0 - Config file save/load
+    - Save/Load Config buttons above Export button write/read human-editable TOML files
+    - New config_manager.py: pure-Python TOML writer with per-key comments; line-by-line reader
+    - Layer names (not runtime IDs) stored in config; resolved back to list items on load
+    - Config files store all export, basemap, and viewer settings
+    0.5.11 - Fix label font: single Noto Sans Regular (no combined fontstack 404)
+    - MapLibre joins text-font array into one URL path; protomaps server has no combined stacks
+    - Use single font ["Noto Sans Regular"] so request path matches available files
+    0.5.10 - Fix basemap overlay: restore basemap rendering + fix POI labels
+    - Use protomaps.github.io/basemaps-assets/fonts as glyphs URL (has Noto Sans, 200 OK)
+    - Change business label font to Noto Sans Regular/Medium (available at same server)
+    - Remove broken demotiles.maplibre.org glyphs override (returned 404 for all fonts)
+    0.5.9 - Fix basemap overlay POI icons not rendering (glyphs 404)
+    - Override merged style glyphs URL with business style's working CDN
+    - Protomaps basemaps-assets font server returns 404; MapLibre 4.x stalls symbol pipeline on glyphs failure
+    0.5.8 - Fix basemap overlay POI icons not rendering
+    - styleimagemissing handler prevents MapLibre symbol queue stall when basemap sprite is replaced
+    0.5.7 - Fix basemap overlay blank map with local pmtiles source
+    - Basemap source URL rewrite now matches any vector source, not just protomaps-hosted URLs
+    0.5.6 - Fix release ZIP missing log_utils.py
+    - Switch CI file copy to glob (*.py) so new modules are included automatically
+    0.5.5 - Fix basemap overlay culverts not rendering
+    - Fetch style.json at runtime and pass as inline object instead of URL
+    - Fixes MapLibre source queryability when two pmtiles:// sources are used
+    0.5.4 - Fix viewer control overlaps
+    - Bottom-left zoom/coords labels now clear the scale bar dynamically
+    - Top-right buttons now clear NavigationControl + Fullscreen + Geolocate stack
+    0.5.3 - Fix basemap overlay icon rendering
+    - Replace multi-sprite array with single local sprite to fix biz icon lookup
+    0.5.2 - Viewer controls
+    - Added Viewer tab with 7 map control checkboxes
+    - Controls: scale bar, geolocate, fullscreen, coords, zoom, reset-view, north-reset
+    0.5.1 - Export log to file
+    - Optional checkbox to write export.log with timestamps
+    0.5.0 - Tabbed dockwidget
+    - Export tab holds all settings; Log tab holds output log
+    - Log auto-shown when export starts
+    0.4.0 - SVG sprite rendering
+    - Point layers using SVG marker symbols export as MapLibre symbol layers
+    - Multi-sprite basemap support with MapLibre 4.x array format
+    0.3.0 - Basemap overlay mode
+    - New "Basemap Overlay" group in UI: toggle, source URL/file, style.json picker
+    - pmtiles extract clips Protomaps basemap to data bounding box
+    - Business layer sources and styles merged into basemap style
+    - Basemap remote URL automatically redirected to local extracted file
+    0.2.2 - External style.json reference
+    - HTML now references external style.json instead of embedding inline
+    - Enables faster style iteration (edit style.json, refresh browser)
+    0.2.1 - Style-only export and label fixes
+    - Added style-only export option (skip data conversion)
+    - Fixed label rendering with proper fonts and halo
+    0.2.0 - Enhanced style extraction
+    - Labels support (text, font, color, halo)
+    - Rule-based renderer support with filter conversion
+    - Opacity extraction from symbols
+    - Line dash patterns, cap/join styles
+    - Multiple symbol layers support
+    - Proper unit conversion (mm, px, pt)
+    0.1.9 - Separate PMTiles per layer option
+    - Added "PMTiles mode" dropdown: single file or separate files per layer
+    - Each layer can now export to its own PMTiles file
+    0.1.8 - Legend and usability improvements
+    - Added legend swatches to layer controls (shows layer colors)
+    - Fixed serve.py Ctrl+C handling on Windows
+    - Fixed layer control order to match map stacking
+    0.1.7 - Export reliability and UI improvements
+    - Added cancel button, max zoom control, expandable log
+    - Switched to QProcess for responsive UI during exports
+    - Added serve.py with Range request support for local viewing
+    - Fixed coordinate transform, QGIS hanging, console windows
+    0.1.6 - Windows deployment scripts
+    - Added deploy.bat for Windows Command Prompt
+    - Added deploy.ps1 for Windows PowerShell
+    - Updated README with Windows deployment instructions
+    0.1.5 - Local viewing instructions
+    - Added local server instructions to README
+    - Explains why file:// doesn't work with PMTiles
+    - Quick start commands for Python, Node.js, PHP, VS Code
+    0.1.4 - Cleanup
+    - Consolidated README files into single top-level README.md
+    0.1.3 - Documentation
+    - Added comprehensive README.md with deployment instructions
+    - CORS configuration examples for nginx, Apache, S3
+    - Troubleshooting guide
+    0.1.2 - Qt6/QGIS 4.0 compatibility
+    - Added compatibility shims for Qt6 enum changes
+    - Fixed QAction import for Qt6 (moved from QtWidgets to QtGui)
+    - Compatible with both QGIS 3.x (Qt5) and QGIS 4.x (Qt6)
+    0.1.1 - Documentation and planning
+    - Added PLAN.md, TODO.md, CHANGELOG.md
+    - Renamed plugin from "po" to "mapsplat"
+    0.1.0 - Initial proof of concept
+    - Basic plugin scaffold
+    - Dockable widget UI
+
+tags=export,web,pmtiles,maplibre,tiles,vector tiles,static map
+
+homepage=https://github.com/johnzastrow/mapsplat
+category=Web
+icon=icon.png
+
+experimental=True
+deprecated=False
+
+server=False
