@@ -371,6 +371,51 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 
 ---
 
+#### Story 16: XYZ Tile Source Support
+
+**As a** user
+**I want** to use any XYZ tile service as my basemap (not just Protomaps)
+**So that** I can easily configure basemaps from OSM, MapTiler, Stadia, ESRI, or any XYZ provider
+
+**Tasks:**
+- [ ] Add "XYZ Tile Source" option to basemap UI (radio button or tab: "Protomaps PMTiles" vs "XYZ Tiles")
+- [ ] Accept standard XYZ tile URLs with placeholders: `{z}`, `{x}`, `{y}`, `{r}`
+- [ ] Support common providers as presets: OSM, MapTiler, Stadia, ESRI World Imagery
+- [ ] Add custom XYZ URL input field
+- [ ] Convert XYZ tiles to PMTiles using `pmtiles convert` with `--no-deduplication`
+- [ ] Extract tiles within data bounding box (matching existing Protomaps workflow)
+- [ ] Generate compatible basemap style.json for MapLibre (standard XYZ source format)
+- [ ] Respect XYZ provider's tile bounds and zoom levels
+- [ ] Handle providers requiring API keys (prompt user for key, store in config)
+
+**Technical Note:** This enables using any MapLibre-compatible XYZ source. URL pattern `https://a.tile.openstreetmap.org/{z}/{x}/{y}.png` works directly as an XYZ source in MapLibre style.json without conversion. However, converting to PMTiles enables offline bundling and consistent format with business layers.
+
+**Estimation:** 6h
+
+---
+
+#### Story 17: Extract Remote PMTiles to Local
+
+**As a** user
+**I want** to download and cache remote PMTiles archives for offline use
+**So that** I don't need internet when viewing my exported maps
+
+**Tasks:**
+- [ ] Detect when basemap URL is a remote PMTiles (starts with `http://` or `https://`)
+- [ ] Use `pmtiles extract` with `--download-threads` for parallel fetching
+- [ ] Add progress indicator: "Downloading basemap: X%" with cancel option
+- [ ] Cache downloaded PMTiles in plugin settings directory (`~/.local/share/QGIS/QGIS4/profiles/default/python/plugins/mapsplat/cache/`)
+- [ ] Cache key: `hash(source_url + bounds + maxzoom)` — invalidates on config change
+- [ ] Add "Refresh cached basemap" button in UI
+- [ ] Handle network errors: retry 3 times, then show error with "Skip basemap" option
+- [ ] Log cache hits/misses for debugging
+
+**Technical Note:** `pmtiles extract` already supports remote URLs. Add threading and caching layer. The `pmtiles extract` command handles the HTTP Range requests for PMTiles automatically.
+
+**Estimation:** 4h
+
+---
+
 ## Implementation Dependencies
 
 ```
@@ -391,6 +436,8 @@ Story 12 (Popup Fields)               → Story 6 first (config file needed for 
 Story 13 (Attribution)                 → Standalone
 Story 14 (PMTiles Verify)              → Standalone
 Story 15 (PMTiles Convert/Raster)     → Standalone
+Story 16 (XYZ Tile Source)             → Story 17 could share style.json generation logic
+Story 17 (Extract Remote PMTiles)      → Standalone
 ```
 
 ---
@@ -425,14 +472,16 @@ Story 15 (PMTiles Convert/Raster)     → Standalone
 - Story 8: Keyboard Shortcuts (3h)
 - **Total: 3h remaining**
 
-### Phase 4: High-Value Additions (2-3 days)
+### Phase 4: High-Value Additions (3-4 days)
 - Story 10: Zoom Tile Count Estimator (3h)
 - Story 11: Per-Layer Symbology Warnings (4h)
 - Story 12: Popup Field Customization (6h)
 - Story 13: Attribution Field (2h)
 - Story 14: PMTiles Verify (2h)
 - Story 15: PMTiles Convert/Raster (8h)
-- **Total: 25h**
+- Story 16: XYZ Tile Source (6h)
+- Story 17: Extract Remote PMTiles (4h)
+- **Total: 35h**
 
 ---
 

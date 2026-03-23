@@ -182,6 +182,26 @@ Unordered list of desired usability improvements. Prioritization and implementat
 - [ ] Add to UI: checkbox "Include raster layers" in Export Options
 - [ ] Error handling: if GDAL raster support missing, show message with install link
 
+### XYZ Tile Source Support *(Story 16)*
+- [ ] Add "XYZ Tile Source" option alongside existing Protomaps PMTiles basemap
+- [ ] Accept standard XYZ tile URLs: `https://tile.openstreetmap.org/{z}/{x}/{y}.png`
+- [ ] Use `pmtiles convert` with `--no-deduplication` to batch-convert XYZ tiles to PMTiles
+- [ ] Support URL patterns: `{z}`, `{x}`, `{y}`, `{r}` (retina), `{bbox}` placeholders
+- [ ] Fetch TileJSON or WMTS capabilities to auto-detect bounds/zoom range
+- [ ] Extract only tiles within data bounding box (like existing basemap extract)
+- [ ] Update basemap style.json for XYZ source (standard MapLibre xyz source format)
+- [ ] Add UI: radio buttons or dropdown to switch between PMTiles source and XYZ source
+- [ ] Support common providers: OSM, MapTiler, Stadia, ESRI, etc.
+
+### Extract Remote PMTiles to Local *(Story 17)*
+- [ ] Allow direct URL input for basemap source (existing Protomaps URL already works)
+- [ ] Add progress indicator: "Downloading basemap tiles: X%"
+- [ ] Support fetching tiles in parallel (configurable thread count)
+- [ ] Cache downloaded PMTiles locally after first extract
+- [ ] Add "Refresh cached basemap" button to re-download
+- [ ] Handle network errors gracefully (retry, timeout, user-friendly message)
+- [ ] Store cache in plugin settings directory, keyed by source URL + bounds hash
+
 ---
 
 ## Documentation
