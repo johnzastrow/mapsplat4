@@ -21,6 +21,8 @@ compile: $(RESOURCE_FILES)
 
 %.py : %.qrc
 	pyrcc6 -o $@ $<
+	# Alternative (no QGIS Python env required):
+	# uvx --from pyside6-essentials pyside6-rcc -o $@ $<
 
 .PHONY: deploy
 deploy: compile
