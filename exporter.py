@@ -659,7 +659,7 @@ class MapSplatExporter(QObject):
     def cancel(self):
         """Cancel the export process."""
         self._cancelled = True
-        if self._qprocess and self._qprocess.state() != QProcess.NotRunning:
+        if self._qprocess and self._qprocess.state() != QProcess.ProcessState.NotRunning:
             self._qprocess.kill()
         if self._progress_timer:
             self._progress_timer.stop()
@@ -953,7 +953,7 @@ class MapSplatExporter(QObject):
 
         # Poll with event processing to keep UI responsive
         last_update = time.time()
-        while self._qprocess.state() != QProcess.NotRunning:
+        while self._qprocess.state() != QProcess.ProcessState.NotRunning:
             # Process Qt events to keep UI responsive
             QCoreApplication.processEvents()
 
@@ -1154,7 +1154,7 @@ class MapSplatExporter(QObject):
         self.log_message.emit("  pmtiles extract started, waiting...", "info")
 
         last_update = time.time()
-        while self._qprocess.state() != QProcess.NotRunning:
+        while self._qprocess.state() != QProcess.ProcessState.NotRunning:
             QCoreApplication.processEvents()
 
             if self._cancelled:
