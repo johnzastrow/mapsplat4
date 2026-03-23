@@ -41,6 +41,8 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 - [x] `QFrame.Sunken` → `QFrame.Shadow.Sunken`
 - [x] `_MultiSelection` shim → `QAbstractItemView.SelectionMode.MultiSelection` (direct)
 - [x] `QProcess.NotRunning` → `QProcess.ProcessState.NotRunning` (3 call sites in `exporter.py`)
+- [x] `QImage.Format_ARGB32` → `QImage.Format.Format_ARGB32` (2 call sites in `style_converter.py`)
+- [x] `Qt.transparent` → `Qt.GlobalColor.transparent` (2 call sites in `style_converter.py`)
 
 ---
 
