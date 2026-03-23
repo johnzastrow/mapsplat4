@@ -4,7 +4,7 @@ qgisMinimumVersion=4.0
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
 version=0.10.0
 author=John Zastrow
-email=john@example.com
+email=john@northredoubt.com
 
 about=MapSplat exports your QGIS project layers to self-contained web map packages that can be hosted on any static web server. It converts vector and raster layers to PMTiles format and generates a ready-to-deploy HTML viewer using MapLibre GL JS.
 
