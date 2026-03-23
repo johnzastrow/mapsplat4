@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 import os
 
@@ -20,7 +20,8 @@ except ImportError:
     import config_manager  # test environment (no package)
 
 from qgis.PyQt import uic
-from qgis.PyQt.QtCore import pyqtSignal, Qt, QSettings
+from qgis.PyQt.QtCore import pyqtSignal, Qt, QSettings, QUrl
+from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
     QDockWidget,
     QVBoxLayout,
@@ -45,6 +46,7 @@ from qgis.PyQt.QtWidgets import (
     QTabWidget,
     QScrollArea,
     QFrame,
+    QToolButton,
 )
 
 from qgis.PyQt.QtWidgets import QAbstractItemView
@@ -67,6 +69,16 @@ class MapSplatDockWidget(QDockWidget):
     """Dockable widget for MapSplat plugin."""
 
     closingPlugin = pyqtSignal()
+
+    # (label, width, height) — width=0/height=0 means responsive
+    _DIMENSION_PRESETS = [
+        ("Full window (responsive)", 0, 0),
+        ("800 × 600", 800, 600),
+        ("800 × 900", 800, 900),
+        ("1024 × 768", 1024, 768),
+        ("1920 × 1080", 1920, 1080),
+        ("Custom", None, None),
+    ]
 
     def __init__(self, iface, parent=None):
         """Constructor."""
@@ -109,13 +121,16 @@ class MapSplatDockWidget(QDockWidget):
 
         self.layer_list = QListWidget()
         self.layer_list.setSelectionMode(_MultiSelection)
+        self.layer_list.setToolTip("Select the layers to include in the export.\nCtrl+click or Shift+click to select multiple layers.")
         self.layer_list.itemSelectionChanged.connect(self._update_layer_count)
         layer_layout.addWidget(self.layer_list)
 
         # Select all / none buttons
         btn_layout = QHBoxLayout()
         self.btn_select_all = QPushButton("Select All")
+        self.btn_select_all.setToolTip("Select all layers in the list.")
         self.btn_select_none = QPushButton("Select None")
+        self.btn_select_none.setToolTip("Deselect all layers.")
         self.btn_select_all.clicked.connect(self._select_all_layers)
         self.btn_select_none.clicked.connect(self._select_no_layers)
         btn_layout.addWidget(self.btn_select_all)
@@ -151,6 +166,10 @@ class MapSplatDockWidget(QDockWidget):
             "Single file (all layers)",
             "Separate files per layer"
         ])
+        self.combo_export_mode.setToolTip(
+            "Single file: all layers merged into one .pmtiles archive.\n"
+            "Separate files: one .pmtiles per layer, loaded independently in the viewer."
+        )
         mode_layout.addWidget(self.combo_export_mode)
         options_layout.addLayout(mode_layout)
 
@@ -171,26 +190,32 @@ class MapSplatDockWidget(QDockWidget):
         # Style options
         self.chk_export_style = QCheckBox("Export separate style.json")
         self.chk_export_style.setChecked(True)
-        options_layout.addWidget(self.chk_export_style)
-
-        self.chk_style_only = QCheckBox("Style only (skip data export)")
-        self.chk_style_only.setToolTip(
-            "Export only style.json and HTML viewer without converting data.\n"
-            "Use when data already exists or for quick style iteration."
+        self.chk_export_style.setToolTip(
+            "Write a standalone style.json alongside the viewer.\n"
+            "Useful if you want to load the style separately or customise it by hand."
         )
-        options_layout.addWidget(self.chk_style_only)
+        options_layout.addWidget(self.chk_export_style)
 
         # Export extent layer
         extent_layout = QHBoxLayout()
         extent_layout.addWidget(QLabel("Export extent:"))
         self.combo_extent_layer = QComboBox()
         self.combo_extent_layer.addItem("Full extent of data", None)
+        self.combo_extent_layer.setToolTip(
+            "Sets the bounding box used when extracting basemap tiles.\n"
+            "Choose a layer to clip the basemap to that layer's extent\n"
+            "instead of the combined extent of all exported layers."
+        )
         extent_layout.addWidget(self.combo_extent_layer, 1)
         options_layout.addLayout(extent_layout)
 
         # Import style button
         style_import_layout = QHBoxLayout()
         self.btn_import_style = QPushButton("Import style.json...")
+        self.btn_import_style.setToolTip(
+            "Merge an existing style.json into the generated output.\n"
+            "Layers and sources from the imported file are added alongside the exported layers."
+        )
         self.btn_import_style.clicked.connect(self._import_style)
         self.lbl_imported_style = QLabel("No style imported")
         self.lbl_imported_style.setStyleSheet("color: gray; font-style: italic;")
@@ -204,13 +229,19 @@ class MapSplatDockWidget(QDockWidget):
         self.basemap_group = QGroupBox("Basemap Overlay")
         self.basemap_group.setCheckable(True)
         self.basemap_group.setChecked(False)
+        self.basemap_group.setToolTip(
+            "Check to add a Protomaps basemap (streets, terrain, etc.) beneath your layers.\n"
+            "The basemap tiles are extracted to the output folder so the map works offline."
+        )
         basemap_layout = QVBoxLayout(self.basemap_group)
 
         # Source type radio buttons
         source_type_layout = QHBoxLayout()
         source_type_layout.addWidget(QLabel("Source:"))
         self.radio_basemap_url = QRadioButton("Remote URL")
+        self.radio_basemap_url.setToolTip("Fetch the basemap from a remote URL (e.g. build.protomaps.com). Requires internet during export.")
         self.radio_basemap_file = QRadioButton("Local file")
+        self.radio_basemap_file.setToolTip("Use a locally downloaded .pmtiles file as the basemap source.")
         self.radio_basemap_url.setChecked(True)
         self._basemap_source_group = QButtonGroup()
         self._basemap_source_group.addButton(self.radio_basemap_url)
@@ -226,6 +257,11 @@ class MapSplatDockWidget(QDockWidget):
         self.txt_basemap_source.setPlaceholderText(
             "https://build.protomaps.com/20260217.pmtiles"
         )
+        self.txt_basemap_source.setToolTip(
+            "URL or local path to a Protomaps .pmtiles archive.\n"
+            "Tiles within the export bounding box will be extracted\n"
+            "to data/basemap.pmtiles in the output folder."
+        )
         self.btn_basemap_browse = QPushButton("Browse...")
         self.btn_basemap_browse.setVisible(False)
         self.btn_basemap_browse.clicked.connect(self._browse_basemap_file)
@@ -238,6 +274,11 @@ class MapSplatDockWidget(QDockWidget):
         basemap_style_layout.addWidget(QLabel("Basemap style:"))
         self.txt_basemap_style = QLineEdit()
         self.txt_basemap_style.setPlaceholderText("path/to/basemap_style.json")
+        self.txt_basemap_style.setToolTip(
+            "Path to a Protomaps-compatible MapLibre style.json.\n"
+            "The basemap layers from this file are used as the base;\n"
+            "your exported layers are overlaid on top."
+        )
         self.btn_basemap_style_browse = QPushButton("Browse...")
         self.btn_basemap_style_browse.clicked.connect(self._browse_basemap_style)
         basemap_style_layout.addWidget(self.txt_basemap_style, 1)
@@ -259,6 +300,10 @@ class MapSplatDockWidget(QDockWidget):
         name_layout.addWidget(QLabel("Project name:"))
         self.txt_project_name = QLineEdit()
         self.txt_project_name.setPlaceholderText("my_webmap")
+        self.txt_project_name.setToolTip(
+            "Name for the output subdirectory.\n"
+            "The export will be written to <output folder>/<project name>_webmap/."
+        )
         name_layout.addWidget(self.txt_project_name)
         output_layout.addLayout(name_layout)
 
@@ -267,6 +312,7 @@ class MapSplatDockWidget(QDockWidget):
         folder_layout.addWidget(QLabel("Output folder:"))
         self.txt_output_folder = QLineEdit()
         self.txt_output_folder.setPlaceholderText("Select output folder...")
+        self.txt_output_folder.setToolTip("Parent directory where the export subdirectory will be created.")
         self.txt_output_folder.textChanged.connect(self._save_last_output_folder)
         self.btn_browse = QPushButton("Browse...")
         self.btn_browse.clicked.connect(self._browse_output_folder)
@@ -274,11 +320,44 @@ class MapSplatDockWidget(QDockWidget):
         folder_layout.addWidget(self.btn_browse)
         output_layout.addLayout(folder_layout)
 
+        scroll_layout.addWidget(output_group)
+
+        # ==================== Advanced Options (collapsible) ====================
+        self._adv_toggle = QToolButton()
+        self._adv_toggle.setText(" Advanced Options")
+        self._adv_toggle.setCheckable(True)
+        self._adv_toggle.setChecked(False)
+        self._adv_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        self._adv_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._adv_toggle.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        scroll_layout.addWidget(self._adv_toggle)
+
+        adv_container = QWidget()
+        adv_container.setVisible(False)
+        adv_layout = QVBoxLayout(adv_container)
+        adv_layout.setContentsMargins(16, 0, 0, 4)
+        adv_layout.setSpacing(4)
+
+        self.chk_style_only = QCheckBox("Style only (skip data export)")
+        self.chk_style_only.setToolTip(
+            "Export only style.json and HTML viewer without converting data.\n"
+            "Use when data already exists or for quick style iteration."
+        )
+        adv_layout.addWidget(self.chk_style_only)
+
         self.chk_save_log = QCheckBox("Save export log to file (export.log)")
         self.chk_save_log.setChecked(False)
-        output_layout.addWidget(self.chk_save_log)
+        self.chk_save_log.setToolTip("Write the full export log to export.log in the output folder for later review.")
+        adv_layout.addWidget(self.chk_save_log)
 
-        scroll_layout.addWidget(output_group)
+        scroll_layout.addWidget(adv_container)
+
+        self._adv_toggle.toggled.connect(lambda checked: (
+            adv_container.setVisible(checked),
+            self._adv_toggle.setArrowType(
+                Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow
+            ),
+        ))
 
         # Finish scroll area setup
         scroll_area.setWidget(scroll_widget)
@@ -293,7 +372,9 @@ class MapSplatDockWidget(QDockWidget):
         # ==================== Config Save/Load (pinned) ====================
         config_btn_layout = QHBoxLayout()
         self.btn_save_config = QPushButton("Save Config...")
+        self.btn_save_config.setToolTip("Save all current settings to a .toml config file for reuse.")
         self.btn_load_config = QPushButton("Load Config...")
+        self.btn_load_config.setToolTip("Load settings from a previously saved .toml config file.")
         self.btn_save_config.clicked.connect(self._save_config)
         self.btn_load_config.clicked.connect(self._load_config)
         config_btn_layout.addWidget(self.btn_save_config)
@@ -301,6 +382,8 @@ class MapSplatDockWidget(QDockWidget):
         export_layout.addLayout(config_btn_layout)
 
         # ==================== Export Button (pinned) ====================
+        export_btn_row = QHBoxLayout()
+
         self.btn_export = QPushButton("Export Web Map")
         self.btn_export.setMinimumHeight(40)
         self.btn_export.setStyleSheet("""
@@ -319,7 +402,16 @@ class MapSplatDockWidget(QDockWidget):
             }
         """)
         self.btn_export.clicked.connect(self._do_export)
-        export_layout.addWidget(self.btn_export)
+        export_btn_row.addWidget(self.btn_export, 1)
+
+        self.btn_open_folder = QPushButton("Open Folder")
+        self.btn_open_folder.setMinimumHeight(40)
+        self.btn_open_folder.setVisible(False)
+        self.btn_open_folder.setToolTip("Open the last export output folder in the system file manager.")
+        self.btn_open_folder.clicked.connect(self._open_output_folder)
+        export_btn_row.addWidget(self.btn_open_folder)
+
+        export_layout.addLayout(export_btn_row)
 
         # ==================== Progress ====================
         progress_layout = QHBoxLayout()
@@ -328,6 +420,7 @@ class MapSplatDockWidget(QDockWidget):
         progress_layout.addWidget(self.progress_bar)
 
         self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.setToolTip("Cancel the running export. Any files already written will remain.")
         self.btn_cancel.setVisible(False)
         self.btn_cancel.setMaximumWidth(70)
         self.btn_cancel.setStyleSheet("""
@@ -346,6 +439,12 @@ class MapSplatDockWidget(QDockWidget):
 
         export_layout.addLayout(progress_layout)
 
+        self.lbl_export_status = QLabel("")
+        self.lbl_export_status.setVisible(False)
+        self.lbl_export_status.setStyleSheet("color: gray; font-style: italic;")
+        self.lbl_export_status.setWordWrap(True)
+        export_layout.addWidget(self.lbl_export_status)
+
         # --- Viewer tab ---
         viewer_tab = QWidget()
         viewer_layout = QVBoxLayout(viewer_tab)
@@ -357,30 +456,40 @@ class MapSplatDockWidget(QDockWidget):
 
         self.chk_viewer_scale_bar = QCheckBox("Scale bar")
         self.chk_viewer_scale_bar.setChecked(True)
+        self.chk_viewer_scale_bar.setToolTip("Shows a distance scale bar in the bottom-left of the map.")
         viewer_group_layout.addWidget(self.chk_viewer_scale_bar)
 
         self.chk_viewer_geolocate = QCheckBox("Geolocate (show my location)")
         self.chk_viewer_geolocate.setChecked(True)
+        self.chk_viewer_geolocate.setToolTip(
+            "Adds a button to locate and follow the viewer's current GPS position.\n"
+            "Requires browser location permission."
+        )
         viewer_group_layout.addWidget(self.chk_viewer_geolocate)
 
         self.chk_viewer_fullscreen = QCheckBox("Fullscreen button")
         self.chk_viewer_fullscreen.setChecked(True)
+        self.chk_viewer_fullscreen.setToolTip("Adds a button to toggle the map to full-screen mode.")
         viewer_group_layout.addWidget(self.chk_viewer_fullscreen)
 
         self.chk_viewer_coords = QCheckBox("Coordinate display (mouse position)")
         self.chk_viewer_coords.setChecked(True)
+        self.chk_viewer_coords.setToolTip("Shows the longitude/latitude of the cursor position in the map corner.")
         viewer_group_layout.addWidget(self.chk_viewer_coords)
 
         self.chk_viewer_zoom_display = QCheckBox("Zoom level display")
         self.chk_viewer_zoom_display.setChecked(True)
+        self.chk_viewer_zoom_display.setToolTip("Shows the current MapLibre zoom level in the map corner.")
         viewer_group_layout.addWidget(self.chk_viewer_zoom_display)
 
         self.chk_viewer_reset_view = QCheckBox("Reset view button (fit to data)")
         self.chk_viewer_reset_view.setChecked(True)
+        self.chk_viewer_reset_view.setToolTip("Adds a button that resets the map view to fit all exported data.")
         viewer_group_layout.addWidget(self.chk_viewer_reset_view)
 
         self.chk_viewer_north_reset = QCheckBox("North-up / reset rotation button")
         self.chk_viewer_north_reset.setChecked(True)
+        self.chk_viewer_north_reset.setToolTip("Adds a compass button that snaps the map back to north-up orientation.")
         viewer_group_layout.addWidget(self.chk_viewer_north_reset)
 
         # Label placement mode
@@ -391,24 +500,52 @@ class MapSplatDockWidget(QDockWidget):
             "Match QGIS (exact positions)",
             "Auto-place (avoid overlaps)",
         ])
+        self.combo_label_placement.setToolTip(
+            "Match QGIS: labels are placed at fixed coordinates matching QGIS output.\n"
+            "Auto-place: MapLibre repositions labels dynamically to avoid overlaps at any zoom."
+        )
         placement_row.addWidget(self.combo_label_placement)
         viewer_group_layout.addLayout(placement_row)
 
         self.chk_advanced_legend = QCheckBox("Advanced Legend (show categories and class breaks)")
         self.chk_advanced_legend.setChecked(False)
+        self.chk_advanced_legend.setToolTip(
+            "Show individual category swatches and class-break labels in the map legend.\n"
+            "When unchecked, only the layer name is shown."
+        )
         viewer_group_layout.addWidget(self.chk_advanced_legend)
 
         viewer_layout.addWidget(viewer_group)
 
         # Map Dimensions group
         dim_group = QGroupBox("Map Dimensions")
-        dim_layout = QHBoxLayout(dim_group)
+        dim_group_layout = QVBoxLayout(dim_group)
+
+        # Preset dropdown
+        preset_row = QHBoxLayout()
+        preset_row.addWidget(QLabel("Preset:"))
+        self.combo_dim_preset = QComboBox()
+        for label, _w, _h in self._DIMENSION_PRESETS:
+            self.combo_dim_preset.addItem(label)
+        self.combo_dim_preset.setToolTip(
+            "Select a preset to set the map's pixel dimensions.\n"
+            "'Full window' makes the map fill the browser window responsively.\n"
+            "Choose 'Custom' or edit the spinboxes directly for any other size."
+        )
+        self.combo_dim_preset.currentIndexChanged.connect(self._on_dimension_preset_changed)
+        preset_row.addWidget(self.combo_dim_preset, 1)
+        dim_group_layout.addLayout(preset_row)
+
+        # Width / Height spinboxes
+        dim_layout = QHBoxLayout()
         dim_layout.addWidget(QLabel("Width:"))
         self.spin_map_width = QSpinBox()
         self.spin_map_width.setRange(0, 9999)
         self.spin_map_width.setValue(0)
         self.spin_map_width.setSpecialValueText("responsive")
         self.spin_map_width.setSuffix(" px")
+        self.spin_map_width.setToolTip("Map width in pixels. Set to 0 (responsive) to fill the browser window.")
+        self.spin_map_width.valueChanged.connect(self._on_dimension_spinbox_changed)
         dim_layout.addWidget(self.spin_map_width)
         dim_layout.addSpacing(12)
         dim_layout.addWidget(QLabel("Height:"))
@@ -417,8 +554,12 @@ class MapSplatDockWidget(QDockWidget):
         self.spin_map_height.setValue(0)
         self.spin_map_height.setSpecialValueText("responsive")
         self.spin_map_height.setSuffix(" px")
+        self.spin_map_height.setToolTip("Map height in pixels. Set to 0 (responsive) to fill the browser window.")
+        self.spin_map_height.valueChanged.connect(self._on_dimension_spinbox_changed)
         dim_layout.addWidget(self.spin_map_height)
         dim_layout.addStretch()
+        dim_group_layout.addLayout(dim_layout)
+
         viewer_layout.addWidget(dim_group)
         viewer_layout.addStretch()
 
@@ -443,6 +584,11 @@ class MapSplatDockWidget(QDockWidget):
 
         self.chk_bundle_offline = QCheckBox("Bundle JS/CSS for offline viewing")
         self.chk_bundle_offline.setChecked(False)
+        self.chk_bundle_offline.setToolTip(
+            "Download MapLibre GL JS, its CSS, and PMTiles JS from unpkg.com at export time\n"
+            "and save them to lib/ so the viewer works without an internet connection.\n"
+            "If the download fails, CDN links are used instead."
+        )
         offline_group_layout.addWidget(self.chk_bundle_offline)
 
         offline_note = QLabel(
@@ -612,6 +758,24 @@ class MapSplatDockWidget(QDockWidget):
         self.lbl_imported_style.setText(f"Imported: {basename}")
         self.lbl_imported_style.setStyleSheet("color: green;")
         self._log(f"Imported style: {file_path}")
+
+    def _on_dimension_preset_changed(self, index):
+        """Apply the selected dimension preset to the width/height spinboxes."""
+        _label, w, h = self._DIMENSION_PRESETS[index]
+        if w is None:
+            return  # Custom — leave spinboxes untouched
+        self._applying_preset = True
+        self.spin_map_width.setValue(w)
+        self.spin_map_height.setValue(h)
+        self._applying_preset = False
+
+    def _on_dimension_spinbox_changed(self):
+        """Switch combo to Custom when the user edits a spinbox directly."""
+        if getattr(self, '_applying_preset', False):
+            return
+        custom_index = len(self._DIMENSION_PRESETS) - 1
+        if self.combo_dim_preset.currentIndex() != custom_index:
+            self.combo_dim_preset.setCurrentIndex(custom_index)
 
     def _on_basemap_source_type_changed(self):
         """Show/hide browse button based on source type selection."""
@@ -799,11 +963,14 @@ class MapSplatDockWidget(QDockWidget):
             "extent_layer_id": self.combo_extent_layer.currentData(),
         }
 
-        # Show progress and cancel button
+        # Show progress and cancel button; hide Open Folder from previous run
+        self.btn_open_folder.setVisible(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         self.btn_export.setEnabled(False)
         self.btn_cancel.setVisible(True)
+        self.lbl_export_status.setText("Starting export...")
+        self.lbl_export_status.setVisible(True)
 
         try:
             # Create exporter (uses QProcess internally, no separate thread needed)
@@ -831,6 +998,9 @@ class MapSplatDockWidget(QDockWidget):
     def _on_log_message(self, message, level):
         """Handle log messages from exporter."""
         self._log(message, level)
+        # Show top-level info messages (not indented sub-step lines) as status text
+        if level == "info" and not message.startswith("  "):
+            self.lbl_export_status.setText(message)
 
     def _on_export_finished(self, success, output_path):
         """Handle export completion."""
@@ -838,8 +1008,11 @@ class MapSplatDockWidget(QDockWidget):
         self.btn_cancel.setVisible(False)
         self.btn_cancel.setEnabled(True)  # Re-enable for next export
         self.btn_export.setEnabled(True)
+        self.lbl_export_status.setVisible(False)
 
         if success:
+            self._last_output_path = output_path
+            self.btn_open_folder.setVisible(True)
             self._log(f"Export complete: {output_path}", "success")
             self._close_log_file()
             QMessageBox.information(
@@ -850,6 +1023,11 @@ class MapSplatDockWidget(QDockWidget):
         else:
             self._log("Export failed.", "error")
             self._close_log_file()
+
+    def _open_output_folder(self):
+        """Open the last export output folder in the system file manager."""
+        if hasattr(self, '_last_output_path') and self._last_output_path:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(self._last_output_path))
 
     def _cancel_export(self):
         """Cancel the running export."""

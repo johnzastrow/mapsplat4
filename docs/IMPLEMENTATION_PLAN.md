@@ -337,13 +337,13 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 **So that** I don't discover corruption hours later when trying to publish
 
 **Tasks:**
-- [ ] After PMTiles creation (after `ogr2ogr` step), run `pmtiles verify {output_file}`
+- [ ] After each PMTiles file is written (ogr2ogr writes PMTiles directly — no separate `pmtiles convert` step), run `pmtiles verify {output_file}`
 - [ ] If verify fails (non-zero exit), show error dialog with stderr output
 - [ ] Log verification result to export log
-- [ ] Add checkbox "Verify PMTiles after export" in Advanced Options (default: checked)
+- [ ] Add checkbox "Verify PMTiles after export" in Advanced Options (default: **unchecked** — verify does a full tile read; large exports will feel slow)
 - [ ] In separate-file mode, verify each file and aggregate results
 
-**Technical Note:** Verify runs after each PMTiles creation, not after all exports complete. This isolates failures.
+**Technical Note:** Verify runs after each PMTiles creation, not after all exports complete. This isolates failures per-layer in separate-file mode.
 
 **Estimation:** 2h
 
@@ -356,18 +356,21 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 **So that** my web maps can include satellite imagery and other raster data
 
 **Tasks:**
-- [ ] Detect raster layers in selection
+- [ ] Detect raster layers (`QgsRasterLayer`) in selection
 - [ ] If raster layers selected, show prompt or add checkbox "Include raster layers"
-- [ ] Use `gdal_translate` to convert raster → GeoTIFF (intermediate)
+- [ ] Use `gdalwarp -t_srs EPSG:3857` to reproject to Web Mercator (QGIS layers can be in any CRS — this step is mandatory)
+- [ ] Use `gdal_translate` to produce intermediate GeoTIFF with correct NoData/alpha handling
 - [ ] Use `pmtiles convert` to convert GeoTIFF → PMTiles
-- [ ] Place raster PMTiles below vector layers in style.json (separate source, separate paint layer)
+- [ ] Determine raster tile zoom range from layer pixel size (avoid over-sampled or blurry pyramid levels)
+- [ ] Handle multi-band rasters: RGB imagery uses `"raster-color"` paint; single-band DEM needs different treatment; indexed color requires expansion
+- [ ] Place raster PMTiles below vector layers in style.json using `{"type": "raster"}` source + separate paint layer (distinct code path from vector style generation in `style_converter.py`)
 - [ ] Show raster-specific progress: "Converting raster: 50%"
 - [ ] Error handling: if GDAL raster support missing, show message with install link
 - [ ] Delete intermediate GeoTIFF after PMTiles conversion
 
-**Technical Note:** Raster exports use `gdalwarp` for reprojection to EPSG:3857, then `gdal_translate` for format conversion, then `pmtiles convert`.
+**Technical Note:** Pipeline is `gdalwarp` (reproject) → `gdal_translate` (GeoTIFF) → `pmtiles convert`. Intermediate GeoTIFF can be large (uncompressed); ensure it lands in a temp directory, not the output directory.
 
-**Estimation:** 8h
+**Estimation:** 12–16h (8h is optimistic given multi-band handling and the separate raster style.json code path)
 
 ---
 
@@ -377,20 +380,23 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 **I want** to use any XYZ tile service as my basemap (not just Protomaps)
 **So that** I can easily configure basemaps from OSM, MapTiler, Stadia, ESRI, or any XYZ provider
 
-**Tasks:**
-- [ ] Add "XYZ Tile Source" option to basemap UI (radio button or tab: "Protomaps PMTiles" vs "XYZ Tiles")
+**Scope decision:** XYZ URLs work directly as MapLibre `{"type": "raster"}` sources — no PMTiles conversion required for online viewing. Implement Mode A (direct passthrough) first. Mode B (offline bundling via `pmtiles convert`) is deferred: bulk-downloading tiles violates most providers' ToS and is a separate large feature.
+
+**Mode A — Direct XYZ passthrough (implement now):**
+- [ ] Add "XYZ Tiles" option to basemap UI (radio/tab: "Protomaps PMTiles" vs "XYZ Tiles")
 - [ ] Accept standard XYZ tile URLs with placeholders: `{z}`, `{x}`, `{y}`, `{r}`
-- [ ] Support common providers as presets: OSM, MapTiler, Stadia, ESRI World Imagery
-- [ ] Add custom XYZ URL input field
-- [ ] Convert XYZ tiles to PMTiles using `pmtiles convert` with `--no-deduplication`
-- [ ] Extract tiles within data bounding box (matching existing Protomaps workflow)
-- [ ] Generate compatible basemap style.json for MapLibre (standard XYZ source format)
-- [ ] Respect XYZ provider's tile bounds and zoom levels
-- [ ] Handle providers requiring API keys (prompt user for key, store in config)
+- [ ] Add provider presets: OSM, MapTiler, Stadia, ESRI World Imagery (with custom URL option)
+- [ ] Handle providers requiring API keys (prompt user for key; store in config — **requires Story 6**)
+- [ ] Write `{"type": "raster", "tiles": [...], "tileSize": 256}` source into generated style.json
 
-**Technical Note:** This enables using any MapLibre-compatible XYZ source. URL pattern `https://a.tile.openstreetmap.org/{z}/{x}/{y}.png` works directly as an XYZ source in MapLibre style.json without conversion. However, converting to PMTiles enables offline bundling and consistent format with business layers.
+**Mode B — Convert XYZ to PMTiles for offline (deferred):**
+- [ ] Use `pmtiles convert --no-deduplication` to batch-convert tiles within data bounding box
+- [ ] Enumerate tiles per zoom level; show download progress with cancel option
+- [ ] Verify provider ToS permits bulk download before enabling presets
 
-**Estimation:** 6h
+**Technical Note:** Mode A requires no subprocess calls. Mode B requires enumerating all tiles in the bounding box at each zoom level, which can be tens of thousands of requests for high-zoom areas.
+
+**Estimation:** Mode A: 3h. Mode B (deferred): 6–8h additional.
 
 ---
 
@@ -405,12 +411,13 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 - [ ] Use `pmtiles extract` with `--download-threads` for parallel fetching
 - [ ] Add progress indicator: "Downloading basemap: X%" with cancel option
 - [ ] Cache downloaded PMTiles in plugin settings directory (`~/.local/share/QGIS/QGIS4/profiles/default/python/plugins/mapsplat/cache/`)
-- [ ] Cache key: `hash(source_url + bounds + maxzoom)` — invalidates on config change
+- [ ] Cache key: `hash(source_url + bounds + maxzoom)` computed **at export time** (not at UI config time — bounds are derived from selected layers at export start)
 - [ ] Add "Refresh cached basemap" button in UI
 - [ ] Handle network errors: retry 3 times, then show error with "Skip basemap" option
 - [ ] Log cache hits/misses for debugging
+- [ ] *Future:* cache directory grows unboundedly with varying extents; add cache size management or "Clear cache" button in a follow-up
 
-**Technical Note:** `pmtiles extract` already supports remote URLs. Add threading and caching layer. The `pmtiles extract` command handles the HTTP Range requests for PMTiles automatically.
+**Technical Note:** `pmtiles extract` already supports remote URLs; the story adds a caching layer on top of the existing extract workflow. Cache key must be export-time to correctly reflect the actual bounding box used.
 
 **Estimation:** 4h
 
@@ -434,10 +441,10 @@ Story 10 (Zoom Estimator)              → Standalone
 Story 11 (Symbology Warnings)          → Standalone
 Story 12 (Popup Fields)               → Story 6 first (config file needed for storage)
 Story 13 (Attribution)                 → Standalone
-Story 14 (PMTiles Verify)              → Standalone
-Story 15 (PMTiles Convert/Raster)     → Standalone
-Story 16 (XYZ Tile Source)             → Story 17 could share style.json generation logic
-Story 17 (Extract Remote PMTiles)      → Standalone
+Story 14 (PMTiles Verify)              → Standalone (default checkbox unchecked)
+Story 15 (PMTiles Convert/Raster)     → Standalone; 12–16h, needs design review before starting
+Story 16 (XYZ Tile Source, Mode A)    → Story 6 first (API key storage); Mode B deferred (ToS/bulk-download concerns)
+Story 17 (Extract Remote PMTiles)      → Standalone; cache key must be computed at export time
 ```
 
 ---

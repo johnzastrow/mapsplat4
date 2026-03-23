@@ -8,7 +8,7 @@ This module handles the actual export process:
 - Generating the HTML viewer
 """
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 import os
 import sys
@@ -412,8 +412,11 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 const paint = layer.paint || {{}};
                 const raw = paint['fill-color'] || paint['line-color'] ||
                             paint['circle-color'] || paint['text-color'] || paint['icon-color'];
-                if (!raw) return '#888888';
-                return extractColorFromExpression(raw) || '#888888';
+                if (raw) return extractColorFromExpression(raw) || '#888888';
+                // Symbol layers have no paint color — fall back to embedded SVG fill color
+                const meta = layer.metadata;
+                if (meta && meta['mapsplat:fill-color']) return meta['mapsplat:fill-color'];
+                return '#888888';
             }}
 
             // Build the main swatch for a layer row (color, shape, or icon)
@@ -429,33 +432,17 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                     swatch.classList.add('circle');
                     swatch.style.backgroundColor = color;
                 }} else if (ltype === 'symbol') {{
-                    // Try to render the actual icon from MapLibre's image store
-                    const iconName = layer.layout && layer.layout['icon-image'];
-                    const iconKey = typeof iconName === 'string' ? iconName : null;
-                    let rendered = false;
-                    if (iconKey && map.hasImage(iconKey)) {{
-                        try {{
-                            const img = map.getImage(iconKey);
-                            const iw = img.data.width, ih = img.data.height;
-                            const pixels = img.data.data;
-                            if (iw && ih && pixels) {{
-                                const off = document.createElement('canvas');
-                                off.width = iw; off.height = ih;
-                                off.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(pixels), iw, ih), 0, 0);
-                                const c = document.createElement('canvas');
-                                c.width = 16; c.height = 16;
-                                c.getContext('2d').drawImage(off, 0, 0, 16, 16);
-                                swatch.style.cssText = 'background-image:url(' + c.toDataURL() + ');'
-                                    + 'background-size:contain;background-repeat:no-repeat;'
-                                    + 'background-position:center;background-color:transparent;border:none;'
-                                    + 'width:16px;height:16px;min-width:16px;';
-                                rendered = true;
-                            }}
-                        }} catch(e) {{ /* fall through */ }}
-                    }}
-                    if (!rendered) {{
+                    // Use the pre-rendered icon data URL embedded in layer metadata
+                    const meta = layer.metadata || {{}};
+                    const iconDataUrl = meta['mapsplat:legend-icon'];
+                    if (iconDataUrl) {{
+                        swatch.style.cssText = 'background-image:url(' + iconDataUrl + ');'
+                            + 'background-size:contain;background-repeat:no-repeat;'
+                            + 'background-position:center;background-color:transparent;border:none;'
+                            + 'width:16px;height:16px;min-width:16px;';
+                    }} else {{
                         swatch.classList.add('circle');
-                        swatch.style.backgroundColor = color || '#888888';
+                        swatch.style.backgroundColor = color;
                     }}
                 }} else {{
                     // fill or other
@@ -527,8 +514,17 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             // Group all layers by source-layer, preserving display order.
             // layers is already reversed so top-rendered layers come first.
             // For each group pick the most representative layer:
-            //   fill > line > circle > symbol  (symbol/text is last resort)
-            const _pri = {{fill:0, line:1, circle:2, symbol:3}};
+            //   fill(0) > line(1) > circle(2) > icon-symbol(2.5) > label-only-symbol(3)
+            function _layerPri(l) {{
+                if (l.type === 'fill')   return 0;
+                if (l.type === 'line')   return 1;
+                if (l.type === 'circle') return 2;
+                if (l.type === 'symbol') {{
+                    // Icon symbol layers beat label-only symbol layers
+                    return (l.layout && l.layout['icon-image']) ? 2.5 : 3;
+                }}
+                return 99;
+            }}
             const _slOrder = [], _slGroups = {{}};
             layers.forEach(layer => {{
                 const sl = layer['source-layer'];
@@ -540,9 +536,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 const groupLayers = _slGroups[sourceLayer];
                 // Pick best representative — lowest priority value wins
                 const layer = groupLayers.reduce((best, l) => {{
-                    const bp = _pri[best.type] !== undefined ? _pri[best.type] : 99;
-                    const lp = _pri[l.type]  !== undefined ? _pri[l.type]  : 99;
-                    return lp < bp ? l : best;
+                    return _layerPri(l) < _layerPri(best) ? l : best;
                 }});
 
                 const div = document.createElement('div');

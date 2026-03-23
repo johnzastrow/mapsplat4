@@ -35,25 +35,26 @@ Unordered list of desired usability improvements. Prioritization and implementat
 
 ## UI Improvements
 
-### Collapsible Advanced Options *(Story 4)*
-- [ ] Add collapsible "Advanced Options" section using `QToolButton` with arrow toggle (NOT QGroupBox — QGroupBox enables/disables, not collapses)
-- [ ] Target `chk_style_only` and `chk_save_log` specifically — these are the rarely-used controls creating clutter
-- [ ] Do NOT add this to the basemap section — it is already a checkable QGroupBox and handles its own visibility correctly
-- [ ] Reduce Export tab vertical height on smaller screens
+### Collapsible Advanced Options *(Story 4)* ✅ *Done — v0.7.1*
+- [x] Add collapsible "Advanced Options" section using `QToolButton` with arrow toggle (NOT QGroupBox — QGroupBox enables/disables, not collapses)
+- [x] Target `chk_style_only` and `chk_save_log` specifically — these are the rarely-used controls creating clutter
+- [x] Do NOT add this to the basemap section — it is already a checkable QGroupBox and handles its own visibility correctly
+- [x] Reduce Export tab vertical height on smaller screens
 
-### Quick Presets for Map Dimensions *(Story 5)*
-- [ ] Add dropdown with presets: "Full window (responsive)", "800x600", "1024x768", "1920x1080", "Custom"
-- [ ] Preset selection updates width/height spinboxes
+### Quick Presets for Map Dimensions *(Story 5)* ✅ *Done — v0.7.1*
+- [x] Add dropdown with presets: "Full window (responsive)", "800x600", "800x900", "1024x768", "1920x1080", "Custom"
+- [x] Preset selection updates width/height spinboxes
+- [x] Manual spinbox edit switches combo to "Custom" automatically
 
-### Open Output Folder Button *(Story 1)*
-- [ ] Add "Open Folder" button to the **pinned footer** (alongside Export button) — appears after a successful export, stays visible until the next export starts
-- [ ] Do NOT put this in a success dialog — a dismissed dialog is gone; the pinned footer is persistent
-- [ ] Use `QDesktopServices.openUrl()` to open in file explorer
+### Open Output Folder Button *(Story 1)* ✅ *Done — v0.7.1*
+- [x] Add "Open Folder" button to the **pinned footer** (alongside Export button) — appears after a successful export, stays visible until the next export starts
+- [x] Do NOT put this in a success dialog — a dismissed dialog is gone; the pinned footer is persistent
+- [x] Use `QDesktopServices.openUrl()` to open in file explorer
 
-### Better Progress Feedback *(Story 1)*
-- [ ] Add status text label showing current operation
-- [ ] Display: "Exporting layer 2 of 5: Roads", "Converting to PMTiles", "Generating style.json"
-- [ ] Show layer-by-layer progress in separate-file mode
+### Better Progress Feedback *(Story 1)* ✅ *Done — v0.7.1*
+- [x] Add status text label showing current operation
+- [x] Display: "Exporting layer 2 of 5: Roads", "Converting to PMTiles", "Generating style.json"
+- [x] Show layer-by-layer progress in separate-file mode
 
 ### Copy Embed Code *(Story 2a)*
 - [ ] Add "Copy Embed Code" button to Viewer tab
@@ -123,14 +124,14 @@ Unordered list of desired usability improvements. Prioritization and implementat
 - [ ] Add shortcuts to tooltips
 - [ ] Use `Qt.ShortcutContext.WidgetWithChildrenShortcut` context to ensure shortcuts fire only when the dock has focus
 
-### Inline Help Tooltips *(Story 9)*
-- [ ] Audit existing tooltips first — `spin_max_zoom` and `chk_style_only` already have tooltips; do not duplicate
-- [ ] Add tooltip to `combo_export_mode` (single vs separate files)
-- [ ] Add tooltip to `combo_extent_layer` (what bounding box is used for)
-- [ ] Add tooltip to basemap source inputs (URL format, what pmtiles extract does)
-- [ ] Add tooltip to basemap style input (what the style.json is for)
-- [ ] Add tooltip to dimension preset dropdown (when implemented)
-- [ ] Add tooltips to viewer control checkboxes explaining what each control does in the web map
+### Inline Help Tooltips *(Story 9)* ✅ *Done — v0.7.1*
+- [x] Audit existing tooltips first — `spin_max_zoom` and `chk_style_only` already have tooltips; do not duplicate
+- [x] Add tooltip to `combo_export_mode` (single vs separate files)
+- [x] Add tooltip to `combo_extent_layer` (what bounding box is used for)
+- [x] Add tooltip to basemap source inputs (URL format, what pmtiles extract does)
+- [x] Add tooltip to basemap style input (what the style.json is for)
+- [x] Add tooltip to dimension preset dropdown
+- [x] Add tooltips to viewer control checkboxes explaining what each control does in the web map
 
 ---
 
@@ -167,40 +168,53 @@ Unordered list of desired usability improvements. Prioritization and implementat
 - [ ] Save/restore in config file under `[viewer]`
 
 ### PMTiles Verify After Export *(Story 14)*
-- [ ] After PMTiles creation, run `pmtiles verify` on the output file(s)
+- [ ] After each PMTiles file is written (ogr2ogr produces PMTiles directly — no separate convert step), run `pmtiles verify {output_file}`
 - [ ] If verify fails, show error dialog with details from stderr
 - [ ] Log verification result to export log
-- [ ] Add checkbox "Verify PMTiles after export" in Advanced Options (default: checked)
-- [ ] Run verify for each PMTiles file in separate-file mode
+- [ ] Add checkbox "Verify PMTiles after export" in Advanced Options (default: **unchecked** — verify does a full tile read and adds noticeable time on large exports)
+- [ ] Run verify for each PMTiles file in separate-file mode and aggregate results
 
 ### PMTiles Convert (Raster Support) *(Story 15)*
 - [ ] Detect raster layers in selection and prompt: "Convert raster layers to PMTiles?"
-- [ ] Use `gdal_translate` to convert raster → GeoTIFF
+- [ ] Use `gdalwarp -t_srs EPSG:3857` to reproject raster to Web Mercator (required — QGIS layers can be any CRS)
+- [ ] Use `gdal_translate` to produce intermediate GeoTIFF with correct NoData/alpha
 - [ ] Use `pmtiles convert` to convert GeoTIFF → PMTiles
-- [ ] Place raster PMTiles below vector layers in style.json
+- [ ] Determine raster tile zoom range from layer pixel size (avoid over-sampled or blurry tiles)
+- [ ] Handle multi-band rasters: RGB imagery vs single-band DEM vs indexed color (different MapLibre paint styles)
+- [ ] Place raster PMTiles below vector layers in style.json using `"type": "raster"` source + paint layer (separate code path from vector style generation)
 - [ ] Show progress: "Converting raster: 50%"
 - [ ] Add to UI: checkbox "Include raster layers" in Export Options
 - [ ] Error handling: if GDAL raster support missing, show message with install link
+- [ ] Delete intermediate GeoTIFF after PMTiles conversion
 
 ### XYZ Tile Source Support *(Story 16)*
-- [ ] Add "XYZ Tile Source" option alongside existing Protomaps PMTiles basemap
+
+**Scope note:** XYZ URLs work directly as MapLibre sources without any conversion. Implement Mode A first; Mode B (offline bundling) is explicitly deferred — bulk-downloading tiles violates most providers' ToS and is a separate large feature.
+
+**Mode A — Direct XYZ passthrough (implement first):**
+- [ ] Add "XYZ Tiles" option to basemap UI (radio/tab: "Protomaps PMTiles" vs "XYZ Tiles")
 - [ ] Accept standard XYZ tile URLs: `https://tile.openstreetmap.org/{z}/{x}/{y}.png`
-- [ ] Use `pmtiles convert` with `--no-deduplication` to batch-convert XYZ tiles to PMTiles
-- [ ] Support URL patterns: `{z}`, `{x}`, `{y}`, `{r}` (retina), `{bbox}` placeholders
-- [ ] Fetch TileJSON or WMTS capabilities to auto-detect bounds/zoom range
-- [ ] Extract only tiles within data bounding box (like existing basemap extract)
-- [ ] Update basemap style.json for XYZ source (standard MapLibre xyz source format)
-- [ ] Add UI: radio buttons or dropdown to switch between PMTiles source and XYZ source
-- [ ] Support common providers: OSM, MapTiler, Stadia, ESRI, etc.
+- [ ] Support URL placeholders: `{z}`, `{x}`, `{y}`, `{r}` (retina)
+- [ ] Add provider presets: OSM, MapTiler, Stadia, ESRI World Imagery (with custom URL option)
+- [ ] Handle providers requiring API keys (prompt user for key; store in config — **requires Story 6**)
+- [ ] Write MapLibre `{"type": "raster", "tiles": [...], "tileSize": 256}` source into style.json
+
+**Mode B — Convert XYZ to PMTiles for offline (deferred):**
+- [ ] Use `pmtiles convert --no-deduplication` to batch-convert tiles within data bounding box
+- [ ] Enumerate tiles per zoom level; show download progress with cancel
+- [ ] Verify provider terms of service permit bulk download before implementing presets
 
 ### Extract Remote PMTiles to Local *(Story 17)*
 - [ ] Allow direct URL input for basemap source (existing Protomaps URL already works)
 - [ ] Add progress indicator: "Downloading basemap tiles: X%"
-- [ ] Support fetching tiles in parallel (configurable thread count)
+- [ ] Support fetching tiles in parallel (configurable thread count via `--download-threads`)
 - [ ] Cache downloaded PMTiles locally after first extract
+- [ ] Cache key: `hash(source_url + bounds + maxzoom)` computed **at export time** (not at UI config time — bounds depend on selected layers)
 - [ ] Add "Refresh cached basemap" button to re-download
-- [ ] Handle network errors gracefully (retry, timeout, user-friendly message)
-- [ ] Store cache in plugin settings directory, keyed by source URL + bounds hash
+- [ ] Handle network errors gracefully (retry 3×, then show error with "Skip basemap" option)
+- [ ] Store cache in plugin settings directory (`~/.local/share/QGIS/QGIS4/profiles/default/python/plugins/mapsplat/cache/`)
+- [ ] Log cache hits/misses for debugging
+- [ ] *Note for future:* cache directory grows unboundedly with varying extents; add "Clear cache" button or size management in a follow-up
 
 ---
 

@@ -17,8 +17,9 @@ Supported style properties:
 - Multiple symbol layers
 """
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
+import base64
 import math
 import os
 from qgis.core import (
@@ -649,12 +650,13 @@ class StyleConverter:
             }
 
         elif isinstance(sym_layer, QgsSvgMarkerSymbolLayer):
-            sprite_key = self._svg_sprite_map.get(source_layer)
+            sprite_entry = self._svg_sprite_map.get(source_layer)
             size = self._convert_size(sym_layer.size(), sym_layer.sizeUnit())
-            if sprite_key:
+            if sprite_entry:
+                sprite_key, fill_color_hex, icon_data_url = sprite_entry
                 # Single-symbol SVG with a pre-rendered sprite — emit symbol layer
                 return self._build_symbol_layer_for_sprite(
-                    layer_id, sprite_key, source_name, source_layer, size
+                    layer_id, sprite_key, source_name, source_layer, size, fill_color_hex, icon_data_url
                 )
             # Categorized/graduated SVG, or sprite generation not run — circle fallback
             fill_color = sym_layer.fillColor() if hasattr(sym_layer, 'fillColor') else None
@@ -704,7 +706,7 @@ class StyleConverter:
             }
         }
 
-    def _build_symbol_layer_for_sprite(self, layer_id, sprite_key, source_name, source_layer, size_px):
+    def _build_symbol_layer_for_sprite(self, layer_id, sprite_key, source_name, source_layer, size_px, fill_color_hex=None, icon_data_url=None):
         """Build a MapLibre symbol layer referencing a pre-rendered sprite entry.
 
         :param layer_id: MapLibre layer ID string
@@ -712,9 +714,11 @@ class StyleConverter:
         :param source_name: PMTiles source name in the style
         :param source_layer: Source-layer name in PMTiles
         :param size_px: Original icon size in pixels (reserved for future icon-size scaling)
+        :param fill_color_hex: SVG fill color hex string, embedded in metadata for legend use
+        :param icon_data_url: Base64 PNG data URL of the rendered icon for the legend swatch
         :returns: MapLibre layer dict with type "symbol"
         """
-        return {
+        layer = {
             "id": layer_id,
             "type": "symbol",
             "source": source_name,
@@ -726,6 +730,14 @@ class StyleConverter:
                 "icon-ignore-placement": True,
             },
         }
+        metadata = {}
+        if fill_color_hex:
+            metadata["mapsplat:fill-color"] = fill_color_hex
+        if icon_data_url:
+            metadata["mapsplat:legend-icon"] = icon_data_url
+        if metadata:
+            layer["metadata"] = metadata
+        return layer
 
 
     def _convert_categorized(self, layer, renderer, source_layer, geom_type, source_name):
@@ -1219,6 +1231,27 @@ class StyleConverter:
             return False
         return isinstance(symbol.symbolLayer(0), QgsSvgMarkerSymbolLayer)
 
+    def _qimage_to_data_url(self, img, size_px=24):
+        """Encode a QImage to a base64 PNG data URL, scaled to size_px square.
+
+        :param img: QImage
+        :param size_px: Output pixel size for the legend thumbnail
+        :returns: data URL string, or None on failure
+        """
+        try:
+            from qgis.PyQt.QtCore import QByteArray, QBuffer, QIODevice
+            from qgis.PyQt.QtGui import QImage as _QImage
+            thumb = img.scaled(size_px, size_px)
+            buf = QByteArray()
+            io = QBuffer(buf)
+            io.open(QIODevice.OpenModeFlag.WriteOnly)
+            thumb.save(io, "PNG")
+            io.close()
+            b64 = base64.b64encode(bytes(buf)).decode("ascii")
+            return f"data:image/png;base64,{b64}"
+        except Exception:
+            return None
+
     def _render_svg_to_qimage(self, svg_path, size_px, fill_color, stroke_color, stroke_width_px):
         """Rasterize an SVG marker via the QGIS SVG cache.
 
@@ -1290,7 +1323,8 @@ class StyleConverter:
             source_layer = self._sanitize_name(layer.name())
             if img and not img.isNull():
                 images[source_layer] = img
-                self._svg_sprite_map[source_layer] = source_layer
+                icon_data_url = self._qimage_to_data_url(img, size_px=24)
+                self._svg_sprite_map[source_layer] = (source_layer, fill_color.name(), icon_data_url)
                 self._log(f"Rendered sprite for '{layer.name()}' ({size_px}px)")
             else:
                 self._log(

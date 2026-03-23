@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.8.0 — 2026-03-23
+
+### Added
+- **Open Folder button** — appears in the pinned footer next to Export after a successful export; opens the output directory in the system file manager via `QDesktopServices`. Hides when the next export starts.
+- **Export status label** — italic status text appears below the progress bar during export showing the current operation ("Processing layer 2/5: Roads", "Converting to PMTiles", etc.). Disappears on completion.
+- **Collapsible Advanced Options** — `QToolButton` toggle collapses/expands a section containing "Style only" and "Save log" checkboxes, reducing Export tab height.
+- **Map Dimension Presets** — dropdown with Full window, 800×600, 800×900, 1024×768, 1920×1080, Custom. Selecting a preset updates the spinboxes; editing a spinbox switches to Custom automatically.
+- **Tooltips** — comprehensive tooltips added to all interactive controls: layer list, Select All/None, Export mode, Max zoom, Export style.json, Import style, Basemap group, URL/file radios, basemap source and style fields, Project name, Output folder, Save/Load config, Export/Open Folder/Cancel buttons, all seven viewer checkboxes, Label placement, Advanced Legend, Width/Height spinboxes, Offline bundle checkbox.
+- **SVG legend icon** — point layers using SVG markers now show the actual rendered icon in the legend swatch. The icon is base64-encoded at export time and embedded in the layer's `metadata` in style.json; no runtime MapLibre internals required.
+- **Legend layer picker fix** — icon symbol layers now take priority over label-only symbol layers when selecting the representative layer for a legend group, preventing label text-color from appearing as the swatch color.
+
 > **Versioning note (from 2026-03-22):** Versions v0.5.x–v0.6.x used PATCH increments for many new features
 > (labels, SVG sprites, advanced legend, scale visibility, offline bundling) that are MINOR under semver.
 > From v0.7.0 onward, use MINOR for all additive features and PATCH only for bug fixes.

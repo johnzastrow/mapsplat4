@@ -2,7 +2,7 @@
 name=MapSplat
 qgisMinimumVersion=4.0
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.7.0
+version=0.8.0
 author=John Zastrow
 email=john@example.com
 
