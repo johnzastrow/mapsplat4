@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.6.16"
+__version__ = "0.7.0"
 
 import os
 
@@ -47,33 +47,20 @@ from qgis.PyQt.QtWidgets import (
     QFrame,
 )
 
+from qgis.PyQt.QtWidgets import QAbstractItemView
+
 from qgis.core import (
     QgsProject,
     QgsMapLayer,
     QgsVectorLayer,
     QgsRasterLayer,
-    Qgis,
 )
 
 from .exporter import MapSplatExporter
 
-# Qt6 compatibility: handle scoped enums
-try:
-    # Qt6 style
-    _ItemIsEnabled = Qt.ItemFlag.ItemIsEnabled
-    _UserRole = Qt.ItemDataRole.UserRole
-except AttributeError:
-    # Qt5 style
-    _ItemIsEnabled = Qt.ItemIsEnabled
-    _UserRole = Qt.UserRole
-
-try:
-    # Qt6 style
-    from qgis.PyQt.QtWidgets import QAbstractItemView
-    _MultiSelection = QAbstractItemView.SelectionMode.MultiSelection
-except (ImportError, AttributeError):
-    # Qt5 style
-    _MultiSelection = QListWidget.MultiSelection
+_ItemIsEnabled = Qt.ItemFlag.ItemIsEnabled
+_UserRole = Qt.ItemDataRole.UserRole
+_MultiSelection = QAbstractItemView.SelectionMode.MultiSelection
 
 
 class MapSplatDockWidget(QDockWidget):
@@ -143,7 +130,7 @@ class MapSplatDockWidget(QDockWidget):
         # ---- Scroll area wraps all groups ----
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         scroll_area.setMinimumHeight(80)  # allow shrinking; content scrolls
         scroll_widget = QWidget()
         scroll_layout = QVBoxLayout(scroll_widget)
@@ -299,8 +286,8 @@ class MapSplatDockWidget(QDockWidget):
 
         # ==================== Separator ====================
         separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setFrameShadow(QFrame.Sunken)
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
         export_layout.addWidget(separator)
 
         # ==================== Config Save/Load (pinned) ====================

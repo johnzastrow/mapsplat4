@@ -10,80 +10,50 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 
 ## User Stories
 
-### Phase 0: QGIS4 Conversion *(Critical — do first)*
+### Phase 0: QGIS4 Conversion ✅ *Done — v0.7.0*
 
 ---
 
-#### Story 0: Remove Qt5/Qt6 Compatibility Shims
-
-**As a** developer
-**I want** to remove obsolete Qt5/Qt6 shims
-**So that** the code is clean and uses Qt6 directly
+#### Story 0: Remove Qt5/Qt6 Compatibility Shims ✅
 
 **Tasks:**
-- [ ] Remove `QAction` import location shim from `mapsplat.py`
-- [ ] Remove `RightDockWidgetArea`, `ItemIsEnabled`, `UserRole` enum scoping shims
-- [ ] Update imports to use Qt6-style directly
-
-**Files:** `mapsplat.py`
-
-**Estimation:** 2h
+- [x] Remove `QAction` import location shim from `mapsplat.py`
+- [x] Remove `RightDockWidgetArea`, `ItemIsEnabled`, `UserRole` enum scoping shims
+- [x] Update imports to use Qt6-style directly
 
 ---
 
-#### Story 0b: Qgis.MessageLevel Enum Migration
-
-**As a** developer
-**I want** to update log level enums for QGIS4
-**So that** log messages appear correctly
+#### Story 0b: Qgis.MessageLevel Enum Migration ✅
 
 **Tasks:**
-- [ ] Update all `Qgis.Info` → `Qgis.MessageLevel.Info`
-- [ ] Update all `Qgis.Warning` → `Qgis.MessageLevel.Warning`
-- [ ] Update all `Qgis.Critical` → `Qgis.MessageLevel.Critical`
-- [ ] Update all `Qgis.Success` → `Qgis.MessageLevel.Success`
-
-**Files:** `mapsplat_dockwidget.py`, `exporter.py`, `config_manager.py`, `log_utils.py`
-
-**Implementation Note:** Used in ~10 call sites. Can use compatibility shim if QGIS3 compatibility is ever needed again.
-
-**Estimation:** 2h
+- [x] Audited `mapsplat_dockwidget.py`, `exporter.py`, `config_manager.py`, `log_utils.py` — no old-style `Qgis.Info`/`Qgis.Warning` calls were present; these APIs were never used directly. Removed unused `Qgis` imports from `mapsplat_dockwidget.py` and `style_converter.py`.
 
 ---
 
-#### Story 0c: Qt Enum Scoping
-
-**As a** developer
-**I want** to update Qt enums for Qt6 scoping
-**So that** UI components render correctly
+#### Story 0c: Qt Enum Scoping ✅
 
 **Tasks:**
-- [ ] Update `Qt.AlignCenter` → `Qt.AlignmentFlag.AlignCenter`
-- [ ] Update `Qt.UserRole` → `Qt.ItemDataRole.UserRole`
-- [ ] Update `Qt.red`, `Qt.darkGreen`, `Qt.darkYellow` → `Qt.GlobalColor.red`, etc.
-- [ ] Check for other unscoped Qt enums in codebase
-
-**Files:** `mapsplat_dockwidget.py`
-
-**Estimation:** 2h
+- [x] `Qt.AlignCenter` — not present in codebase
+- [x] `Qt.UserRole` shim → `Qt.ItemDataRole.UserRole` (direct, no try/except)
+- [x] `Qt.red`/`Qt.darkGreen`/`Qt.darkYellow` — not present in codebase
+- [x] `QFrame.NoFrame` → `QFrame.Shape.NoFrame`
+- [x] `QFrame.HLine` → `QFrame.Shape.HLine`
+- [x] `QFrame.Sunken` → `QFrame.Shadow.Sunken`
+- [x] `_MultiSelection` shim → `QAbstractItemView.SelectionMode.MultiSelection` (direct)
 
 ---
 
-#### Story 0d: Recompile Resources + Finalize
-
-**As a** developer
-**I want** to recompile resources and verify QGIS4 compatibility
-**So that** the plugin is ready for release
+#### Story 0d: Recompile Resources + Finalize ✅ *(partial)*
 
 **Tasks:**
-- [ ] Run `pyrcc6 -o resources.py resources.qrc`
-- [ ] Verify Makefile uses `pyrcc6` (already done)
+- [ ] Run `pyrcc6 -o resources.py resources.qrc` *(must run inside QGIS Python env: `make compile`)*
+- [x] Verify Makefile uses `pyrcc6` (already done)
 - [ ] Test export workflow in QGIS4
 - [ ] Test layer selection and UI interactions
 - [ ] Test config save/load
 - [ ] Test viewer generation
-- [ ] Bump version: v0.7.0 (major: QGIS4 compatibility)
-- [ ] Update CHANGELOG.md
+- [x] Bump version: v0.7.0
+- [x] Update CHANGELOG.md
 
 **Estimation:** 4h
 

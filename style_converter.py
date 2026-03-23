@@ -17,7 +17,7 @@ Supported style properties:
 - Multiple symbol layers
 """
 
-__version__ = "0.6.16"
+__version__ = "0.7.0"
 
 import math
 import os
@@ -42,7 +42,6 @@ from qgis.core import (
     QgsTextFormat,
     QgsTextBufferSettings,
     QgsUnitTypes,
-    Qgis,
 )
 
 # Try to import labeling classes (may vary by QGIS version)

@@ -2,7 +2,7 @@
 name=MapSplat
 qgisMinimumVersion=4.0
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.6.16
+version=0.7.0
 author=John Zastrow
 email=john@example.com
 
@@ -22,6 +22,12 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.7.0 - QGIS 4 / Qt6 compatibility
+    - Remove Qt5/Qt6 compatibility shims (QAction import shim, _RightDockWidgetArea shim)
+    - Remove _ItemIsEnabled, _UserRole, _MultiSelection Qt5 fallback shims in dockwidget
+    - Update QFrame enums: NoFrame→Shape.NoFrame, HLine→Shape.HLine, Sunken→Shadow.Sunken
+    - Remove unused Qgis import from style_converter.py and mapsplat_dockwidget.py
+    - Resources must be recompiled with pyrcc6 (run: make compile)
     0.6.16 - Fix scale→zoom constant for MapLibre 512px tiles
     - Previous constant (559,082,264) assumed 256px tiles; MapLibre uses 512px
       tiles so zoom values were 1 level too high, requiring extra zoom-in

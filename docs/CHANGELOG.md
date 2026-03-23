@@ -11,6 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > (labels, SVG sprites, advanced legend, scale visibility, offline bundling) that are MINOR under semver.
 > From v0.7.0 onward, use MINOR for all additive features and PATCH only for bug fixes.
 
+## v0.7.0 — 2026-03-23
+
+### Changed
+- **QGIS 4 / Qt6 only** — removed all Qt5/Qt6 compatibility shims. The plugin
+  now requires QGIS 4 (Qt6) and will no longer load under QGIS 3 (Qt5).
+
+### Removed
+- `QAction` import try/except shim (`mapsplat.py`) — `QAction` is imported
+  directly from `qgis.PyQt.QtGui` (its Qt6 location).
+- `_RightDockWidgetArea` try/except shim (`mapsplat.py`) — replaced with direct
+  `Qt.DockWidgetArea.RightDockWidgetArea`.
+- `_ItemIsEnabled`, `_UserRole`, `_MultiSelection` try/except shims
+  (`mapsplat_dockwidget.py`) — replaced with direct Qt6-scoped enums.
+- Unused `Qgis` import from `mapsplat_dockwidget.py` and `style_converter.py`.
+
+### Fixed
+- `QFrame.NoFrame` → `QFrame.Shape.NoFrame` (Qt6 scoped enum).
+- `QFrame.HLine` → `QFrame.Shape.HLine` (Qt6 scoped enum).
+- `QFrame.Sunken` → `QFrame.Shadow.Sunken` (Qt6 scoped enum).
+
+### Build
+- `resources.py` must be (re)compiled with `pyrcc6` — run `make compile` inside
+  the QGIS Python environment before deploying.
+
 ## v0.6.16 — 2026-03-04
 
 ### Fixed

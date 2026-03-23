@@ -5,7 +5,7 @@ This plugin exports QGIS projects to self-contained web map packages
 using PMTiles format and MapLibre GL JS for rendering.
 """
 
-__version__ = "0.6.12"
+__version__ = "0.7.0"
 
 
 def classFactory(iface):
