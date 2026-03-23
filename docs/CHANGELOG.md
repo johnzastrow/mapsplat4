@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.10.0 — 2026-03-23
+
+### Added
+- **Collapsible sections** — Export Options, Basemap Overlay, and Output sections on the Export tab now use the same arrow-toggle pattern as Advanced Options. Basemap is collapsed by default; Export Options and Output are expanded.
+- **"Current map view" extent** — new option in the export extent dropdown that captures the QGIS canvas extent at export time. Set as the default selection. Canvas extent is transformed to EPSG:4326 on the main thread before the export worker starts.
+- **Basemap size warning in tile estimate** — when the Basemap Overlay group is enabled, the tile estimate label appends "+ basemap (size unknown)" to remind that basemap tiles are not included in the estimate.
+
+### Fixed
+- **Legend / source-layer case preserved** — layer names with mixed case (e.g. `Cumberland_Points`) now appear with original capitalisation in the legend and style.json `source-layer` values. Both `_sanitize_layer_name` (exporter) and `_sanitize_name` (style converter) had a forced `.lower()` that is now removed.
+- **SVG marker warning false positive** — Story 11 symbology warnings no longer flag layers using SVG markers; SVG markers are correctly exported as sprites. Only font markers, heatmap, point displacement, and point cluster renderers are flagged.
+- **Config load refreshes layer list** — `_load_config` now calls `refresh_layer_list()` before applying settings so the layer list reflects the current project state.
+- **Data clipped to export extent** — vector layers are spatially filtered to 200% of the export bounding box (50% expansion on each side) before the GeoPackage/ogr2ogr step via `QgsVectorFileWriter.SaveVectorOptions.filterExtent`. Large layers with global extent no longer send the entire dataset through the pipeline.
+
+## v0.9.0 — 2026-03-23
+
+### Added
+- **Symbology warnings** (Story 11) — the layer list now shows a ⚠ warning icon on layers whose symbology won't translate well to PMTiles/MapLibre. Warns for: heatmap renderer, point displacement renderer, point cluster renderer, SVG markers, and font markers. Tooltip on each flagged item explains the specific limitation. Warnings refresh whenever the layer list is repopulated.
+- **Tile count estimator** (Story 10) — a live label below the Max Zoom slider shows `~N tiles · est. X MB` based on the combined bounding box of all selected layers and the current zoom level. Updates on zoom change or selection change. Shows "Select layers to see tile estimate" when no layers are selected. Tooltip notes that basemap tiles are excluded from the estimate.
+
 ## v0.8.0 — 2026-03-23
 
 ### Added

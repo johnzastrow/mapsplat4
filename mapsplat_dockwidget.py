@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.8.0"
+__version__ = "0.10.0"
 
 import os
 
@@ -47,6 +47,8 @@ from qgis.PyQt.QtWidgets import (
     QScrollArea,
     QFrame,
     QToolButton,
+    QApplication,
+    QStyle,
 )
 
 from qgis.PyQt.QtWidgets import QAbstractItemView
@@ -56,6 +58,8 @@ from qgis.core import (
     QgsMapLayer,
     QgsVectorLayer,
     QgsRasterLayer,
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
 )
 
 from .exporter import MapSplatExporter
@@ -123,6 +127,7 @@ class MapSplatDockWidget(QDockWidget):
         self.layer_list.setSelectionMode(_MultiSelection)
         self.layer_list.setToolTip("Select the layers to include in the export.\nCtrl+click or Shift+click to select multiple layers.")
         self.layer_list.itemSelectionChanged.connect(self._update_layer_count)
+        self.layer_list.itemSelectionChanged.connect(self._update_tile_estimate)
         layer_layout.addWidget(self.layer_list)
 
         # Select all / none buttons
@@ -154,9 +159,20 @@ class MapSplatDockWidget(QDockWidget):
 
         scroll_layout.addWidget(layer_group)
 
-        # ==================== Export Options ====================
-        options_group = QGroupBox("Export Options")
-        options_layout = QVBoxLayout(options_group)
+        # ==================== Export Options (collapsible) ====================
+        self._opt_toggle = QToolButton()
+        self._opt_toggle.setText(" Export Options")
+        self._opt_toggle.setCheckable(True)
+        self._opt_toggle.setChecked(True)
+        self._opt_toggle.setArrowType(Qt.ArrowType.DownArrow)
+        self._opt_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._opt_toggle.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        scroll_layout.addWidget(self._opt_toggle)
+
+        opt_container = QWidget()
+        options_layout = QVBoxLayout(opt_container)
+        options_layout.setContentsMargins(16, 0, 0, 4)
+        options_layout.setSpacing(6)
 
         # Export mode
         mode_layout = QHBoxLayout()
@@ -186,6 +202,16 @@ class MapSplatDockWidget(QDockWidget):
         zoom_layout.addWidget(self.spin_max_zoom)
         zoom_layout.addStretch()
         options_layout.addLayout(zoom_layout)
+
+        self.lbl_tile_estimate = QLabel("Select layers to see tile estimate")
+        self.lbl_tile_estimate.setStyleSheet("color: #666; font-size: 11px;")
+        self.lbl_tile_estimate.setToolTip(
+            "Rough tile count and file size estimate for the selected vector layers.\n"
+            "Assumes ~4 KB per tile. Does not include basemap tiles — those depend\n"
+            "on the external PMTiles source density and can add significant extra size."
+        )
+        options_layout.addWidget(self.lbl_tile_estimate)
+        self.spin_max_zoom.valueChanged.connect(self._update_tile_estimate)
 
         # Style options
         self.chk_export_style = QCheckBox("Export separate style.json")
@@ -223,10 +249,28 @@ class MapSplatDockWidget(QDockWidget):
         style_import_layout.addWidget(self.lbl_imported_style, 1)
         options_layout.addLayout(style_import_layout)
 
-        scroll_layout.addWidget(options_group)
+        scroll_layout.addWidget(opt_container)
 
-        # ==================== Basemap Overlay ====================
-        self.basemap_group = QGroupBox("Basemap Overlay")
+        self._opt_toggle.toggled.connect(lambda checked: (
+            opt_container.setVisible(checked),
+            self._opt_toggle.setArrowType(Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow),
+        ))
+
+        # ==================== Basemap Overlay (collapsible) ====================
+        self._bm_toggle = QToolButton()
+        self._bm_toggle.setText(" Basemap Overlay")
+        self._bm_toggle.setCheckable(True)
+        self._bm_toggle.setChecked(False)
+        self._bm_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        self._bm_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._bm_toggle.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._bm_toggle.setToolTip(
+            "Add a Protomaps basemap (streets, terrain, etc.) beneath your layers.\n"
+            "Expand to configure the basemap source and style."
+        )
+        scroll_layout.addWidget(self._bm_toggle)
+
+        self.basemap_group = QGroupBox("Enable basemap")
         self.basemap_group.setCheckable(True)
         self.basemap_group.setChecked(False)
         self.basemap_group.setToolTip(
@@ -285,15 +329,38 @@ class MapSplatDockWidget(QDockWidget):
         basemap_style_layout.addWidget(self.btn_basemap_style_browse)
         basemap_layout.addLayout(basemap_style_layout)
 
-        scroll_layout.addWidget(self.basemap_group)
+        bm_container = QWidget()
+        bm_container.setVisible(False)
+        bm_outer_layout = QVBoxLayout(bm_container)
+        bm_outer_layout.setContentsMargins(16, 0, 0, 4)
+        bm_outer_layout.setSpacing(0)
+        bm_outer_layout.addWidget(self.basemap_group)
+        scroll_layout.addWidget(bm_container)
+
+        self._bm_toggle.toggled.connect(lambda checked: (
+            bm_container.setVisible(checked),
+            self._bm_toggle.setArrowType(Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow),
+        ))
 
         # Connect radio buttons to show/hide browse button
         self.radio_basemap_url.toggled.connect(self._on_basemap_source_type_changed)
         self.radio_basemap_file.toggled.connect(self._on_basemap_source_type_changed)
+        self.basemap_group.toggled.connect(self._update_tile_estimate)
 
-        # ==================== Output Settings ====================
-        output_group = QGroupBox("Output")
-        output_layout = QVBoxLayout(output_group)
+        # ==================== Output Settings (collapsible) ====================
+        self._out_toggle = QToolButton()
+        self._out_toggle.setText(" Output")
+        self._out_toggle.setCheckable(True)
+        self._out_toggle.setChecked(True)
+        self._out_toggle.setArrowType(Qt.ArrowType.DownArrow)
+        self._out_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._out_toggle.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        scroll_layout.addWidget(self._out_toggle)
+
+        out_container = QWidget()
+        output_layout = QVBoxLayout(out_container)
+        output_layout.setContentsMargins(16, 0, 0, 4)
+        output_layout.setSpacing(6)
 
         # Project name
         name_layout = QHBoxLayout()
@@ -320,7 +387,12 @@ class MapSplatDockWidget(QDockWidget):
         folder_layout.addWidget(self.btn_browse)
         output_layout.addLayout(folder_layout)
 
-        scroll_layout.addWidget(output_group)
+        scroll_layout.addWidget(out_container)
+
+        self._out_toggle.toggled.connect(lambda checked: (
+            out_container.setVisible(checked),
+            self._out_toggle.setArrowType(Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow),
+        ))
 
         # ==================== Advanced Options (collapsible) ====================
         self._adv_toggle = QToolButton()
@@ -633,6 +705,7 @@ class MapSplatDockWidget(QDockWidget):
         current_extent_id = self.combo_extent_layer.currentData()
         self.combo_extent_layer.clear()
         self.combo_extent_layer.addItem("Full extent of data", None)
+        self.combo_extent_layer.addItem("Current map view", "__map_view__")
 
         project = QgsProject.instance()
         # Use layerTreeRoot().layerOrder() so the list reflects QGIS panel order (top → bottom)
@@ -658,16 +731,29 @@ class MapSplatDockWidget(QDockWidget):
 
             item.setText(f"{prefix} {layer.name()}")
             item.setData(_UserRole, layer.id())
+
+            # Story 11: warn if layer uses symbology that won't translate well
+            warning = self._get_symbology_warning(layer)
+            if warning:
+                warn_icon, warn_tip = warning
+                item.setIcon(warn_icon)
+                item.setToolTip(warn_tip)
+
             self.layer_list.addItem(item)
 
             # Also add to extent combo (all layer types accepted)
             self.combo_extent_layer.addItem(layer.name(), layer.id())
 
-        # Restore previously selected extent layer if it still exists
-        if current_extent_id:
+        # Restore previously selected extent layer; default to "Current map view"
+        if current_extent_id is not None:
             idx = self.combo_extent_layer.findData(current_extent_id)
             if idx >= 0:
                 self.combo_extent_layer.setCurrentIndex(idx)
+        else:
+            # Default: use map canvas view extent
+            self.combo_extent_layer.setCurrentIndex(
+                self.combo_extent_layer.findData("__map_view__")
+            )
 
         # Auto-populate project name from QGIS project
         project_name = project.baseName()
@@ -677,6 +763,102 @@ class MapSplatDockWidget(QDockWidget):
             self.txt_project_name.setText(clean_name)
 
         self._update_layer_count()
+
+    def _get_symbology_warning(self, layer):
+        """Return (icon, tooltip_text) if the layer uses symbology that won't translate well, else None."""
+        if not isinstance(layer, QgsVectorLayer):
+            return None
+        renderer = layer.renderer()
+        if renderer is None:
+            return None
+
+        r_type = renderer.type()
+        warn_icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning)
+
+        if r_type == "heatmapRenderer":
+            return (warn_icon, "Heatmap renderer: will export as circle markers, not a smooth heatmap")
+        if r_type == "pointDisplacement":
+            return (warn_icon, "Point displacement renderer: displaced positions are not preserved in PMTiles")
+        if r_type == "pointCluster":
+            return (warn_icon, "Point cluster renderer: clustering is not supported; all points will render at their original positions")
+
+        # Check for SVG or font markers inside any renderer's symbols
+        symbols = []
+        if r_type == "singleSymbol":
+            sym = renderer.symbol()
+            if sym:
+                symbols = [sym]
+        elif r_type == "categorizedSymbol":
+            symbols = [cat.symbol() for cat in renderer.categories() if cat.symbol()]
+        elif r_type == "graduatedSymbol":
+            symbols = [rng.symbol() for rng in renderer.ranges() if rng.symbol()]
+        elif r_type == "RuleRenderer":
+            symbols = [rule.symbol() for rule in renderer.rootRule().descendants() if rule.symbol()]
+
+        for sym in symbols:
+            for sym_layer in sym.symbolLayers():
+                if sym_layer.layerType() == "FontMarker":
+                    return (warn_icon, "Font marker: will render as a plain circle in the exported map")
+
+        return None
+
+    def _update_tile_estimate(self):
+        """Update the live tile count and size estimate label."""
+        selected = self.layer_list.selectedItems()
+        if not selected:
+            self.lbl_tile_estimate.setText("Select layers to see tile estimate")
+            return
+
+        project = QgsProject.instance()
+        crs_4326 = QgsCoordinateReferenceSystem("EPSG:4326")
+        combined_bbox = None
+
+        for item in selected:
+            layer_id = item.data(_UserRole)
+            layer = project.mapLayer(layer_id)
+            if layer is None or layer.extent().isNull():
+                continue
+            try:
+                xform = QgsCoordinateTransform(layer.crs(), crs_4326, project)
+                bbox = xform.transformBoundingBox(layer.extent())
+            except Exception:
+                continue
+            if combined_bbox is None:
+                combined_bbox = bbox
+            else:
+                combined_bbox.combineExtentWith(bbox)
+
+        if combined_bbox is None or combined_bbox.isEmpty():
+            self.lbl_tile_estimate.setText("Cannot compute extent")
+            return
+
+        # Fraction of world area covered (Web Mercator world: 360° × 170.1°)
+        world_area = 360.0 * 170.1
+        bbox_w = max(0.0, min(combined_bbox.xMaximum(), 180) - max(combined_bbox.xMinimum(), -180))
+        bbox_h = max(0.0, min(combined_bbox.yMaximum(), 85.05) - max(combined_bbox.yMinimum(), -85.05))
+        fraction = min((bbox_w * bbox_h) / world_area, 1.0)
+
+        max_zoom = self.spin_max_zoom.value()
+        total_tiles = sum(max(1, round(fraction * (4 ** z))) for z in range(max_zoom + 1))
+
+        # ~4 KB per tile (conservative midpoint estimate)
+        est_bytes = total_tiles * 4096
+        if est_bytes < 1024 * 1024:
+            size_str = f"{est_bytes / 1024:.0f} KB"
+        elif est_bytes < 1024 ** 3:
+            size_str = f"{est_bytes / (1024 ** 2):.0f} MB"
+        else:
+            size_str = f"{est_bytes / (1024 ** 3):.1f} GB"
+
+        if total_tiles < 1000:
+            count_str = str(total_tiles)
+        elif total_tiles < 1_000_000:
+            count_str = f"{total_tiles / 1000:.0f}K"
+        else:
+            count_str = f"{total_tiles / 1_000_000:.1f}M"
+
+        basemap_note = " + basemap (size unknown)" if self.basemap_group.isChecked() else ""
+        self.lbl_tile_estimate.setText(f"~{count_str} tiles · est. {size_str}{basemap_note}")
 
     def _select_all_layers(self):
         """Select all layers in the list."""
@@ -694,6 +876,27 @@ class MapSplatDockWidget(QDockWidget):
         total = self.layer_list.count()
         selected = len(self.layer_list.selectedItems())
         self.lbl_layer_count.setText(f"{selected} of {total} layers selected")
+
+    def _capture_canvas_bounds(self):
+        """Return current map canvas extent as [W, S, E, N] in EPSG:4326.
+
+        Must be called on the main thread (iface/canvas are not thread-safe).
+        """
+        canvas = self.iface.mapCanvas()
+        canvas_extent = canvas.extent()
+        canvas_crs = canvas.mapSettings().destinationCrs()
+        crs_4326 = QgsCoordinateReferenceSystem("EPSG:4326")
+        if canvas_crs != crs_4326:
+            transform = QgsCoordinateTransform(canvas_crs, crs_4326, QgsProject.instance())
+            extent_4326 = transform.transformBoundingBox(canvas_extent)
+        else:
+            extent_4326 = canvas_extent
+        return [
+            extent_4326.xMinimum(),
+            extent_4326.yMinimum(),
+            extent_4326.xMaximum(),
+            extent_4326.yMaximum(),
+        ]
 
     def _save_last_output_folder(self, text):
         """Persist the current output folder to QSettings."""
@@ -960,8 +1163,15 @@ class MapSplatDockWidget(QDockWidget):
             "advanced_legend": self.chk_advanced_legend.isChecked(),
             "map_width": self.spin_map_width.value(),
             "map_height": self.spin_map_height.value(),
-            "extent_layer_id": self.combo_extent_layer.currentData(),
+            "extent_layer_id": (
+                None if self.combo_extent_layer.currentData() == "__map_view__"
+                else self.combo_extent_layer.currentData()
+            ),
         }
+
+        # Capture canvas extent on main thread before handing off to worker
+        if self.combo_extent_layer.currentData() == "__map_view__":
+            settings["extent_bounds"] = self._capture_canvas_bounds()
 
         # Show progress and cancel button; hide Open Folder from previous run
         self.btn_open_folder.setVisible(False)
@@ -1132,6 +1342,9 @@ class MapSplatDockWidget(QDockWidget):
         except (FileNotFoundError, ValueError) as e:
             self._log(f"Failed to load config: {e}", "error")
             return
+
+        # Ensure layer list reflects current project state before applying config
+        self.refresh_layer_list()
 
         applied = 0
 

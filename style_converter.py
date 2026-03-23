@@ -17,7 +17,7 @@ Supported style properties:
 - Multiple symbol layers
 """
 
-__version__ = "0.8.0"
+__version__ = "0.10.0"
 
 import base64
 import math
@@ -1215,7 +1215,7 @@ class StyleConverter:
         sanitized = "".join(c if c.isalnum() or c == "_" else "_" for c in name)
         while "__" in sanitized:
             sanitized = sanitized.replace("__", "_")
-        return sanitized.strip("_").lower()
+        return sanitized.strip("_")
 
     def _is_svg_single_symbol(self, layer):
         """Return True if a layer uses a single-symbol renderer with an SVG marker.

@@ -35,11 +35,10 @@ Unordered list of desired usability improvements. Prioritization and implementat
 
 ## UI Improvements
 
-### Collapsible Advanced Options *(Story 4)* ✅ *Done — v0.7.1*
+### Collapsible Advanced Options *(Story 4)* ✅ *Done — v0.7.1; extended v0.10.0*
 - [x] Add collapsible "Advanced Options" section using `QToolButton` with arrow toggle (NOT QGroupBox — QGroupBox enables/disables, not collapses)
 - [x] Target `chk_style_only` and `chk_save_log` specifically — these are the rarely-used controls creating clutter
-- [x] Do NOT add this to the basemap section — it is already a checkable QGroupBox and handles its own visibility correctly
-- [x] Reduce Export tab vertical height on smaller screens
+- [x] Extended in v0.10.0: Export Options, Basemap Overlay, and Output sections are also collapsible with the same pattern; Basemap is collapsed by default
 
 ### Quick Presets for Map Dimensions *(Story 5)* ✅ *Done — v0.7.1*
 - [x] Add dropdown with presets: "Full window (responsive)", "800x600", "800x900", "1024x768", "1920x1080", "Custom"
@@ -137,19 +136,20 @@ Unordered list of desired usability improvements. Prioritization and implementat
 
 ## High-Value Additions
 
-### Zoom Level Tile Count Estimator *(Story 10)*
-- [ ] Add a live label below `spin_max_zoom`: "~N tiles · est. X MB"
-- [ ] Recalculate on zoom change and on layer selection change
-- [ ] Compute tile count from combined selected-layer bounding box + zoom: `4^zoom × bbox_fraction_of_world`
-- [ ] Estimate size as `tile_count × avg_bytes_per_tile` (conservative constant, e.g. 3–5 KB/tile)
-- [ ] Show "select layers to estimate" when no layers are selected
-- [ ] All math runs on `QgsRectangle` — no external dependencies
+### Zoom Level Tile Count Estimator *(Story 10)* ✅ *Done — v0.9.0*
+- [x] Add a live label below `spin_max_zoom`: "~N tiles · est. X MB"
+- [x] Recalculate on zoom change and on layer selection change
+- [x] Compute tile count from combined selected-layer bounding box + zoom: `4^zoom × bbox_fraction_of_world`
+- [x] Estimate size as `tile_count × avg_bytes_per_tile` (4 KB/tile)
+- [x] Show "select layers to estimate" when no layers are selected
+- [x] All math runs on `QgsRectangle` / `QgsCoordinateTransform` — no external dependencies
+- [x] Tooltip clarifies basemap tiles are excluded from estimate
 
-### Per-Layer Symbology Warnings *(Story 11)*
-- [ ] After layer list is populated, inspect each layer's renderer type via `QgsVectorLayer.renderer()`
-- [ ] Add ⚠ icon to `QListWidgetItem` for layers using: categorized/graduated SVG markers, font markers, complex rule-based expressions, heatmap, point displacement
-- [ ] Set tooltip on item explaining the specific limitation (e.g. "SVG markers will render as circles")
-- [ ] Re-run check when project layers change
+### Per-Layer Symbology Warnings *(Story 11)* ✅ *Done — v0.9.0*
+- [x] After layer list is populated, inspect each layer's renderer type via `QgsVectorLayer.renderer()`
+- [x] Add ⚠ icon to `QListWidgetItem` for layers using: categorized/graduated SVG markers, font markers, heatmap, point displacement, point cluster
+- [x] Set tooltip on item explaining the specific limitation (e.g. "SVG markers will render as circles")
+- [x] Re-run check when project layers change (fires on every `refresh_layer_list` call)
 
 ### Popup Field Customization *(Story 12)*
 - [ ] Add "Configure Popup Fields..." button or context menu item on layer list items

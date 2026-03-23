@@ -8,7 +8,7 @@ This module handles the actual export process:
 - Generating the HTML viewer
 """
 
-__version__ = "0.8.0"
+__version__ = "0.10.0"
 
 import os
 import sys
@@ -38,6 +38,7 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
     QgsCoordinateTransformContext,
+    QgsRectangle,
 )
 
 try:
@@ -688,6 +689,10 @@ class MapSplatExporter(QObject):
         style_only = self.settings.get("style_only", False)
         use_basemap = self.settings.get("use_basemap", False)
 
+        # Compute export bounds once; reuse for basemap extraction and data clip
+        base_bounds = self._get_bounds(layers)
+        clip_rect = self._bounds_to_rect_3857(self._expand_bounds(base_bounds, pct=0.5))
+
         # [NEW] Basemap extraction
         if use_basemap and not style_only:
             if not self._check_pmtiles_cli():
@@ -697,9 +702,9 @@ class MapSplatExporter(QObject):
                 )
                 self.finished.emit(False, "")
                 return
-            bounds = self._expand_bounds(self._get_bounds(layers))
+            basemap_bounds = self._expand_bounds(base_bounds)  # 0.5% buffer for tile alignment
             self.log_message.emit("Extracting basemap to bounding box...", "info")
-            success = self._extract_basemap(output_dir, bounds)
+            success = self._extract_basemap(output_dir, basemap_bounds)
             if not success:
                 self.finished.emit(False, "")
                 return
@@ -713,7 +718,7 @@ class MapSplatExporter(QObject):
             # Single PMTiles file containing all layers
             self.log_message.emit("Exporting layers to GeoPackage...", "info")
             gpkg_path = os.path.join(output_dir, "data", "layers.gpkg")
-            self._export_to_geopackage(layers["vector"], gpkg_path)
+            self._export_to_geopackage(layers["vector"], gpkg_path, clip_rect)
             self.progress.emit(40)
 
             self.log_message.emit("Converting to PMTiles...", "info")
@@ -740,9 +745,9 @@ class MapSplatExporter(QObject):
                 layer_name = self._sanitize_layer_name(layer.name())
                 self.log_message.emit(f"Processing layer {i+1}/{total_layers}: {layer.name()}", "info")
 
-                # Export single layer to GeoPackage
+                # Export single layer to GeoPackage (clipped to export extent)
                 gpkg_path = os.path.join(output_dir, "data", f"{layer_name}.gpkg")
-                self._export_to_geopackage([layer], gpkg_path)
+                self._export_to_geopackage([layer], gpkg_path, clip_rect)
 
                 # Convert to PMTiles
                 pmtiles_path = os.path.join(output_dir, "data", f"{layer_name}.pmtiles")
@@ -832,11 +837,12 @@ class MapSplatExporter(QObject):
 
         return layers
 
-    def _export_to_geopackage(self, layers, gpkg_path):
+    def _export_to_geopackage(self, layers, gpkg_path, clip_rect=None):
         """Export vector layers to a GeoPackage.
 
         :param layers: List of QgsVectorLayer
         :param gpkg_path: Output GeoPackage path
+        :param clip_rect: Optional QgsRectangle in EPSG:3857 to spatially clip features
         """
         transform_context = QgsCoordinateTransformContext()
 
@@ -862,6 +868,10 @@ class MapSplatExporter(QObject):
                     self.target_crs,
                     self.project
                 )
+
+            # Clip to export extent (filterExtent is in destination CRS = EPSG:3857)
+            if clip_rect is not None:
+                options.filterExtent = clip_rect
 
             error, error_message, new_filename, new_layer = QgsVectorFileWriter.writeAsVectorFormatV3(
                 layer,
@@ -1274,12 +1284,18 @@ class MapSplatExporter(QObject):
     def _get_bounds(self, layers):
         """Return bounds for the export, honouring the extent-layer setting.
 
-        If ``extent_layer_id`` is set in settings and the layer exists, its
-        extent is used; otherwise falls back to the combined data extent.
+        Checks in priority order:
+        1. Pre-computed ``extent_bounds`` (e.g. captured from map canvas view).
+        2. ``extent_layer_id`` — uses that layer's extent.
+        3. Falls back to combined extent of all exported vector layers.
 
         :param layers: Dict with 'vector' list (fallback when no extent layer).
         :returns: [west, south, east, north] in EPSG:4326
         """
+        if "extent_bounds" in self.settings:
+            self.log_message.emit("Using map view extent for export bounds", "info")
+            return self.settings["extent_bounds"]
+
         extent_id = self.settings.get("extent_layer_id")
         if extent_id:
             layer = self.project.mapLayer(extent_id)
@@ -1293,6 +1309,19 @@ class MapSplatExporter(QObject):
                     "Extent layer not found in project — using full data extent", "warning"
                 )
         return self._calculate_bounds(layers["vector"])
+
+    def _bounds_to_rect_3857(self, bounds):
+        """Convert [W, S, E, N] in EPSG:4326 to a QgsRectangle in EPSG:3857.
+
+        Used to pass a clip extent to QgsVectorFileWriter.SaveVectorOptions.filterExtent.
+        filterExtent must be in the destination CRS (EPSG:3857) so QGIS can
+        reverse-transform it to each layer's source CRS for feature filtering.
+        """
+        crs_4326 = QgsCoordinateReferenceSystem("EPSG:4326")
+        west, south, east, north = bounds
+        rect_4326 = QgsRectangle(west, south, east, north)
+        transform = QgsCoordinateTransform(crs_4326, self.target_crs, self.project)
+        return transform.transformBoundingBox(rect_4326)
 
     @staticmethod
     def _expand_bounds(bounds, pct=0.005):
@@ -1674,5 +1703,4 @@ if __name__ == "__main__":
             sanitized = sanitized.replace("__", "_")
         # Remove leading/trailing underscores
         sanitized = sanitized.strip("_")
-        # Ensure lowercase for consistency
-        return sanitized.lower()
+        return sanitized

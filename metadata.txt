@@ -2,7 +2,7 @@
 name=MapSplat
 qgisMinimumVersion=4.0
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.8.0
+version=0.10.0
 author=John Zastrow
 email=john@example.com
 
@@ -22,6 +22,17 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.10.0 - Collapsible sections, extent clipping, case fix, UX polish
+    - Collapsible Export Options, Basemap Overlay, and Output sections (arrow-toggle, same as Advanced Options)
+    - Config load now refreshes the layer list before applying settings
+    - Vector data is spatially clipped to 200% of the export extent before GeoPackage/ogr2ogr step — large layers no longer send the entire dataset through the pipeline
+    - New extent option: "Current map view" — uses the QGIS canvas view extent; set as default
+    - Legend and source-layer names now preserve original QGIS layer case (was always forced lowercase)
+    - Tile estimate label warns when basemap overlay is enabled (basemap size not included in estimate)
+    - Symbology warning false positive fixed: SVG markers no longer trigger a warning (they are correctly exported as sprites)
+    0.9.0 - Symbology warnings and tile estimator
+    - Story 11: Per-layer symbology warnings — ⚠ icon on layers using heatmap, point displacement/cluster, or font markers
+    - Story 10: Live tile count estimator below zoom slider — shows ~N tiles · est. X MB; basemap excluded from estimate
     0.7.0 - QGIS 4 / Qt6 compatibility
     - Remove Qt5/Qt6 compatibility shims (QAction import shim, _RightDockWidgetArea shim)
     - Remove _ItemIsEnabled, _UserRole, _MultiSelection Qt5 fallback shims in dockwidget

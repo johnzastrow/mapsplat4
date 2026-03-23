@@ -5,7 +5,7 @@ Pure-Python helpers for formatting and writing export log lines.
 No QGIS or Qt dependencies — importable in unit tests without a live QGIS instance.
 """
 
-__version__ = "0.8.0"
+__version__ = "0.10.0"
 
 from datetime import datetime
 
