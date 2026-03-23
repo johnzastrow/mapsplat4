@@ -40,6 +40,7 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 - [x] `QFrame.HLine` → `QFrame.Shape.HLine`
 - [x] `QFrame.Sunken` → `QFrame.Shadow.Sunken`
 - [x] `_MultiSelection` shim → `QAbstractItemView.SelectionMode.MultiSelection` (direct)
+- [x] `QProcess.NotRunning` → `QProcess.ProcessState.NotRunning` (3 call sites in `exporter.py`)
 
 ---
 
@@ -327,6 +328,47 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 
 ---
 
+#### Story 14: PMTiles Verify After Export
+
+**As a** user
+**I want** the plugin to verify my exported PMTiles files are valid
+**So that** I don't discover corruption hours later when trying to publish
+
+**Tasks:**
+- [ ] After PMTiles creation (after `ogr2ogr` step), run `pmtiles verify {output_file}`
+- [ ] If verify fails (non-zero exit), show error dialog with stderr output
+- [ ] Log verification result to export log
+- [ ] Add checkbox "Verify PMTiles after export" in Advanced Options (default: checked)
+- [ ] In separate-file mode, verify each file and aggregate results
+
+**Technical Note:** Verify runs after each PMTiles creation, not after all exports complete. This isolates failures.
+
+**Estimation:** 2h
+
+---
+
+#### Story 15: PMTiles Convert (Raster Support)
+
+**As a** user
+**I want** to export raster layers to PMTiles
+**So that** my web maps can include satellite imagery and other raster data
+
+**Tasks:**
+- [ ] Detect raster layers in selection
+- [ ] If raster layers selected, show prompt or add checkbox "Include raster layers"
+- [ ] Use `gdal_translate` to convert raster → GeoTIFF (intermediate)
+- [ ] Use `pmtiles convert` to convert GeoTIFF → PMTiles
+- [ ] Place raster PMTiles below vector layers in style.json (separate source, separate paint layer)
+- [ ] Show raster-specific progress: "Converting raster: 50%"
+- [ ] Error handling: if GDAL raster support missing, show message with install link
+- [ ] Delete intermediate GeoTIFF after PMTiles conversion
+
+**Technical Note:** Raster exports use `gdalwarp` for reprojection to EPSG:3857, then `gdal_translate` for format conversion, then `pmtiles convert`.
+
+**Estimation:** 8h
+
+---
+
 ## Implementation Dependencies
 
 ```
@@ -338,13 +380,15 @@ Story 3  (Error Handling)             → Standalone
 Story 4  (Collapsible Options)        → Standalone
 Story 5  (Dimension Presets)          → Standalone
 Story 6  (Persist Settings)           → Resolve QSettings/QgsSettings before starting
-Story 7  (Scale Visibility)           → Done ✅
+Story 7  (Scale Visibility)            → Done ✅
 Story 8  (Shortcuts)                  → Standalone
 Story 9  (Tooltips)                   → Audit existing tooltips before starting
-Story 10 (Zoom Estimator)             → Standalone
-Story 11 (Symbology Warnings)         → Standalone
+Story 10 (Zoom Estimator)              → Standalone
+Story 11 (Symbology Warnings)          → Standalone
 Story 12 (Popup Fields)               → Story 6 first (config file needed for storage)
-Story 13 (Attribution)                → Standalone
+Story 13 (Attribution)                 → Standalone
+Story 14 (PMTiles Verify)              → Standalone
+Story 15 (PMTiles Convert/Raster)     → Standalone
 ```
 
 ---
@@ -384,7 +428,9 @@ Story 13 (Attribution)                → Standalone
 - Story 11: Per-Layer Symbology Warnings (4h)
 - Story 12: Popup Field Customization (6h)
 - Story 13: Attribution Field (2h)
-- **Total: 15h**
+- Story 14: PMTiles Verify (2h)
+- Story 15: PMTiles Convert/Raster (8h)
+- **Total: 25h**
 
 ---
 

@@ -166,6 +166,22 @@ Unordered list of desired usability improvements. Prioritization and implementat
 - [ ] Add `maplibregl.AttributionControl({ customAttribution: "..." })` to generated viewer when non-empty
 - [ ] Save/restore in config file under `[viewer]`
 
+### PMTiles Verify After Export *(Story 14)*
+- [ ] After PMTiles creation, run `pmtiles verify` on the output file(s)
+- [ ] If verify fails, show error dialog with details from stderr
+- [ ] Log verification result to export log
+- [ ] Add checkbox "Verify PMTiles after export" in Advanced Options (default: checked)
+- [ ] Run verify for each PMTiles file in separate-file mode
+
+### PMTiles Convert (Raster Support) *(Story 15)*
+- [ ] Detect raster layers in selection and prompt: "Convert raster layers to PMTiles?"
+- [ ] Use `gdal_translate` to convert raster → GeoTIFF
+- [ ] Use `pmtiles convert` to convert GeoTIFF → PMTiles
+- [ ] Place raster PMTiles below vector layers in style.json
+- [ ] Show progress: "Converting raster: 50%"
+- [ ] Add to UI: checkbox "Include raster layers" in Export Options
+- [ ] Error handling: if GDAL raster support missing, show message with install link
+
 ---
 
 ## Documentation
