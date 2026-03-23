@@ -1307,11 +1307,11 @@ class StyleConverter:
         manifest, total_w, total_h = self._compute_sprite_layout(sizes)
 
         # Compose atlas image
-        atlas = QImage(max(total_w, 1), max(total_h, 1), QImage.Format_ARGB32)
+        atlas = QImage(max(total_w, 1), max(total_h, 1), QImage.Format.Format_ARGB32)
         if atlas.isNull():
             self._log("Warning: failed to allocate sprite atlas image")
             return False
-        atlas.fill(Qt.transparent)
+        atlas.fill(Qt.GlobalColor.transparent)
         painter = QPainter(atlas)
         for name, entry in manifest.items():
             painter.drawImage(entry["x"], entry["y"], images[name])
@@ -1335,9 +1335,9 @@ class StyleConverter:
             manifest_2x, total_w_2x, total_h_2x = self._compute_sprite_layout(sizes_2x)
             for entry in manifest_2x.values():
                 entry["pixelRatio"] = 2
-            atlas_2x = QImage(max(total_w_2x, 1), max(total_h_2x, 1), QImage.Format_ARGB32)
+            atlas_2x = QImage(max(total_w_2x, 1), max(total_h_2x, 1), QImage.Format.Format_ARGB32)
             if not atlas_2x.isNull():
-                atlas_2x.fill(Qt.transparent)
+                atlas_2x.fill(Qt.GlobalColor.transparent)
                 painter_2x = QPainter(atlas_2x)
                 for name, entry in manifest_2x.items():
                     painter_2x.drawImage(entry["x"], entry["y"], images_2x[name])
