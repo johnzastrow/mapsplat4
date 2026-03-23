@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+> **Versioning note (from 2026-03-22):** Versions v0.5.x–v0.6.x used PATCH increments for many new features
+> (labels, SVG sprites, advanced legend, scale visibility, offline bundling) that are MINOR under semver.
+> From v0.7.0 onward, use MINOR for all additive features and PATCH only for bug fixes.
+
 ## v0.6.16 — 2026-03-04
 
 ### Fixed

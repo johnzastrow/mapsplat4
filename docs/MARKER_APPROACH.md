@@ -193,8 +193,7 @@ The scoped approach (D) has the best risk/reward profile:
 4. **`QgsFontMarkerSymbolLayer`** → keep as `circle` (or render glyph to sprite
    as a future extension).
 
-5. **Basemap overlay mode** → for SVG sprites, use MapLibre 4.x multi-sprite array
-   format so basemap and business sprites coexist cleanly.
+5. **Basemap overlay mode** → the multi-sprite array (`"sprite": [{"id": "default", ...}, {"id": "biz", ...}]`) was implemented but reverted in v0.5.3. Silent failure when the remote Protomaps sprite was slow or unavailable caused all `biz:*` icon lookups to fail. The current implementation uses a single local `./sprites` file; basemap icon layers (road shields, POIs) render without icons but all fill/line/water/label layers and business icons render correctly. Revisit multi-sprite if MapLibre improves error isolation for array sprite loading.
 
 6. **Labels** → keep as separate symbol layers (current approach works well; MapLibre
    handles z-ordering between point and label layers correctly).

@@ -10,7 +10,7 @@ MapSplat exports QGIS projects to self-contained static web map packages. It con
 
 ```bash
 # Compile Qt resources (must run before first use or after editing resources.qrc)
-make compile   # runs: pyrcc5 -o resources.py resources.qrc
+make compile   # runs: pyrcc6 -o resources.py resources.qrc
 
 # Deploy plugin to default QGIS profile
 make deploy    # copies to ~/.local/share/QGIS/QGIS4/profiles/default/python/plugins/mapsplat/

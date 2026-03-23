@@ -1,5 +1,10 @@
 # Viability Assessment: MapSplat Plugin
 
+> **ARCHIVED — 2026-03-22**
+> This document was written at v0.1.1 (Feb 16, 2026) before any code existed.
+> The plugin has since reached v0.6.16 with all major concerns resolved.
+> Preserved for historical context only. See REQUIREMENTS.md for current state.
+
 **Date:** 2026-02-16
 **Version:** 0.1.1
 

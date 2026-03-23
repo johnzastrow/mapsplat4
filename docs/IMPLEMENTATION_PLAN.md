@@ -100,29 +100,52 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 **So that** I can verify the output and understand progress
 
 **Tasks:**
-- [ ] Add "Open Folder" button to success dialog using `QDesktopServices.openUrl()`
-- [ ] Add status text label showing current operation (layer name, stage)
-- [ ] Update progress messages in exporter.py to include layer names
+- [ ] Add "Open Folder" button to the **pinned footer** (alongside Export button) — appears after a successful export, stays visible until the next export starts; use `QDesktopServices.openUrl()`
+- [ ] Add status text label showing current operation (layer name, stage) next to the progress bar
+- [ ] Update progress messages in exporter.py to include layer names ("Exporting layer 2 of 5: Roads")
 - [ ] Test on Windows (different path handling)
+
+**Implementation Note:** Do NOT add the Open Folder button to a success dialog — a dismissed dialog is gone. The pinned footer is persistent and visible without extra interaction.
 
 **Estimation:** 4h
 
 ---
 
-#### Story 2: Auto-Launch Viewer + Embed Copy
+#### Story 2a: Copy Embed Code
 
 **As a** user
-**I want** to preview my export immediately and easily share embed code
+**I want** to copy the embed snippet for my map with one click
+**So that** I can paste it into another page without manually finding the demarcation comments
+
+**Tasks:**
+- [ ] Add "Copy Embed Code" button to Viewer tab
+- [ ] Read the generated `index.html` from the last output directory
+- [ ] Extract the BEGIN/END MAPSPLAT demarcated blocks (head + body) and copy to clipboard
+- [ ] Show confirmation: "Embed code copied to clipboard"
+- [ ] Disable button when no output has been generated yet this session
+
+**Estimation:** 2h
+
+---
+
+#### Story 2b: Auto-Launch Viewer After Export
+
+**As a** user
+**I want** to preview my export in a browser immediately after it completes
 **So that** I can iterate on styling without manual steps
 
 **Tasks:**
-- [ ] Add checkbox "Open in browser after export" to Export tab
-- [ ] On export complete, run `serve.py` or open `index.html` in browser
-- [ ] Add "Copy Embed Code" button to Viewer tab
-- [ ] Copy BEGIN/END demarcated HTML to clipboard
-- [ ] Persist preference in settings
+- [ ] Design server lifecycle: start `serve.py` as a managed subprocess (NOT just open `index.html` — file:// breaks PMTiles)
+- [ ] Display active port in the UI ("Serving at http://localhost:8000")
+- [ ] Add Stop Server button; disable it when server is not running
+- [ ] Handle port-in-use error gracefully (try next port or prompt)
+- [ ] Open `http://localhost:{port}` in browser once server is confirmed listening
+- [ ] Add checkbox "Open in browser after export" to Export tab; persist in settings
+- [ ] Stop server on plugin unload / QGIS exit
 
-**Estimation:** 4h
+**Technical Risk:** serve.py runs as a blocking server process. Must use `QProcess` (not `subprocess`) to keep QGIS responsive and to enable clean shutdown. Port conflicts must be caught before the browser opens.
+
+**Estimation:** 6h
 
 ---
 
@@ -133,7 +156,7 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 **So that** I can fix issues without guessing
 
 **Tasks:**
-- [ ] Add real-time basemap URL validation (on text change)
+- [ ] Add basemap URL/file validation on **focus-out** (not on text change — text change fires on every keystroke and would issue an HTTP request per character)
 - [ ] Show QMessageBox for missing pmtiles CLI with install link
 - [ ] Track per-layer success/failure in separate-file mode
 - [ ] Show summary dialog: "X of Y layers exported successfully"
@@ -155,28 +178,30 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 
 **Tasks:**
 - [ ] Add collapsible "Advanced Options" group using `QToolButton` with arrow toggle
-- [ ] Move style_only, save_log, basemap options into collapsible section
+- [ ] Move `chk_style_only` and `chk_save_log` into collapsible section — these are the rarely-used options that create clutter
+- [ ] Do NOT move the basemap section — it is already a checkable QGroupBox and handles its own visibility correctly
 - [ ] Remember collapsed/expanded state during session
 - [ ] Test on 1024x768 and smaller resolutions
 
-**Implementation Note:** Use `QToolButton` with `setCheckable(True)` + `setArrowType()` — NOT QGroupBox which enables/disables, not collapses.
+**Implementation Note:** Use `QToolButton` with `setCheckable(True)` + `setArrowType()` — NOT QGroupBox which enables/disables, not collapses. Target `chk_style_only` and `chk_save_log` specifically; the basemap group does not need this treatment.
 
 **Estimation:** 4h
 
 ---
 
-#### Story 5: Quick Dimension Presets
+#### Story 5: Quick Dimension Presets *(Partial — spinboxes done, preset dropdown pending)*
 
 **As a** user
 **I want** preset map dimension options
 **So that** I don't have to calculate pixel values manually
 
 **Tasks:**
+- [x] Width/Height spinboxes added (v0.6.13; 0 = responsive full-window)
 - [ ] Add dropdown with presets: "Full window (responsive)", "800x600", "1024x768", "1920x1080", "Custom"
 - [ ] "Custom" enables spinboxes; selecting preset fills them
 - [ ] Add tooltip explaining the options
 
-**Estimation:** 2h
+**Estimation:** 2h (reduced; spinboxes already exist)
 
 ---
 
@@ -187,9 +212,9 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 **So that** I don't reconfigure everything each time I open QGIS
 
 **Tasks:**
-- [ ] Save/restore: export mode, zoom level, style options, viewer settings
-- [ ] Follow existing pattern for `last_output_folder`
-- [ ] Validate restored settings (e.g., layer still exists)
+- [ ] Resolve `QSettings` vs `QgsSettings` first — the codebase currently uses `QSettings("MapSplat", "MapSplat")` for `last_output_folder` but the pattern should use `QgsSettings` (respects QGIS profile isolation). Migrate existing `last_output_folder` key before adding new ones.
+- [ ] Save/restore: export mode, zoom level, style options, all 7 viewer checkboxes, offline bundling toggle, label placement mode
+- [ ] Validate restored settings (e.g., layer still exists in project)
 
 **Estimation:** 4h
 
@@ -199,17 +224,17 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 
 ---
 
-#### Story 7: Scale-Dependent Visibility
+#### Story 7: Scale-Dependent Visibility ✅ *Done — v0.6.15/0.6.16*
 
 **As a** user
 **I want** my layer visibility scales preserved in the export
 **So that** the web map behaves like my QGIS project
 
 **Tasks:**
-- [ ] Read `scaleDependentVisibility`, `minScale`, `maxScale` from QGIS layers
-- [ ] Convert to `minzoom`/`maxzoom` using: `zoom = log2(559082264 / scale_denominator)`
-- [ ] Apply to layer definitions in style_converter.py
-- [ ] Add tests for scale conversion
+- [x] Read `scaleDependentVisibility`, `minScale`, `maxScale` from QGIS layers
+- [x] Convert to `minzoom`/`maxzoom` — constant corrected to `279541132` (= 559082264 ÷ 2) for MapLibre 512px tiles (v0.6.16)
+- [x] Apply to layer definitions in style_converter.py
+- [x] Add tests for scale conversion (13 tests added)
 
 **Estimation:** 6h
 
@@ -223,14 +248,15 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 
 **Tasks:**
 - [ ] Ctrl+E: Export
-- [ ] Ctrl+A: Select All layers
+- [ ] Ctrl+Shift+A: Select All layers (`Ctrl+A` conflicts with QGIS "Select All Features" — use `Ctrl+Shift+A` instead)
 - [ ] Ctrl+Shift+S: Save Config
+- [ ] Ctrl+1 / Ctrl+2 / Ctrl+3 / Ctrl+4: switch to Export / Viewer / Offline / Log tab
 - [ ] Add shortcuts to tooltips
-- [ ] Audit conflicts with QGIS built-in shortcuts
+- [ ] Audit remaining conflicts with QGIS built-in shortcuts
 
-**Technical Note:** Use `Qt.WidgetWithChildrenShortcut` context to ensure shortcuts work when dock has focus.
+**Technical Note:** Use `Qt.ShortcutContext.WidgetWithChildrenShortcut` context to ensure shortcuts fire only when the dock has focus (Qt6-scoped enum).
 
-**Estimation:** 2h
+**Estimation:** 3h
 
 ---
 
@@ -241,11 +267,91 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 **So that** I understand options without reading documentation
 
 **Tasks:**
-- [ ] Add tooltip to combo_export_mode (single vs separate files)
-- [ ] Add tooltip to chk_style_only (what it does)
-- [ ] Add tooltip to basemap inputs
-- [ ] Add tooltip to dimension presets
-- [ ] Add tooltip to viewer control checkboxes
+- [ ] Audit existing tooltips first — `spin_max_zoom` and `chk_style_only` already have tooltips; do not duplicate
+- [ ] Add tooltip to `combo_export_mode` (single vs separate files)
+- [ ] Add tooltip to `combo_extent_layer` (what bounding box is used for)
+- [ ] Add tooltip to basemap source inputs (URL format, what pmtiles extract does)
+- [ ] Add tooltip to basemap style input (what the style.json is for)
+- [ ] Add tooltip to dimension preset dropdown (when implemented)
+- [ ] Add tooltips to viewer control checkboxes explaining what each control does in the web map
+
+**Estimation:** 2h
+
+---
+
+---
+
+### Phase 4: High-Value Additions
+
+---
+
+#### Story 10: Zoom Level Tile Count Estimator
+
+**As a** user
+**I want** to see an estimated tile count and output size as I configure the export
+**So that** I don't accidentally start a multi-hour export at zoom 14
+
+**Tasks:**
+- [ ] Add a live label below `spin_max_zoom`: "~N tiles · est. X MB"
+- [ ] Recalculate on zoom change and on layer selection change
+- [ ] Compute tile count from combined selected-layer bounding box + zoom: `4^zoom × bbox_fraction_of_world`
+- [ ] Estimate size as `tile_count × avg_bytes_per_tile` (use a conservative constant, e.g. 3–5 KB/tile)
+- [ ] Show "select layers to estimate" when no layers are selected
+- [ ] Clamp display to reasonable range (don't show 0 or impossibly large numbers)
+
+**Implementation Note:** All math runs on `QgsRectangle` — no external dependencies. Update is cheap enough to run synchronously on signal.
+
+**Estimation:** 3h
+
+---
+
+#### Story 11: Per-Layer Symbology Warnings
+
+**As a** user
+**I want** to see a warning on layers whose symbology won't fully transfer
+**So that** I'm not surprised by circles where I expected stars or SVGs
+
+**Tasks:**
+- [ ] After layer list is populated, inspect each layer's renderer type via `QgsVectorLayer.renderer()`
+- [ ] Add ⚠ icon to `QListWidgetItem` for layers using: categorized/graduated SVG markers, font markers, complex rule-based expressions (AND/OR), heatmap, point displacement
+- [ ] Set tooltip on the item explaining the specific limitation (e.g. "SVG markers will render as circles — categorized renderer not supported for sprites")
+- [ ] Re-run check when project layers change
+- [ ] No warning for fully-supported renderers (single symbol, categorized fill/line/circle, graduated, rule-based with simple filters)
+
+**Estimation:** 4h
+
+---
+
+#### Story 12: Popup Field Customization
+
+**As a** user
+**I want** to choose which fields appear in the click-to-identify popup
+**So that** the web map shows only relevant attributes to the end user
+
+**Tasks:**
+- [ ] Add "Configure Popup Fields..." button or context menu item on layer list items
+- [ ] Open dialog showing all fields for the selected layer with checkboxes (default: all checked)
+- [ ] Store visible-field selections per layer in config file (new `[popup]` section)
+- [ ] Pass visible-field config to `generate_html_viewer()` and filter popup HTML accordingly
+- [ ] "Show all / hide all" toggle in dialog
+- [ ] Restore selections from config on load
+
+**Estimation:** 6h
+
+---
+
+#### Story 13: Attribution Field
+
+**As a** user
+**I want** to set map attribution that appears in the web map viewer
+**So that** data sources are properly credited in published maps
+
+**Tasks:**
+- [ ] Add "Attribution" text field to Viewer tab
+- [ ] Default to any attribution found on exported layers via `QgsMapLayer.attribution()`; join multiple with " | "
+- [ ] Pass attribution string to `generate_html_viewer()`
+- [ ] Add `maplibregl.AttributionControl({ customAttribution: "..." })` to generated viewer when non-empty
+- [ ] Save/restore in config file under `[viewer]`
 
 **Estimation:** 2h
 
@@ -255,15 +361,20 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 
 ```
 Phase 0 (QGIS4 Conversion) → REQUIRED FIRST — all other work depends on this
-Story 1 (Open Folder + Progress) → Standalone
-Story 2 (Auto-Launch) → Standalone
-Story 3 (Error Handling) → Standalone
-Story 4 (Collapsible) → Standalone
-Story 5 (Dimension Presets) → Standalone
-Story 6 (Persist Settings) → Standalone
-Story 7 (Scale Visibility) → Standalone
-Story 8 (Shortcuts) → Standalone
-Story 9 (Tooltips) → Standalone
+Story 1  (Open Folder + Progress)     → Standalone
+Story 2a (Embed Copy)                 → Standalone
+Story 2b (Auto-Launch Viewer)         → Standalone (but design server lifecycle carefully)
+Story 3  (Error Handling)             → Standalone
+Story 4  (Collapsible Options)        → Standalone
+Story 5  (Dimension Presets)          → Standalone
+Story 6  (Persist Settings)           → Resolve QSettings/QgsSettings before starting
+Story 7  (Scale Visibility)           → Done ✅
+Story 8  (Shortcuts)                  → Standalone
+Story 9  (Tooltips)                   → Audit existing tooltips before starting
+Story 10 (Zoom Estimator)             → Standalone
+Story 11 (Symbology Warnings)         → Standalone
+Story 12 (Popup Fields)               → Story 6 first (config file needed for storage)
+Story 13 (Attribution)                → Standalone
 ```
 
 ---
@@ -281,9 +392,10 @@ Story 9 (Tooltips) → Standalone
 
 ### Sprint 1: Core UX (2-3 days)
 - Story 1: Open Folder + Progress (4h)
-- Story 2: Auto-Launch + Embed Copy (4h)
+- Story 2a: Copy Embed Code (2h)
+- Story 2b: Auto-Launch Viewer (6h)
 - Story 3: Error Handling (6h)
-- **Total: 14h**
+- **Total: 18h**
 
 ### Sprint 2: Polish (2-3 days)
 - Story 4: Collapsible Options (4h)
@@ -293,9 +405,16 @@ Story 9 (Tooltips) → Standalone
 - **Total: 12h**
 
 ### Sprint 3: Advanced (2-3 days)
-- Story 7: Scale Visibility (6h)
-- Story 8: Keyboard Shortcuts (2h)
-- **Total: 8h**
+- ~~Story 7: Scale Visibility (6h)~~ — Done (v0.6.15/0.6.16)
+- Story 8: Keyboard Shortcuts (3h)
+- **Total: 3h remaining**
+
+### Phase 4: High-Value Additions (2-3 days)
+- Story 10: Zoom Tile Count Estimator (3h)
+- Story 11: Per-Layer Symbology Warnings (4h)
+- Story 12: Popup Field Customization (6h)
+- Story 13: Attribution Field (2h)
+- **Total: 15h**
 
 ---
 

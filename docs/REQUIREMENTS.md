@@ -1,11 +1,12 @@
 # MapSplat - Requirements Specification
 
-**Version:** 0.1.1
-**Date:** 2026-02-16
+**Version:** 0.6.16
+**Date:** 2026-03-22
+**Note:** Updated to reflect current implementation state. Original v0.1.1 spec (Feb 2026) is preserved in git history.
 
 ## Overview
 
-**MapSplat** is a QGIS plugin that exports QGIS projects to self-contained, static web map packages using PMTiles format. The output can be hosted on any web server or cloud storage that supports HTTP Range Requests.
+**MapSplat** is a QGIS 4 plugin that exports QGIS projects to self-contained, static web map packages using PMTiles format. The output can be hosted on any web server or cloud storage that supports HTTP Range Requests.
 
 ---
 
@@ -15,19 +16,19 @@
 
 | Requirement | Value |
 |-------------|-------|
-| Minimum QGIS Version | 3.40+ (LTR) |
+| Minimum QGIS Version | 4.0+ |
 | Minimum GDAL Version | 3.8+ (native PMTiles support required) |
-| Python Version | 3.9+ (as bundled with QGIS 3.40) |
-| Target Qt Version | Qt5 (Qt6/QGIS 4.x compatibility as future goal) |
+| Python Version | 3.12+ (as bundled with QGIS 4) |
+| Qt Version | Qt6 |
 
 ### Output Format
 
 | Component | Format |
 |-----------|--------|
 | Vector data | PMTiles (.pmtiles) |
-| Raster basemaps | PMTiles (.pmtiles) |
-| Styling | MapLibre Style JSON (.json) |
-| Viewer | Self-contained HTML + bundled MapLibre GL JS |
+| Raster basemaps | PMTiles (.pmtiles) via `pmtiles extract` CLI |
+| Styling | MapLibre Style JSON v8 (.json) |
+| Viewer | Self-contained HTML + MapLibre GL JS v4.7.1 |
 | Projection | EPSG:3857 (Web Mercator) |
 
 ---
@@ -38,26 +39,33 @@
 
 - User can select which layers to export from current QGIS project
 - Support for vector layers (points, lines, polygons)
-- Support for raster layers (as basemap tiles)
+- Select All / Select None buttons; layer count indicator ("X of Y layers selected")
 - User can choose export mode:
   - Single PMTiles file (all layers as separate source-layers)
   - Separate PMTiles file per layer
+- Export extent: any layer's bounding box may be used as the export extent instead of the combined extent
 
 ### FR-2: Symbology Conversion
 
-**Supported renderers (Phase 1):**
+**Supported renderers:**
 
 | Renderer Type | Support Level |
 |---------------|---------------|
-| Single Symbol | Full |
-| Categorized | Full |
-| Graduated | Full |
-| Rule-based | Fallback to default |
-| Heatmap | Fallback to default |
-| Point Displacement | Fallback to default |
-| Labels | Not supported in Phase 1 |
+| Single Symbol (fill, line, marker) | Full |
+| Categorized | Full — MapLibre `match` expressions with null-category handling |
+| Graduated | Full — MapLibre `interpolate` expressions for smooth transitions |
+| Rule-based | Full — filter expression conversion (=, !=, <, >, <=, >=, IS NULL, IS NOT NULL) |
+| SVG markers (single symbol) | Full — raster sprite atlas (sprites.png + sprites.json) |
+| SVG markers (categorized/graduated) | Fallback to color-correct circle; logged |
+| Simple marker shapes (square, diamond, etc.) | Fallback to circle with correct color/size |
+| Font markers | Fallback to circle |
+| Labels | Full — see FR-7 |
+| Heatmap | Fallback |
+| Point Displacement | Fallback |
 
-**Fallback behavior:** Unsupported symbology falls back to simple default style (solid fill/stroke with reasonable colors). User is notified but export proceeds.
+**Scale-dependent visibility:** `minScale`/`maxScale` are converted to MapLibre `minzoom`/`maxzoom` using `log2(279541132 / scale_denominator)` (corrected for MapLibre 512px tiles). Clamped to [0, 24].
+
+**Fallback behavior:** Unsupported symbology extracts the darkest available color from the symbol. User is notified; export proceeds.
 
 ### FR-3: CRS Handling
 
@@ -67,35 +75,89 @@
 
 ### FR-4: Style Management
 
-- Export generates MapLibre Style JSON file
+- Export generates MapLibre Style JSON v8
 - User can choose whether to output separate `style.json` file
-- **Import capability:** User can import existing `style.json` to reuse/roundtrip styles edited in Maputnik
+- **Import capability:** User can import existing `style.json` for roundtripping via Maputnik
 - Imported styles are merged/applied to export
+- **Style-only export:** Skip data conversion, regenerate HTML/style from existing PMTiles
 
 ### FR-5: Output Package
 
 Generated output folder structure:
+
 ```
 [project_name]_webmap/
-├── index.html              # Self-contained viewer
-├── style.json              # MapLibre style (optional, user choice)
+├── index.html              # Self-contained viewer with demarcation comments for embed copy
+├── style.json              # MapLibre style (optional)
 ├── data/
-│   ├── layers.pmtiles      # Vector data (or multiple files)
-│   └── basemap.pmtiles     # Raster basemap (if included)
+│   ├── layers.pmtiles      # Vector data (or per-layer files)
+│   └── basemap.pmtiles     # Basemap PMTiles (basemap overlay mode)
 ├── lib/
-│   └── maplibre-gl.js      # Bundled MapLibre (offline capable)
+│   ├── maplibre-gl.js      # Bundled MapLibre (offline mode)
 │   └── maplibre-gl.css
+├── sprites.png             # Sprite atlas (only when SVG single-symbol layers present)
+├── sprites.json
+├── serve.py                # Local HTTP server with Range request support
 └── README.txt              # Deployment instructions
 ```
 
 ### FR-6: Viewer Features
 
-The generated `index.html` should include:
+The generated `index.html` includes:
 - Full-screen map display
-- Layer visibility toggles
+- Layer visibility toggles with legend swatches (color, shape adapts to geometry type)
+- Advanced legend: per-category swatches parsed from `match`/`step`/`interpolate` expressions
 - Basic zoom controls
 - Click-to-identify feature popups (showing attributes)
-- Optional: basemap switcher (if external basemaps configured)
+- Map dimension controls: fixed pixel size or responsive full-window (default)
+- Configurable map controls (7 checkboxes): scale bar, geolocate, fullscreen, coordinate display, zoom display, reset-view, north-up reset
+- Label placement mode: match QGIS exact positions or MapLibre auto-placement
+- `<!-- BEGIN MAPSPLAT -->` / `<!-- END MAPSPLAT -->` demarcation for embed copy
+
+### FR-7: Labels
+
+Labels are extracted from QGIS layer settings and converted to MapLibre symbol layers:
+
+| Property | Support |
+|---|---|
+| Text field | Full |
+| Font family, size, color | Full (Noto Sans Regular/Medium/Italic) |
+| Bold / italic | Full |
+| Halo (buffer) color, width, opacity | Full (only when QGIS buffer enabled) |
+| Text opacity | Full |
+| Capitalization (upper/lower) | Full |
+| Line height | Full |
+| Word wrap | Full |
+| Multiline alignment | Full |
+| Point label placement (quadrant + offset) | Full |
+| Line label placement (curved/horizontal) | Full |
+| Label placement auto (collision avoidance) | Full (`text-variable-anchor`) |
+
+Unsupported: drop shadows, callouts, complex expressions, scale-based label visibility, letter spacing.
+
+### FR-8: Basemap Overlay Mode
+
+When enabled, combines a Protomaps basemap with QGIS business layers:
+
+- Source: remote URL or local `.pmtiles` file
+- Uses `pmtiles extract` CLI to download a region-clipped subset
+- Merges basemap style.json with business layer style
+- Business sources and layers injected into merged style
+- Uses single local sprite (`./sprites`) for business icon layers
+
+### FR-9: Configuration Save/Load
+
+- TOML-format config files (human-editable)
+- Stores `[export]`, `[basemap]`, and `[viewer]` sections
+- Layers referenced by name (portable across sessions and machines)
+- Unknown keys silently ignored for forward compatibility
+- Warns when loaded config references layers not in current project
+
+### FR-10: Offline Bundling
+
+- Optional "Bundle JS/CSS for offline viewing" checkbox
+- Downloads MapLibre GL JS, CSS, and pmtiles.js from unpkg.com at export time
+- Falls back to CDN links with warning if download fails
 
 ---
 
@@ -106,30 +168,20 @@ The generated `index.html` should include:
 - **Type:** Dockable widget panel
 - **Location:** Default to right dock area
 - Persistent during QGIS session
-- Collapsible/expandable
 
-### UI-2: Widget Components
+### UI-2: Widget Tabs
 
-1. **Layer list** - Checkboxes to select layers for export
-2. **Export mode selector** - Single file vs. separate files
-3. **Style options:**
-   - Export separate style.json (checkbox)
-   - Import existing style.json (button)
-4. **Output settings:**
-   - Output folder selector
-   - Project name (for folder naming)
-5. **Export button** - Triggers export process
-6. **Progress indicator** - Shows export progress
-7. **Log/status area** - Shows warnings, errors, completion status
+1. **Export tab** — layer list, export options, basemap overlay, output settings; wraps in QScrollArea on small screens; Save/Load Config and Export button pinned below scroll area
+2. **Log tab** — timestamped log output; auto-shown when export starts
+3. **Viewer tab** — 7 map control checkboxes, label placement mode, map dimensions
+4. **Offline tab** — offline asset bundling toggle
 
 ### UI-3: Feedback
 
 - Progress bar during export
-- Clear error messages for:
-  - GDAL version too old
-  - Unsupported layer types
-  - Write permission errors
-- Summary of what was exported and any fallbacks applied
+- Current operation status text (stage + layer name)
+- Per-layer success/failure tracking in separate-file mode
+- Clear error messages: GDAL version, write permission, missing pmtiles CLI, invalid style.json import
 
 ---
 
@@ -137,14 +189,13 @@ The generated `index.html` should include:
 
 ### NFR-1: Performance
 
-- Export of typical project (5-10 layers, <100MB data) should complete in under 60 seconds
-- UI should remain responsive during export (background processing)
+- Export of typical project (5–10 layers, <100 MB data) completes in under 60 seconds
+- UI remains responsive during export (QProcess polling pattern — not blocking subprocess)
 
 ### NFR-2: Offline Capability
 
-- Generated web map works without internet connection
-- MapLibre GL JS is bundled locally (not CDN)
-- All assets self-contained in output folder
+- Optional: MapLibre GL JS and pmtiles.js bundled locally
+- Default: CDN links (unpkg.com)
 
 ### NFR-3: Portability
 
@@ -154,71 +205,31 @@ The generated `index.html` should include:
 
 ---
 
-## Development Approach
-
-### Iteration Plan
-
-**v0.1.0 - Proof of Concept**
-- Basic UI scaffold
-- Single vector layer export to PMTiles
-- Single symbol renderer only
-- Minimal HTML viewer
-
-**v0.2.0 - Core Symbology**
-- Categorized renderer support
-- Graduated renderer support
-- Multi-layer export
-
-**v0.3.0 - Raster Support**
-- Raster layer export as PMTiles
-- Basemap integration
-
-**v0.4.0 - Style Roundtripping**
-- Export style.json
-- Import style.json from Maputnik
-- Style merge/override capability
-
-**v0.5.0 - Polish**
-- Feature popups in viewer
-- Layer toggles
-- Error handling improvements
-- Documentation
-
----
-
 ## Dependencies
 
-### Required (bundled with QGIS 3.40+)
+### Required (bundled with QGIS 4)
 
-- PyQt5
-- GDAL 3.8+ (for PMTiles driver)
-- Python 3.9+
-
-### Bundled in Plugin
-
-- MapLibre GL JS (for offline viewer)
-- HTML/CSS templates
+- PyQt6 (via `qgis.PyQt`)
+- GDAL 3.8+ (for PMTiles driver in ogr2ogr)
+- Python 3.12+
 
 ### Optional External Tools
 
-- Tippecanoe (for advanced tile generation - future)
+- `pmtiles` CLI — required only for basemap overlay mode (extract region from source PMTiles)
+
+### Bundled in Plugin
+
+- MapLibre GL JS v4.7.1 (offline mode)
+- HTML/CSS templates
+- `serve.py` — local HTTP server with Range request support
 
 ---
 
-## Out of Scope (Phase 1)
+## Out of Scope
 
 - Direct upload to web servers (Phase 2)
-- Label/text rendering
 - 3D terrain/buildings
 - Time-based animations
-- Vector tile styling of external tile sources
-- Print/export to static image
-
----
-
-## Open Questions (to resolve during development)
-
-1. How to handle very large datasets? (tile size limits, zoom level configuration)
-2. Should zoom extent be auto-calculated from layer bounds?
-3. Attribution handling - how to preserve/display data attribution?
-4. How to handle layer ordering in the web map?
+- Raster layer export (vector only)
+- Complex QGIS expression functions in rule filters (AND/OR compound rules)
+- Blend modes (not supported by MapLibre)
