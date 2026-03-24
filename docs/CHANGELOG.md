@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.12.1 — 2026-03-24
+
+### Fixed
+- **Geometry distortion in exported tiles** — Added `-s_srs EPSG:3857` to the `ogr2ogr` command. The GeoPackage is always written by QGIS in EPSG:3857 via `QgsVectorFileWriter` with `options.ct`, but the CRS WKT stored by QGIS is not always recognised by GDAL as exactly EPSG:3857. Without an explicit source CRS, `ogr2ogr` was applying a non-identity Mercator→Mercator reprojection — treating already-projected metre coordinates as geographic degree inputs — producing the shearing/parallelogram distortion visible on polygon layers.
+
 ## v0.12.0 — 2026-03-24
 
 ### Changed

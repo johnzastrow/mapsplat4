@@ -2,7 +2,7 @@
 name=MapSplat
 qgisMinimumVersion=4.0
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.12.0
+version=0.12.1
 author=John Zastrow
 email=john@northredoubt.com
 
@@ -22,6 +22,10 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.12.1 - Fix geometry distortion in exported tiles
+    - Add -s_srs EPSG:3857 to ogr2ogr command to prevent double-reprojection;
+      QGIS CRS WKT in GeoPackage was not always recognised by GDAL as exactly
+      EPSG:3857, causing a non-identity Mercator->Mercator transform that sheared polygons
     0.12.0 - UI tab reorganization
     - New "Inputs" tab (first): Layers to Export, Advanced Options, Save/Load Config, Export button
     - "Options" tab (second): Export Options, Basemap Overlay, Output — all collapsible sections

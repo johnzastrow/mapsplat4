@@ -8,7 +8,7 @@ This module handles the actual export process:
 - Generating the HTML viewer
 """
 
-__version__ = "0.12.0"
+__version__ = "0.12.1"
 
 import os
 import sys
@@ -935,10 +935,16 @@ class MapSplatExporter(QObject):
         self._output_dir = output_dir
         self._start_time = time.time()
 
+        # The GeoPackage is always written in EPSG:3857 by _export_to_geopackage
+        # (QgsVectorFileWriter applies options.ct to reproject every layer).
+        # Specifying -s_srs EPSG:3857 prevents ogr2ogr from attempting a second
+        # reprojection when the CRS WKT stored by QGIS is not recognised by GDAL
+        # as exactly EPSG:3857 — which would cause visible geometry distortion.
         args = [
             "-f", "PMTiles",
             "-dsco", "MINZOOM=0",
             "-dsco", f"MAXZOOM={max_zoom}",
+            "-s_srs", "EPSG:3857",
             "-t_srs", "EPSG:3857",
             pmtiles_path,
             gpkg_path
