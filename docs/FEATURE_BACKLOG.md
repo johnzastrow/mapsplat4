@@ -216,6 +216,163 @@ Unordered list of desired usability improvements. Prioritization and implementat
 - [ ] Log cache hits/misses for debugging
 - [ ] *Note for future:* cache directory grows unboundedly with varying extents; add "Clear cache" button or size management in a follow-up
 
+### MVT and XYZ Tile Layer Export *(Story 18)*
+
+Export QGIS project layers that are themselves tile services — `QgsVectorTileLayer` (MVT/PBF
+endpoints or local MBTiles) and `QgsRasterLayer` with an XYZ/WMS provider — so they appear
+in the exported web map as they do in QGIS.
+
+#### Background and current state
+
+| QGIS class | Examples | Current status |
+|---|---|---|
+| `QgsVectorTileLayer` | MVT/PBF XYZ endpoints, local MBTiles | Disabled in layer list (`[Other]`) |
+| `QgsRasterLayer` (XYZ provider) | OSM, ESRI imagery, any `{z}/{x}/{y}.png` | Shown as `[Raster]`, selectable, but silently dropped by exporter |
+| `QgsRasterLayer` (WMS/WMTS) | ArcGIS Server, GeoServer | Same — selected but silently ignored |
+
+Both `QgsVectorTileLayer` and XYZ raster sources can be referenced directly in MapLibre
+`style.json` without any data conversion — MapLibre consumes them natively as `"type":
+"vector"` or `"type": "raster"` sources. Local MBTiles vector tile sources can be converted
+to PMTiles in a single `pmtiles convert` step (the tool is already on PATH for basemap use).
+
+#### ⚠ Provider terms of service
+
+**Bulk-downloading or re-serving third-party tile data is almost always prohibited.**
+Before packaging any tile source for offline use, users must verify their provider's terms:
+- OpenStreetMap tile servers (tile.openstreetmap.org): prohibit bulk download and
+  redistribution of rendered tiles; use the OSM data export path instead.
+- Stadia Maps, MapTiler, Thunderforest, ESRI: commercial licences; bulk download and
+  rehosting are explicitly forbidden without a specific licence tier.
+- Self-hosted sources (GeoServer, MapServer, pg_tileserv, your own PMTiles): no
+  restriction — bulk packaging is fine.
+- Protomaps daily builds: CC-BY licence; redistribution permitted with attribution.
+
+The UI must surface a clear warning and require acknowledgment before any download step.
+Pass-through mode (Mode A below) carries no ToS risk because no data is copied.
+
+#### Capturing associated style JSON
+
+For `QgsVectorTileLayer`:
+- If the layer was imported from a Mapbox GL style URL, QGIS stores the original GL JSON
+  in the layer's custom properties; retrieve and embed or link it.
+- If styled manually in QGIS, use `QgsMapBoxGlStyleConverter` to export the QGIS renderer
+  back to a GL style fragment (same direction MapSplat already uses for regular vector layers
+  via `StyleConverter`).
+- If the source service publishes a `style.json` URL (e.g. MapTiler, Protomaps), fetch
+  and merge it (or reference it) at export time.
+
+For `QgsRasterLayer` (XYZ/WMS):
+- No GL style — just the source URL template plus raster paint properties:
+  `raster-opacity` from QGIS layer opacity, optionally `raster-hue-rotate`,
+  `raster-brightness-min/max` if the user has adjusted them.
+
+---
+
+#### Stage 1 — Pass-through: reference source URLs in style.json *(implement first)*
+
+No data is downloaded or converted. The exported map requires internet access for these
+layers. Highest value for lowest effort.
+
+**Layer list changes:**
+- [ ] Import `QgsVectorTileLayer` from `qgis.core`; detect it in `refresh_layer_list`
+- [ ] Show detected layers as `[VectorTile]` in the list (enabled for selection)
+- [ ] Detect `QgsRasterLayer` with XYZ or WMS/WMTS provider; show as `[XYZ Raster]` or
+      `[WMS]` (currently shown as `[Raster]` but dropped by exporter — fix the exporter path)
+- [ ] Add `🌐` suffix or `[Online]` tag on items whose source requires internet, so users
+      know the exported map will not work offline for those layers
+
+**Exporter changes (`exporter.py`):**
+- [ ] Add `"tile"` key alongside `"vector"` and `"raster"` in `_get_selected_layers()`
+  return dict; populate with `QgsVectorTileLayer` and XYZ raster instances
+- [ ] For each `QgsVectorTileLayer`: write a `"type": "vector"` source into `style.json`
+      using `layer.providerType()` / `dataProvider().dataSourceUri()` to extract the URL
+      template; include `minzoom`/`maxzoom` from the layer source metadata if available
+- [ ] For each XYZ `QgsRasterLayer`: write a `"type": "raster"` source + raster paint layer
+      into `style.json`; read opacity from `layer.opacity()`
+- [ ] Layer ordering: tile sources below exported PMTiles vector layers in `style.json`
+      (consistent with how basemap overlay is ordered)
+
+**Style / GL JSON capture:**
+- [ ] For `QgsVectorTileLayer`: attempt to retrieve stored GL style from layer custom
+      properties (`layer.customProperty("mapbox-gl-style")`); if present, merge layer
+      definitions into output `style.json` instead of writing a generic source
+- [ ] If no stored style: write a minimal style using `QgsMapBoxGlStyleConverter` output
+      or a single `"background"` + catch-all fill/line layer as a placeholder
+- [ ] For raster layers: write `{"raster-opacity": layer.opacity()}` paint block
+
+**Config file support:**
+- [ ] Save/restore tile layer selections by layer name in `[export]` section alongside
+      regular layer names (same mechanism)
+- [ ] Save the source type tag (`vector_tile` / `xyz_raster`) so load can match correctly
+
+---
+
+#### Stage 2 — Local MBTiles conversion *(medium effort, offline-capable)*
+
+Applies only to `QgsVectorTileLayer` instances whose provider is `mbtiles` (local file —
+no ToS concern). The file is already on disk; conversion is a single command.
+
+- [ ] Detect `layer.providerType() == "mbtiles"` in the tile layer path
+- [ ] Run `pmtiles convert {source.mbtiles} {output}/data/{layer_name}.pmtiles` using the
+      existing `QProcess` polling pattern
+- [ ] Write a `pmtiles://data/{layer_name}.pmtiles` source URL into `style.json`
+      (same as regular exported layers)
+- [ ] Include the GL style from the source MBTiles `metadata` table if present
+      (`SELECT value FROM metadata WHERE name = 'style'`)
+- [ ] Show conversion progress in the Log tab
+
+---
+
+#### Stage 3 — Download online tile sources to PMTiles *(large, ToS-gated)*
+
+For **online** sources where the user has confirmed they hold a licence permitting bulk
+download and redistribution.
+
+- [ ] UI: "Package for offline" checkbox per tile layer; disabled by default with tooltip
+      explaining ToS requirement
+- [ ] Show explicit acknowledgment dialog: "By proceeding you confirm you have the right
+      to download and redistribute tiles from [source URL]. Bulk downloading may violate
+      your provider's terms of service." Require typed confirmation or checkbox.
+- [ ] Show size estimate before download: enumerate tile count for export extent + max zoom
+      (same formula as the tile estimator already implemented)
+- [ ] For **raster XYZ**: use `gdal_translate -of MBTiles` to download tiles within the
+      bounding box, then `pmtiles convert` to produce a PMTiles file;
+      write as `"type": "raster"` source in `style.json`
+- [ ] For **vector MVT**: use `pmtiles fetch` (if supported by the endpoint) or tile-by-tile
+      download into MBTiles, then `pmtiles convert`; merge source GL style if obtainable
+- [ ] Show download progress: "Downloading tile layer X: Z%"; support cancel
+- [ ] On failure: fall back to pass-through URL (Mode A) with a warning in the log
+- [ ] Attribution: always include provider attribution string in the MapLibre
+      `AttributionControl` (required by virtually all tile provider licences)
+
+---
+
+#### Key QGIS API references
+
+```python
+# Detect vector tile layer
+from qgis.core import QgsVectorTileLayer
+isinstance(layer, QgsVectorTileLayer)
+layer.providerType()          # "xyz", "mbtiles", "vtpk", "arcgismapserver"
+layer.dataProvider().dataSourceUri()  # URL template or file path
+
+# Extract stored GL style (if imported from a style URL)
+layer.customProperty("mapbox-gl-style")  # may be None
+
+# Detect XYZ raster provider
+isinstance(layer, QgsRasterLayer)
+layer.dataProvider().name()   # "wms" for both WMS and XYZ in QGIS
+layer.dataProvider().dataSourceUri()  # contains "url=..." key-value string
+
+# Raster paint properties
+layer.opacity()               # 0.0–1.0; maps to MapLibre raster-opacity
+
+# GL style export from QGIS renderer (for manually-styled vector tile layers)
+from qgis.core import QgsMapBoxGlStyleConverter
+converter = QgsMapBoxGlStyleConverter()
+# (convert QGIS renderer → GL style fragment — API details TBD)
+```
+
 ---
 
 ## Documentation
