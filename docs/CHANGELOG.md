@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.12.0 — 2026-03-24
+
+### Changed
+- **New "Inputs" tab** — Layers to Export, Advanced Options (collapsible), Save/Load Config, and Export button are now on a dedicated first tab called "Inputs". This makes the most-used controls immediately visible without scrolling.
+- **"Options" tab** — The old "Export" tab is renamed "Options" and now contains only the collapsible Export Options, Basemap Overlay, and Output sections.
+- **Progress moved to Log tab** — Progress bar, Cancel button, and export status label are now at the top of the Log tab. Clicking Export switches to Log tab, where you can see both the progress indicators and the live log in one place.
+
+## v0.11.0 — 2026-03-23
+
+### Added
+- **Persistent settings via QgsSettings** — all UI state (export mode, zoom, all 7 viewer checkboxes, label placement, map dimensions, offline bundle, advanced legend, basemap source and style, output folder, last config directory) is now saved to QGIS's profile-scoped `QgsSettings` automatically. Settings are restored on plugin open. Loading a config file overrides persisted values and then re-saves them as the new persisted state. Migrated from `QSettings("MapSplat","MapSplat")` — profile isolation now works correctly.
+- **pmtiles CLI missing dialog** — when Basemap Overlay is enabled and the `pmtiles` binary is not found on PATH, a clear `QMessageBox` appears before export starts with a link to the releases page. Previously only logged a message to the Log tab.
+
 ## v0.10.0 — 2026-03-23
 
 ### Added

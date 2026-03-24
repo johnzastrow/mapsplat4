@@ -17,7 +17,7 @@ Supported style properties:
 - Multiple symbol layers
 """
 
-__version__ = "0.10.0"
+__version__ = "0.12.0"
 
 import base64
 import math

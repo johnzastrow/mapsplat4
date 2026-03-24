@@ -5,7 +5,7 @@ This module contains the main plugin class that handles QGIS integration,
 menu items, toolbar buttons, and the dockable widget.
 """
 
-__version__ = "0.10.0"
+__version__ = "0.12.0"
 
 import os
 
