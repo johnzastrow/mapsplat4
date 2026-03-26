@@ -10,7 +10,7 @@
 
 MapSplat is a QGIS plugin that exports (splats) your project layers to self-contained static web map packages. The output can be hosted on any static web server, cloud storage, or run locally — no tile server, no backend, no new stack to learn. Check the [docs/](docs/) directory for design notes, a full changelog, and technical details on the PMTiles + MapLibre GL JS architecture.
 
-**This project is 100% written by robots**
+**This project targets QGIS 4.X and is 100% written by robots**
 
 ---
 
