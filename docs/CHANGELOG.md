@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.13.0 — 2026-03-24
+
+### Added
+- **Config load warning for missing layers** — When loading a config file, any layer names listed under `[export] layer_names` that are not present in the current QGIS project are reported in a `QMessageBox.warning` dialog listing the missing names by bullet point.
+- **Attribution field (Viewer tab)** — New text field in the Viewer tab for custom attribution text. The value is passed to MapLibre's `AttributionControl` (`customAttribution` option) at export time. Persisted in `QgsSettings` and in config files under `[viewer] attribution`.
+- **Basemap URL/file validation** — When the basemap source field loses focus, the entered URL is checked with an HTTP HEAD request (3 s timeout) or the file path is checked with `os.path.isfile`. An inline red error label appears if the source is unreachable or missing; it clears when valid or when the basemap group is disabled.
+- **Popup field customization dialog** — Right-clicking a vector layer in the Layers to Export list opens "Configure popup fields". A dialog with per-field checkboxes lets you choose which fields appear in the MapLibre feature click popup. Field selection is keyed by sanitized source-layer name, persisted in `self._popup_fields`, and written to/read from config files under the new `[popup]` section. Exported HTML filters popup entries via a `popupFieldConfig` JS constant looked up by `feature.sourceLayer`.
+
+### Changed
+- **Config file format** — New optional `[popup]` section (layer name → list of visible field names). New `[viewer] attribution` key. Existing config files without these keys continue to load correctly.
+- `config_manager.py` — `write_config` now writes the `[popup]` section; `read_config` unquotes quoted TOML keys (needed for layer names with spaces). `write_config` docstring updated.
+
 ## v0.12.1 — 2026-03-24
 
 ### Fixed

@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.12.1"
+__version__ = "0.13.0"
 
 import os
 
@@ -48,6 +48,9 @@ from qgis.PyQt.QtWidgets import (
     QFrame,
     QToolButton,
     QApplication,
+    QMenu,
+    QDialog,
+    QDialogButtonBox,
     QStyle,
 )
 
@@ -325,6 +328,12 @@ class MapSplatDockWidget(QDockWidget):
         basemap_src_layout.addWidget(self.btn_basemap_browse)
         basemap_layout.addLayout(basemap_src_layout)
 
+        self.lbl_basemap_source_error = QLabel()
+        self.lbl_basemap_source_error.setStyleSheet("color: red; font-size: 11px;")
+        self.lbl_basemap_source_error.setVisible(False)
+        self.lbl_basemap_source_error.setWordWrap(True)
+        basemap_layout.addWidget(self.lbl_basemap_source_error)
+
         # Basemap style.json row
         basemap_style_layout = QHBoxLayout()
         basemap_style_layout.addWidget(QLabel("Basemap style:"))
@@ -572,6 +581,18 @@ class MapSplatDockWidget(QDockWidget):
         )
         viewer_group_layout.addWidget(self.chk_advanced_legend)
 
+        # Attribution text
+        attribution_row = QHBoxLayout()
+        attribution_row.addWidget(QLabel("Attribution:"))
+        self.txt_viewer_attribution = QLineEdit()
+        self.txt_viewer_attribution.setPlaceholderText("© Your Organization")
+        self.txt_viewer_attribution.setToolTip(
+            "Custom attribution text shown in the map's attribution control.\n"
+            "Leave blank to use the default MapLibre attribution."
+        )
+        attribution_row.addWidget(self.txt_viewer_attribution, 1)
+        viewer_group_layout.addLayout(attribution_row)
+
         viewer_layout.addWidget(viewer_group)
 
         # Map Dimensions group
@@ -713,11 +734,14 @@ class MapSplatDockWidget(QDockWidget):
         self.combo_label_placement.currentIndexChanged.connect(self._save_settings)
         self.spin_map_width.valueChanged.connect(self._save_settings)
         self.spin_map_height.valueChanged.connect(self._save_settings)
+        self.txt_viewer_attribution.editingFinished.connect(self._save_settings)
         self.basemap_group.toggled.connect(self._save_settings)
         self.txt_basemap_source.editingFinished.connect(self._save_settings)
+        self.txt_basemap_source.editingFinished.connect(self._validate_basemap_source)
         self.txt_basemap_style.editingFinished.connect(self._save_settings)
         self.radio_basemap_url.toggled.connect(self._save_settings)
         self.radio_basemap_file.toggled.connect(self._save_settings)
+        self.basemap_group.toggled.connect(self._on_basemap_group_toggled)
 
         # Store imported style path
         self.imported_style_path = None
@@ -727,6 +751,13 @@ class MapSplatDockWidget(QDockWidget):
 
         # Remember last config directory for file dialogs
         self._last_config_dir = ""
+
+        # Popup field visibility: {layer_id: [visible_field_names]} (empty list = show all)
+        self._popup_fields = {}
+
+        # Right-click context menu on the layer list for popup field configuration
+        self.layer_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.layer_list.customContextMenuRequested.connect(self._on_layer_list_context_menu)
 
         # Restore all persisted settings (called after full UI setup and initial layer refresh)
         self._restoring = False
@@ -956,6 +987,7 @@ class MapSplatDockWidget(QDockWidget):
         s.setValue("viewer_zoom_display", self.chk_viewer_zoom_display.isChecked())
         s.setValue("viewer_reset_view", self.chk_viewer_reset_view.isChecked())
         s.setValue("viewer_north_reset", self.chk_viewer_north_reset.isChecked())
+        s.setValue("viewer_attribution", self.txt_viewer_attribution.text())
         s.setValue("basemap_enabled", self.basemap_group.isChecked())
         s.setValue("basemap_source_type", "file" if self.radio_basemap_file.isChecked() else "url")
         s.setValue("basemap_source", self.txt_basemap_source.text().strip())
@@ -1035,22 +1067,19 @@ class MapSplatDockWidget(QDockWidget):
             if style_path:
                 self.txt_basemap_style.setText(style_path)
 
+            attribution = s.value("viewer_attribution", "")
+            if attribution:
+                self.txt_viewer_attribution.setText(attribution)
+
             s.endGroup()
         finally:
             self._restoring = False
 
     def _check_pmtiles_cli(self):
         """Check pmtiles CLI is on PATH; show install dialog if missing. Returns True if OK."""
-        import subprocess
-        try:
-            result = subprocess.run(
-                ["pmtiles", "--help"],
-                capture_output=True, text=True, timeout=10
-            )
-            if result.returncode == 0:
-                return True
-        except Exception:
-            pass
+        import shutil
+        if shutil.which("pmtiles") is not None:
+            return True
         QMessageBox.warning(
             self,
             "pmtiles CLI Not Found",
@@ -1321,6 +1350,8 @@ class MapSplatDockWidget(QDockWidget):
             "advanced_legend": self.chk_advanced_legend.isChecked(),
             "map_width": self.spin_map_width.value(),
             "map_height": self.spin_map_height.value(),
+            "attribution": self.txt_viewer_attribution.text().strip(),
+            "popup_fields": self._popup_fields_by_name(),
             "extent_layer_id": (
                 None if self.combo_extent_layer.currentData() == "__map_view__"
                 else self.combo_extent_layer.currentData()
@@ -1477,7 +1508,9 @@ class MapSplatDockWidget(QDockWidget):
                 "advanced_legend": self.chk_advanced_legend.isChecked(),
                 "map_width": self.spin_map_width.value(),
                 "map_height": self.spin_map_height.value(),
+                "attribution": self.txt_viewer_attribution.text().strip(),
             },
+            "popup": self._popup_fields_for_config(),
         }
 
         try:
@@ -1526,6 +1559,7 @@ class MapSplatDockWidget(QDockWidget):
 
         if "layer_names" in export:
             saved_names = set(export["layer_names"])
+            matched_names = set()
             project = QgsProject.instance()
             for i in range(self.layer_list.count()):
                 item = self.layer_list.item(i)
@@ -1533,8 +1567,18 @@ class MapSplatDockWidget(QDockWidget):
                 layer = project.mapLayer(layer_id)
                 if layer and layer.name() in saved_names:
                     item.setSelected(True)
+                    matched_names.add(layer.name())
                 else:
                     item.setSelected(False)
+            missing = saved_names - matched_names
+            if missing:
+                missing_list = "\n".join(f"  • {n}" for n in sorted(missing))
+                QMessageBox.warning(
+                    self,
+                    "Missing Layers",
+                    f"The following layers from the config were not found in the current project "
+                    f"and could not be selected:\n\n{missing_list}",
+                )
             applied += 1
 
         if "pmtiles_mode" in export:
@@ -1644,9 +1688,169 @@ class MapSplatDockWidget(QDockWidget):
             self.spin_map_height.setValue(int(viewer["map_height"]))
             applied += 1
 
+        if "attribution" in viewer:
+            self.txt_viewer_attribution.setText(viewer["attribution"])
+            applied += 1
+
+        # --- [popup] section ---
+        popup = config_dict.get("popup", {})
+        if popup:
+            project = QgsProject.instance()
+            self._popup_fields = {}
+            for layer_name, fields in popup.items():
+                for lyr in project.mapLayersByName(layer_name):
+                    self._popup_fields[lyr.id()] = list(fields)
+                    break  # use first match
+            applied += 1
+
         self._log(f"Config loaded: {applied} settings applied from {file_path}", "info")
         # Persist config values so they survive the next session
         self._save_settings()
+
+    # ------------------------------------------------------------------
+    # Basemap source validation (Feature 3)
+    # ------------------------------------------------------------------
+
+    def _on_basemap_group_toggled(self, checked):
+        """Hide validation error when basemap is disabled."""
+        if not checked:
+            self.lbl_basemap_source_error.setVisible(False)
+
+    def _validate_basemap_source(self):
+        """Validate the basemap source URL or file path on focus-out."""
+        if not self.basemap_group.isChecked():
+            self.lbl_basemap_source_error.setVisible(False)
+            return
+
+        source = self.txt_basemap_source.text().strip()
+        if not source:
+            self.lbl_basemap_source_error.setVisible(False)
+            return
+
+        is_url = source.startswith("http://") or source.startswith("https://")
+        if is_url:
+            import urllib.request
+            try:
+                req = urllib.request.Request(source, method="HEAD")
+                with urllib.request.urlopen(req, timeout=3):
+                    pass
+                self.lbl_basemap_source_error.setVisible(False)
+            except Exception as exc:
+                self.lbl_basemap_source_error.setText(f"URL unreachable: {exc}")
+                self.lbl_basemap_source_error.setVisible(True)
+        else:
+            if os.path.isfile(source):
+                self.lbl_basemap_source_error.setVisible(False)
+            else:
+                self.lbl_basemap_source_error.setText("File not found.")
+                self.lbl_basemap_source_error.setVisible(True)
+
+    # ------------------------------------------------------------------
+    # Popup field customization (Feature 4)
+    # ------------------------------------------------------------------
+
+    def _on_layer_list_context_menu(self, pos):
+        """Show context menu on right-click in the layer list."""
+        item = self.layer_list.itemAt(pos)
+        if item is None:
+            return
+
+        layer_id = item.data(_UserRole)
+        project = QgsProject.instance()
+        layer = project.mapLayer(layer_id)
+        if not isinstance(layer, QgsVectorLayer):
+            return
+
+        menu = QMenu(self)
+        action = menu.addAction(f"Configure popup fields for '{layer.name()}'...")
+        if menu.exec(self.layer_list.viewport().mapToGlobal(pos)) == action:
+            self._configure_popup_fields(layer_id)
+
+    def _configure_popup_fields(self, layer_id):
+        """Open a dialog to choose which fields appear in the click popup."""
+        project = QgsProject.instance()
+        layer = project.mapLayer(layer_id)
+        if not isinstance(layer, QgsVectorLayer):
+            return
+
+        all_fields = [f.name() for f in layer.fields()]
+        current = self._popup_fields.get(layer_id, all_fields)
+        visible = set(current)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Popup Fields - {layer.name()}")
+        dlg.resize(320, 360)
+        layout = QVBoxLayout(dlg)
+
+        layout.addWidget(QLabel("Select fields to show in the feature popup:"))
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        inner = QWidget()
+        inner_layout = QVBoxLayout(inner)
+        inner_layout.setSpacing(2)
+
+        checkboxes = {}
+        for fname in all_fields:
+            cb = QCheckBox(fname)
+            cb.setChecked(fname in visible)
+            inner_layout.addWidget(cb)
+            checkboxes[fname] = cb
+
+        inner_layout.addStretch()
+        scroll.setWidget(inner)
+        layout.addWidget(scroll)
+
+        # Select all / None buttons
+        btn_row = QHBoxLayout()
+        btn_all = QPushButton("Select All")
+        btn_none = QPushButton("Select None")
+        btn_all.clicked.connect(lambda: [cb.setChecked(True) for cb in checkboxes.values()])
+        btn_none.clicked.connect(lambda: [cb.setChecked(False) for cb in checkboxes.values()])
+        btn_row.addWidget(btn_all)
+        btn_row.addWidget(btn_none)
+        layout.addLayout(btn_row)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            selected = [fname for fname, cb in checkboxes.items() if cb.isChecked()]
+            if set(selected) == set(all_fields):
+                # All fields selected means no filtering; remove entry to keep dict clean
+                self._popup_fields.pop(layer_id, None)
+            else:
+                self._popup_fields[layer_id] = selected
+
+    def _popup_fields_by_name(self):
+        """Return popup_fields keyed by sanitized source-layer name for the exporter."""
+        result = {}
+        project = QgsProject.instance()
+        for layer_id, fields in self._popup_fields.items():
+            layer = project.mapLayer(layer_id)
+            if layer:
+                sanitized = "".join(
+                    c if c.isalnum() or c == "_" else "_" for c in layer.name()
+                )
+                while "__" in sanitized:
+                    sanitized = sanitized.replace("__", "_")
+                sanitized = sanitized.strip("_")
+                result[sanitized] = fields
+        return result
+
+    def _popup_fields_for_config(self):
+        """Return popup_fields keyed by original layer name for config file storage."""
+        result = {}
+        project = QgsProject.instance()
+        for layer_id, fields in self._popup_fields.items():
+            layer = project.mapLayer(layer_id)
+            if layer:
+                result[layer.name()] = fields
+        return result
 
     def closeEvent(self, event):
         """Handle close event."""

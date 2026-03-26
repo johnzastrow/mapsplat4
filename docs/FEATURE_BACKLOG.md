@@ -4,32 +4,46 @@ Unordered list of desired usability improvements. Prioritization and implementat
 
 ---
 
+## Recently Completed
+
+| Version | Feature | Story |
+|---------|---------|-------|
+| v0.7.0 | QGIS 4 / Qt6 compatibility | Phase 0 |
+| v0.9.0 | Symbology warnings, tile count estimator | Story 10, 11 |
+| v0.10.0 | Collapsible sections, extent clipping, current map view | Story 4 ext. |
+| v0.11.0 | Persistent settings (QgsSettings), pmtiles missing dialog | Story 6, Story 3 |
+| v0.12.0 | UI tab reorganization (Inputs/Options/Log) | — |
+| v0.12.1 | Geometry distortion fix (ogr2ogr -s_srs) | — |
+| v0.13.0 | Config load warning, attribution field, basemap URL validation, popup field customization | Story 6, 12, 13, Story 3 |
+
+---
+
 ## QGIS4 Compatibility *(Complete before any other work)*
 
-### Remove Qt5/Qt6 Compatibility Shims *(Phase 0)*
-- [ ] Remove Qt5/Qt6 shims from `mapsplat.py` (no longer needed for Qt6-only)
-- [ ] Remove `QAction` import location shim
-- [ ] Remove `RightDockWidgetArea`, `ItemIsEnabled`, `UserRole` enum scoping shims
+### Remove Qt5/Qt6 Compatibility Shims *(Phase 0)* ✅ *Done — v0.7.0*
+- [x] Remove Qt5/Qt6 shims from `mapsplat.py` (no longer needed for Qt6-only)
+- [x] Remove `QAction` import location shim
+- [x] Remove `RightDockWidgetArea`, `ItemIsEnabled`, `UserRole` enum scoping shims
 
 ### Qgis.MessageLevel Enum Migration *(Phase 0)*
 - [ ] Update all `Qgis.Info`, `Qgis.Warning`, `Qgis.Critical`, `Qgis.Success` to `Qgis.MessageLevel.Info`, etc.
 - [ ] Files: `mapsplat_dockwidget.py`, `exporter.py`, `config_manager.py`, `log_utils.py`
 
-### Qt Enum Scoping *(Phase 0)*
-- [ ] Update `Qt.AlignCenter` → `Qt.AlignmentFlag.AlignCenter`
-- [ ] Update `Qt.UserRole` → `Qt.ItemDataRole.UserRole`
-- [ ] Update `Qt.red`, `Qt.darkGreen`, `Qt.darkYellow` → `Qt.GlobalColor.red`, etc.
-- [ ] Files: `mapsplat_dockwidget.py`
+### Qt Enum Scoping *(Phase 0)* ✅ *Done — v0.7.0*
+- [x] Update `Qt.AlignCenter` → `Qt.AlignmentFlag.AlignCenter`
+- [x] Update `Qt.UserRole` → `Qt.ItemDataRole.UserRole`
+- [x] Update `Qt.red`, `Qt.darkGreen`, `Qt.darkYellow` → `Qt.GlobalColor.red`, etc.
+- [x] Files: `mapsplat_dockwidget.py`
 
-### Recompile Resources for Qt6 *(Phase 0)*
-- [ ] Run `pyrcc6 -o resources.py resources.qrc`
-- [ ] Update Makefile: `pyrcc5` → `pyrcc6`
+### Recompile Resources for Qt6 *(Phase 0)* ✅ *Done — v0.7.0*
+- [x] Run `pyrcc6 -o resources.py resources.qrc`
+- [x] Update Makefile: `pyrcc5` → `pyrcc6`
 
-### Verify QGIS4 API Compatibility *(Phase 0)*
-- [ ] Test `QgsVectorFileWriter` API unchanged
-- [ ] Test `QgsProject.instance()` behavior
-- [ ] Test `QgsMapLayer` properties and methods
-- [ ] Test layer tree API (`layerTreeRoot().layerOrder()`)
+### Verify QGIS4 API Compatibility *(Phase 0)* ✅ *Done — in use*
+- [x] Test `QgsVectorFileWriter` API unchanged
+- [x] Test `QgsProject.instance()` behavior
+- [x] Test `QgsMapLayer` properties and methods
+- [x] Test layer tree API (`layerTreeRoot().layerOrder()`)
 
 ---
 
@@ -75,14 +89,14 @@ Unordered list of desired usability improvements. Prioritization and implementat
 
 ## Error Handling
 
-### Validate Basemap URL *(Story 3)*
-- [ ] Validate basemap URL/file on **focus-out** (NOT on text change — text change fires on every keystroke and would issue an HTTP request per character)
-- [ ] Show error immediately if URL unreachable or file missing
-- [ ] Prevent export from starting with invalid basemap config
+### Validate Basemap URL *(Story 3)* ✅ *Done — v0.13.0*
+- [x] Validate basemap URL/file on **focus-out** (NOT on text change — text change fires on every keystroke and would issue an HTTP request per character) — URL HEAD request + file existence check on focus-out
+- [x] Show error immediately if URL unreachable or file missing — inline red error label
+- [x] Prevent export from starting with invalid basemap config
 
-### pmtiles CLI Missing Dialog *(Story 3)*
-- [ ] Show QMessageBox with install instructions (not just log)
-- [ ] Include link to releases page: https://github.com/protomaps/go-pmtiles/releases
+### pmtiles CLI Missing Dialog *(Story 3)* ✅ *Done — v0.11.0*
+- [x] Show QMessageBox with install instructions (not just log)
+- [x] Include link to releases page: https://github.com/protomaps/go-pmtiles/releases
 
 ### Export Summary for Partial Failures *(Story 3)*
 - [ ] Track which layers succeeded/failed
@@ -93,14 +107,14 @@ Unordered list of desired usability improvements. Prioritization and implementat
 
 ## Configuration
 
-### Persist All Settings *(Story 6)*
-- [ ] Resolve `QSettings` vs `QgsSettings` first — the codebase currently uses `QSettings("MapSplat", "MapSplat")` but should use `QgsSettings` (respects QGIS profile isolation). Migrate `last_output_folder` key before adding new ones.
-- [ ] Save/restore: export mode, zoom level, style options, all 7 viewer checkboxes, offline bundling toggle, label placement mode
-- [ ] Validate restored settings (e.g., layer still exists in project)
+### Persist All Settings *(Story 6)* ✅ *Done — v0.11.0*
+- [x] Resolve `QSettings` vs `QgsSettings` first — the codebase currently uses `QSettings("MapSplat", "MapSplat")` but should use `QgsSettings` (respects QGIS profile isolation). Migrate `last_output_folder` key before adding new ones.
+- [x] Save/restore: export mode, zoom level, style options, all 7 viewer checkboxes, offline bundling toggle, label placement mode
+- [x] Validate restored settings (e.g., layer still exists in project)
 
-### Config Load Warnings for Missing Layers *(Story 6)*
-- [ ] Show clear warning when loading config with missing layers
-- [ ] List which layers were not found in current project
+### Config Load Warnings for Missing Layers *(Story 6)* ✅ *Done — v0.13.0*
+- [x] Show clear warning when loading config with missing layers
+- [x] List which layers were not found in current project
 
 ---
 
@@ -151,21 +165,21 @@ Unordered list of desired usability improvements. Prioritization and implementat
 - [x] Set tooltip on item explaining the specific limitation (e.g. "SVG markers will render as circles")
 - [x] Re-run check when project layers change (fires on every `refresh_layer_list` call)
 
-### Popup Field Customization *(Story 12)*
-- [ ] Add "Configure Popup Fields..." button or context menu item on layer list items
-- [ ] Open dialog showing all fields for the selected layer with checkboxes (default: all checked)
-- [ ] Store visible-field selections per layer in config file (new `[popup]` section)
-- [ ] Pass visible-field config to `generate_html_viewer()` and filter popup HTML accordingly
-- [ ] "Show all / hide all" toggle in dialog
-- [ ] Restore selections from config on load
-- [ ] **Requires Story 6 first** (config file infrastructure needed for per-layer storage)
+### Popup Field Customization *(Story 12)* ✅ *Done — v0.13.0*
+- [x] Add "Configure Popup Fields..." button or context menu item on layer list items — right-click context menu on layer list
+- [x] Open dialog showing all fields for the selected layer with checkboxes (default: all checked) — dialog with per-field checkboxes
+- [x] Store visible-field selections per layer in config file (new `[popup]` section) — persisted in `[popup]` config section
+- [x] Pass visible-field config to `generate_html_viewer()` and filter popup HTML accordingly — filtered in HTML popup via `popupFieldConfig` JS constant
+- [x] "Show all / hide all" toggle in dialog — Select All/None buttons
+- [x] Restore selections from config on load
+- [x] **Requires Story 6 first** (config file infrastructure needed for per-layer storage)
 
-### Attribution Field *(Story 13)*
-- [ ] Add "Attribution" text field to Viewer tab
-- [ ] Default to any attribution found on exported layers via `QgsMapLayer.attribution()`; join multiple with " | "
-- [ ] Pass attribution string to `generate_html_viewer()`
-- [ ] Add `maplibregl.AttributionControl({ customAttribution: "..." })` to generated viewer when non-empty
-- [ ] Save/restore in config file under `[viewer]`
+### Attribution Field *(Story 13)* ✅ *Done — v0.13.0*
+- [x] Add "Attribution" text field to Viewer tab
+- [x] Default to any attribution found on exported layers via `QgsMapLayer.attribution()`; join multiple with " | "
+- [x] Pass attribution string to `generate_html_viewer()`
+- [x] Add `maplibregl.AttributionControl({ customAttribution: "..." })` to generated viewer when non-empty
+- [x] Save/restore in config file under `[viewer]` — saved under `[viewer] attribution`
 
 ### PMTiles Verify After Export *(Story 14)*
 - [ ] After each PMTiles file is written (ogr2ogr produces PMTiles directly — no separate convert step), run `pmtiles verify {output_file}`

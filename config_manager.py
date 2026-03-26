@@ -5,7 +5,7 @@ Pure-Python TOML-like config file reader/writer. No external dependencies.
 Supports human-editable config files with comments.
 """
 
-__version__ = "0.12.1"
+__version__ = "0.13.0"
 
 import os
 
@@ -42,6 +42,7 @@ _COMMENTS = {
         "advanced_legend": "Show per-category/class-break swatches and labels in the legend (true/false)",
         "map_width": "Map pixel width; 0 = responsive full-window",
         "map_height": "Map pixel height; 0 = responsive full-window",
+        "attribution": "Custom attribution text shown in the map (leave blank for default)",
     },
 }
 
@@ -78,6 +79,7 @@ _SECTION_KEYS = {
         "advanced_legend",
         "map_width",
         "map_height",
+        "attribution",
     ],
 }
 
@@ -104,7 +106,7 @@ def write_config(file_path, config_dict):
     """Write a config dict to a TOML file with comments.
 
     :param file_path: Absolute path to write to.
-    :param config_dict: Nested dict with keys "export", "basemap", "viewer".
+    :param config_dict: Nested dict with keys "export", "basemap", "viewer", and optionally "popup".
                         Each sub-dict maps string keys to values.
     :raises OSError: If the file cannot be written.
     """
@@ -140,6 +142,17 @@ def write_config(file_path, config_dict):
 
         lines.append("")
 
+    # [popup] section — dynamic keys (layer names → field name lists)
+    popup_data = config_dict.get("popup", {})
+    if popup_data:
+        lines.append("[popup]")
+        lines.append("# Each key is a layer name; value is a list of field names to show in the popup.")
+        lines.append("# Omit a layer or use an empty list to show all fields.")
+        for layer_name, fields in popup_data.items():
+            quoted_key = f'"{_escape_string(layer_name)}"'
+            lines.append(f"{quoted_key} = {_toml_value(list(fields))}")
+        lines.append("")
+
     with open(file_path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines))
         if not lines[-1].endswith("\n"):
@@ -149,7 +162,7 @@ def write_config(file_path, config_dict):
 def read_config(file_path):
     """Read a TOML config file and return a nested dict.
 
-    Sections map to top-level keys: "export", "basemap", "viewer".
+    Sections map to top-level keys: "export", "basemap", "viewer", "popup".
     Value types are auto-detected: bool, int, string, list-of-strings.
 
     :param file_path: Absolute path to the config file.
@@ -183,6 +196,9 @@ def read_config(file_path):
                 # Strip inline comments (# not inside a string)
                 eq_idx = line.index("=")
                 key = line[:eq_idx].strip()
+                # Unquote quoted keys (e.g. "Layer Name" = [...])
+                if key.startswith('"') and key.endswith('"') and len(key) >= 2:
+                    key = key[1:-1].replace('\\"', '"').replace("\\\\", "\\")
                 raw_value = line[eq_idx + 1:].strip()
 
                 # Strip trailing inline comment if value is not a string

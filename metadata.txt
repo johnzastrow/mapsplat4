@@ -2,7 +2,7 @@
 name=MapSplat
 qgisMinimumVersion=4.0
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.12.1
+version=0.13.0
 author=John Zastrow
 email=john@northredoubt.com
 
@@ -22,6 +22,12 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.13.0 - Config load warning, attribution field, basemap URL validation, popup field customization
+    - Config load now warns when layer names from config are missing from the current project
+    - Viewer tab: Attribution text field; value passed to MapLibre AttributionControl
+    - Basemap source field validates URL (HEAD request) or file path on focus-out; shows inline error
+    - Right-click a layer in the list to configure which fields appear in the click popup
+    - Popup field config persists in config files under [popup] section
     0.12.1 - Fix geometry distortion in exported tiles
     - Add -s_srs EPSG:3857 to ogr2ogr command to prevent double-reprojection;
       QGIS CRS WKT in GeoPackage was not always recognised by GDAL as exactly
