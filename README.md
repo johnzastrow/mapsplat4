@@ -90,15 +90,15 @@ This project is based on the work by the folks at Protomaps. They host builds of
   
 2. MapSplat first Inputs tab with layers selected and tool tips configured
     
-<img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/mapsplat_config.png" height="400" />
+<img src="https://github.com/johnzastrow/mapsplat4/blob/main/docs/images/ms4_1.png?raw=true" height="400" />
 
 3. MapSplat Options with the export settings configured for a basemap overlay export. 
     
-<img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/mapsplat_config.png" height="400" />
+<img src="https://github.com/johnzastrow/mapsplat4/blob/main/docs/images/ms4_2.png?raw=true" height="400" />
 
 1. MapSplat Viewer tab with settings for the online map viewer
     
-<img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/mapsplat_config.png" height="400" />
+<img src="https://github.com/johnzastrow/mapsplat4/blob/main/docs/images/ms4_3b.png?raw=true" height="400" />
 
 3. MapSplat baby serve.py dev server running the exported map locally 
   
