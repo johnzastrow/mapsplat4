@@ -52,23 +52,28 @@ MapSplat is a QGIS plugin that exports (splats) your project layers to self-cont
 
 ---
 
-**Quick start:**
-1. Install the plugin (yes, downloading the .zip and manually adding it to QGIS works)
+## Quick start:
+1. Install the plugin (yes, downloading the .zip and manually adding it to QGIS works). Download the latest `mapsplat.zip` from [Releases](https://github.com/johnzastrow/mapsplat/releases)
 2. Put the [pmtiles CLI](https://github.com/protomaps/go-pmtiles/releases) on your PATH so QGIS can just use it as you
-3. Style a point layer in your map with a single point style and labels. Circles and "gray" (special QGIS) SVG icons for markers are working now
-4. Download a big set of background tiles (see below. Get a larger area then you need. Mapsplat will trim to your extents) along with some styling (style.json also from below). I like to rename this jason to be basemap.json for clarity`
-5. Configure mapsplat by
-   * picking your point layer,
-  * setting unified or separate layers for the output PMtiles (I like separate), 
-1. 
+3. Style a point layer(s) in your map with a single point style and labels. Circles and "gray" (special QGIS) SVG icons for markers are working now. You can color them with fills and strokes.
+4. *Optional*: Download a big set of background tiles (see below. Get a larger area than you need. Mapsplat will trim to your extents. Also, download some styling (style.json also from below). I like to rename this JSON to be `basemap.json` for clarity.
+5. Make a pretty map and zoom/pan to the starting view you'd like your online map to begin with
+6. Configure Mapsplat by working with the controls in the plugin.
+  - a. Selecting the layers that you want in your output
+  - b. Set up the basemap if you want one (it does not need to be in your QGIS view or project)
+  - c. Adjust the settings throughout Mapsplat
+  - - Keep the number of zoom levels small at first and set the extent to be as small as you can. Your view extent is a good place to start.
+  - d. Save the config file for later use (iterate on the settings until you get it right).
+  - e. Export a map from Mapsplat 
+7. Find the output directory and run the little server script with something like `python serve.py`. It should start your browser and show you the map!
 
 
 The resulting HTML has comments that can help you copy/paste the map into another HTML page for embedding.
 
 
-**Prep Work**
+## Prep Work
 
-This project is based on the work by the folks at Protomaps. They host builds of global map tiles in PMtile format with data from Open Street Map that you can download here for your basemap. Download the latest build, then use the pmtiles CLI tool to trim the glopbal data to your needs, or let mapsplat do it. It wants the pmtiles CLI in your path anyway. You'll also need a styling JSON to make your basemap look like something. Again, protomaps gives you one to start with and mapsplat will adapt it to work in a more stand alone way.
+This project is based on the work by the folks at Protomaps. They host builds of global map tiles in PMtile format, using data from OpenStreetMap, which you can download here for your basemap. Download the latest build, then use the `pmtiles` CLI tool to trim the global data to your needs, or let mapsplat do it. Mapsplat needs the pmtiles CLI in your path to run. You'll also need a styling JSON to make your basemap look like something - though you can publish a map entirely with your data and Mapsplat will provide the styling. Again, protomaps gives you one to start with, and mapsplat will adapt it to work more standalone.
 
 * [Builds of global map tiles](https://maps.protomaps.com/builds/)
 * [More info on basemaps](https://docs.protomaps.com/basemaps/downloads)
