@@ -88,7 +88,15 @@ This project is based on the work by the folks at Protomaps. They host builds of
      
 * <img src="https://github.com/johnzastrow/mapsplat/blob/bb8167982c34b683317029f38f3de6b5ae1b12b4/docs/images/qgis.png" width="600" />
   
-2. MapSplat Export tab with layers selected and basemap overlay configured
+2. MapSplat first Inputs tab with layers selected and tool tips configured
+    
+<img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/mapsplat_config.png" height="400" />
+
+3. MapSplat Options with the export settings configured for a basemap overlay export. 
+    
+<img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/mapsplat_config.png" height="400" />
+
+1. MapSplat Viewer tab with settings for the online map viewer
     
 <img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/mapsplat_config.png" height="400" />
 
