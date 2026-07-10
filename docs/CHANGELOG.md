@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — dock UX redesign, phase 1 (see `docs/DOCK_UX_REDESIGN.md`)
+- **Output fields moved onto the Inputs tab**, beside Layers and the Export button, so a whole export
+  can be configured on **one screen** — no more hopping to the Options tab and back just to run.
+  (The dock still uses tabs; height is unchanged — the single-panel redesign is a later phase.)
+- **Zero-config start:** the dock now opens export-ready when a project is loaded — it preselects the
+  layers checked/visible in the Layers panel (or the active layer), and defaults the output folder to
+  the project folder (falling back to your Documents folder). Project name is still seeded from the
+  project name.
+- **Live readiness line + Export gating:** a message under the Export button lists exactly what is
+  still missing (*select a layer / name the project / set an output folder*), and the button stays
+  disabled until all three are satisfied — instead of only warning after a click.
+
 ## [0.13.1] — 2026-07-10
 
 ### Security

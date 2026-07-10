@@ -19,3 +19,6 @@ resources.py
 # Downloaded binary (fetched by install_pmtiles.sh) + built zip
 go-pmtiles_*.tar.gz
 mapsplat.zip
+
+# Local pre-refactor backups (kept out of git + zip)
+*.orig-*
