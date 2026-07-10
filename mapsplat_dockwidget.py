@@ -19,7 +19,6 @@ try:
 except ImportError:
     import config_manager  # test environment (no package)
 
-from qgis.PyQt import uic
 from qgis.PyQt.QtCore import pyqtSignal, Qt, QUrl
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
@@ -58,7 +57,6 @@ from qgis.PyQt.QtWidgets import QAbstractItemView
 
 from qgis.core import (
     QgsProject,
-    QgsMapLayer,
     QgsVectorLayer,
     QgsRasterLayer,
     QgsCoordinateReferenceSystem,
@@ -1732,7 +1730,7 @@ class MapSplatDockWidget(QDockWidget):
             import urllib.request
             try:
                 req = urllib.request.Request(source, method="HEAD")
-                with urllib.request.urlopen(req, timeout=3):
+                with urllib.request.urlopen(req, timeout=3):  # nosec B310 - scheme restricted to http/https above
                     pass
                 self.lbl_basemap_source_error.setVisible(False)
             except Exception as exc:

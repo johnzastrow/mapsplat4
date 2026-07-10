@@ -29,7 +29,7 @@ else:
     STARTUPINFO = None
     CREATIONFLAGS = 0
 
-from qgis.PyQt.QtCore import QObject, pyqtSignal, QProcess, QTimer
+from qgis.PyQt.QtCore import QObject, pyqtSignal, QProcess
 
 from qgis.core import (
     QgsProject,
@@ -765,7 +765,7 @@ class MapSplatExporter(QObject):
                     return
 
                 layer_name = self._sanitize_layer_name(layer.name())
-                self.log_message.emit(f"Processing layer {i+1}/{total_layers}: {layer.name()}", "info")
+                self.log_message.emit(f"Processing layer {i + 1}/{total_layers}: {layer.name()}", "info")
 
                 # Export single layer to GeoPackage (clipped to export extent)
                 gpkg_path = os.path.join(output_dir, "data", f"{layer_name}.gpkg")
@@ -816,7 +816,7 @@ class MapSplatExporter(QObject):
             style_path = os.path.join(output_dir, "style.json")
             with open(style_path, "w", encoding="utf-8") as f:
                 json.dump(style_json, f, indent=2)
-            self.log_message.emit(f"Wrote style.json", "info")
+            self.log_message.emit("Wrote style.json", "info")
 
         # Download/copy MapLibre assets first so HTML can reference local paths
         bundle_offline = self._copy_maplibre_assets(output_dir)
@@ -1138,7 +1138,6 @@ class MapSplatExporter(QObject):
 
         :returns: True if pmtiles is found on PATH
         """
-        import shutil
         return shutil.which("pmtiles") is not None
 
     def _extract_basemap(self, output_dir, bounds):
@@ -1286,7 +1285,6 @@ class MapSplatExporter(QObject):
 
         return basemap
 
-
     def _generate_html_viewer(self, output_dir, style_json, layers, bundle_offline=False):
         """Generate the HTML viewer file.
 
@@ -1433,7 +1431,9 @@ class MapSplatExporter(QObject):
             for url, filename in assets:
                 dest = os.path.join(lib_dir, filename)
                 self.log_message.emit(f"  Downloading {filename}...", "info")
-                urllib.request.urlretrieve(url, dest)
+                if not url.startswith("https://"):          # defence in depth (URLs are literals)
+                    raise ValueError(f"refusing non-https asset URL: {url}")
+                urllib.request.urlretrieve(url, dest)  # nosec B310 - hardcoded https CDN URLs
             self.log_message.emit("  MapLibre assets bundled for offline use", "success")
             return True
         except Exception as e:

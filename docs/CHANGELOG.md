@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.1] — 2026-07-10
+
+### Security
+- Passes the plugins.qgis.org gates — **Bandit** (0 high/medium), **detect-secrets**, **flake8**.
+- Hardened the two `urllib` calls (B310): the offline-asset download refuses non-`https` URLs; the
+  basemap HEAD check is already scheme-restricted to `http`/`https`.
+
+### Changed
+- **Removed the bundled `go-pmtiles` binary** (17 MB) from the repo and zip — QGIS forbids binaries.
+  Install it via `install_pmtiles.sh` or the in-app download link; core vector→PMTiles export uses
+  **GDAL's PMTiles driver** (3.8+), so the CLI is only needed for the optional Basemap Overlay.
+- **LICENSE corrected to GPL-2.0-or-later** (the previous file was go-pmtiles' BSD, carried over by
+  mistake). `experimental=False`; added `qgisMaximumVersion=4.99`; trimmed the metadata changelog.
+- Removed the unused compiled Qt resources (`resources.qrc`/`resources.py`) — the icon already loads
+  from a file path.
+
+### Added
+- `scripts/build_plugin.sh` (self-verifying build), `Makefile`, and a standardized release workflow;
+  `ruff.toml` + `setup.cfg` lint config.
+
 ## v0.13.0 — 2026-03-24
 
 ### Added

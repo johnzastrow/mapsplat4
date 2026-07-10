@@ -1,0 +1,7 @@
+# Mirrors setup.cfg [flake8]; iterate with `ruff check --fix`, verify with `flake8` before publish.
+line-length = 120
+preview = true
+extend-exclude = ["test", "tests", "docs", "lib", "resources.py"]
+[lint]
+select = ["E", "F", "W"]
+extend-ignore = ["E501", "E203", "E741"]

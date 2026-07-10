@@ -23,15 +23,10 @@ import base64
 import math
 import os
 from qgis.core import (
-    QgsVectorLayer,
     QgsSingleSymbolRenderer,
     QgsCategorizedSymbolRenderer,
     QgsGraduatedSymbolRenderer,
     QgsRuleBasedRenderer,
-    QgsSymbol,
-    QgsFillSymbol,
-    QgsLineSymbol,
-    QgsMarkerSymbol,
     QgsSimpleFillSymbolLayer,
     QgsSimpleLineSymbolLayer,
     QgsSimpleMarkerSymbolLayer,
@@ -39,9 +34,6 @@ from qgis.core import (
     QgsFontMarkerSymbolLayer,
     QgsLinePatternFillSymbolLayer,
     QgsPointPatternFillSymbolLayer,
-    QgsPalLayerSettings,
-    QgsTextFormat,
-    QgsTextBufferSettings,
     QgsUnitTypes,
 )
 
@@ -66,15 +58,15 @@ _QGIS_QUADRANT_TO_ANCHOR = {
 
 # Direction to push label outward (in em units) per anchor value
 _ANCHOR_DIST_DIR = {
-    "bottom":       (0,  -1),
-    "top":          (0,   1),
-    "right":        (-1,  0),
-    "left":         (1,   0),
-    "bottom-left":  (1,  -1),
+    "bottom":       (0, -1),
+    "top":          (0, 1),
+    "right":        (-1, 0),
+    "left":         (1, 0),
+    "bottom-left":  (1, -1),
     "bottom-right": (-1, -1),
-    "top-left":     (1,   1),
-    "top-right":    (-1,  1),
-    "center":       (0,   0),
+    "top-left":     (1, 1),
+    "top-right":    (-1, 1),
+    "center":       (0, 0),
 }
 
 
@@ -739,7 +731,6 @@ class StyleConverter:
             layer["metadata"] = metadata
         return layer
 
-
     def _convert_categorized(self, layer, renderer, source_layer, geom_type, source_name):
         """Convert categorized symbol renderer.
 
@@ -1240,7 +1231,6 @@ class StyleConverter:
         """
         try:
             from qgis.PyQt.QtCore import QByteArray, QBuffer, QIODevice
-            from qgis.PyQt.QtGui import QImage as _QImage
             thumb = img.scaled(size_px, size_px)
             buf = QByteArray()
             io = QBuffer(buf)
@@ -1406,4 +1396,3 @@ class StyleConverter:
             x += w
             max_height = max(max_height, h)
         return manifest, x, max_height
-

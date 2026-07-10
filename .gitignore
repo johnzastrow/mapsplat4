@@ -15,3 +15,7 @@ resources.py
 # Editor / OS
 *.swp
 .DS_Store
+
+# Downloaded binary (fetched by install_pmtiles.sh) + built zip
+go-pmtiles_*.tar.gz
+mapsplat.zip

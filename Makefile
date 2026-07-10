@@ -1,84 +1,40 @@
-# MapSplat QGIS Plugin Makefile
+# QGIS plugin dev & release tasks. Plugin-specific bits live in scripts/build_plugin.sh.
+# Requires: uv, zip, git, gh.   Run `make help`.
+SHELL := /bin/bash
+BANDIT_EXCLUDE := ./test,./tests,./docs,./.git,./lib
+UNIT_TEST      := test/
 
-PLUGINNAME = mapsplat
+.DEFAULT_GOAL := help
+.PHONY: help check lint bandit secrets security test build clean tag
 
-# QGIS plugin directory (adjust for your system)
-QGISDIR ?= $(HOME)/.local/share/QGIS/QGIS4/profiles/default/python/plugins
+help:            ## list targets
+	@grep -hE '^[a-z][a-z-]*:.*##' $(MAKEFILE_LIST) | sed -E 's/:[^#]*##/\t/' | sort | expand -t18
 
-PY_FILES = __init__.py mapsplat.py mapsplat_dockwidget.py exporter.py style_converter.py config_manager.py log_utils.py
+check: lint bandit secrets test  ## run EVERY publish gate (ruff+flake8, bandit, secrets, tests)
 
-EXTRAS = metadata.txt icon.png resources.qrc
+lint:            ## ruff (fast) then flake8 (authoritative pre-publish check)
+	uv run --no-project --with ruff ruff check .
+	uv run --no-project --with flake8 flake8 .
 
-RESOURCE_FILES = resources.py
+bandit:          ## security scan — fails on HIGH/MEDIUM (blocks plugins.qgis.org)
+	uv run --no-project --with bandit bandit -r . -x $(BANDIT_EXCLUDE) -ll
 
-HELP = help/build/html
+secrets:         ## detect-secrets — fails if any secret is found
+	@uv run --no-project --with detect-secrets detect-secrets scan \
+	  | uv run --no-project python -c "import sys,json; r=json.load(sys.stdin).get('results',{}); print('secrets:', 'clean' if not r else 'FOUND '+str(list(r))); sys.exit(1 if r else 0)"
 
-.PHONY: default
-default: compile
+security: bandit secrets  ## bandit + secrets only
 
-.PHONY: compile
-compile: $(RESOURCE_FILES)
+test:            ## run the headless tests (conftest mocks qgis) that CI runs
+	uv run --no-project --with pytest python -m pytest $(UNIT_TEST) -q
 
-%.py : %.qrc
-	pyrcc6 -o $@ $<
-	# Alternative (no QGIS Python env required):
-	# uvx --from pyside6-essentials pyside6-rcc -o $@ $<
+build:           ## build the upload zip (self-verifying — no binaries/docs/cache)
+	bash scripts/build_plugin.sh
 
-.PHONY: deploy
-deploy: compile
-	@echo "Deploying plugin to $(QGISDIR)/$(PLUGINNAME)"
-	@mkdir -p $(QGISDIR)/$(PLUGINNAME)
-	@mkdir -p $(QGISDIR)/$(PLUGINNAME)/templates
-	@mkdir -p $(QGISDIR)/$(PLUGINNAME)/lib
-	cp -f $(PY_FILES) $(QGISDIR)/$(PLUGINNAME)/
-	cp -f $(EXTRAS) $(QGISDIR)/$(PLUGINNAME)/
-	@if [ -f resources.py ]; then cp -f resources.py $(QGISDIR)/$(PLUGINNAME)/; fi
-	@if [ -d templates ]; then cp -rf templates/* $(QGISDIR)/$(PLUGINNAME)/templates/ 2>/dev/null || true; fi
-	@if [ -d lib ]; then cp -rf lib/* $(QGISDIR)/$(PLUGINNAME)/lib/ 2>/dev/null || true; fi
-	@echo "Done!"
+clean:           ## remove caches + built artefacts
+	rm -rf .ruff_cache **/__pycache__ __pycache__ *.zip resources.py
 
-.PHONY: remove
-remove:
-	@echo "Removing plugin from $(QGISDIR)/$(PLUGINNAME)"
-	rm -rf $(QGISDIR)/$(PLUGINNAME)
-
-.PHONY: clean
-clean:
-	rm -f $(RESOURCE_FILES)
-	rm -f *.pyc
-	rm -rf __pycache__
-	rm -rf .pytest_cache
-
-.PHONY: test
-test:
-	python -m pytest test/ -v
-
-.PHONY: package
-package: compile
-	@echo "Creating plugin package..."
-	rm -f $(PLUGINNAME).zip
-	mkdir -p $(PLUGINNAME)
-	cp -f $(PY_FILES) $(PLUGINNAME)/
-	cp -f $(EXTRAS) $(PLUGINNAME)/
-	@if [ -f resources.py ]; then cp -f resources.py $(PLUGINNAME)/; fi
-	@if [ -d templates ]; then cp -rf templates $(PLUGINNAME)/; fi
-	@if [ -d lib ]; then cp -rf lib $(PLUGINNAME)/; fi
-	@if [ -d docs ]; then cp -rf docs $(PLUGINNAME)/; fi
-	zip -r $(PLUGINNAME).zip $(PLUGINNAME)
-	rm -rf $(PLUGINNAME)
-	@echo "Created $(PLUGINNAME).zip"
-
-.PHONY: help
-help:
-	@echo "MapSplat Plugin Makefile"
-	@echo ""
-	@echo "Targets:"
-	@echo "  compile   - Compile resources (default)"
-	@echo "  deploy    - Deploy plugin to QGIS plugins directory"
-	@echo "  remove    - Remove plugin from QGIS plugins directory"
-	@echo "  clean     - Remove compiled files"
-	@echo "  test      - Run tests"
-	@echo "  package   - Create plugin zip for distribution"
-	@echo ""
-	@echo "Variables:"
-	@echo "  QGISDIR   - QGIS plugins directory (default: $(QGISDIR))"
+tag:             ## tag + push a release, e.g. `make tag V=0.13.2` (CI builds the zip + GitHub Release)
+	@test -n "$(V)" || { echo "usage: make tag V=x.y.z"; exit 1; }
+	@git diff --quiet || { echo "working tree dirty — commit first"; exit 1; }
+	git tag -a v$(V) -m "v$(V)" && git push origin v$(V)
