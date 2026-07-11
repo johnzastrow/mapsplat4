@@ -715,11 +715,14 @@ class MapSplatExporter(QObject):
         base_bounds = self._get_bounds(layers)
         clip_rect = self._bounds_to_rect_3857(self._expand_bounds(base_bounds, pct=0.5))
 
-        # [NEW] Basemap extraction
-        if use_basemap and not style_only:
+        # [NEW] Basemap: "bundle" clips+embeds offline (needs the pmtiles CLI);
+        # "stream" points the viewer at the remote URL (no CLI, no extraction).
+        basemap_mode = self.settings.get("basemap_mode", "bundle")
+        if use_basemap and not style_only and basemap_mode == "bundle":
             if not self._check_pmtiles_cli():
                 self.log_message.emit(
-                    "pmtiles CLI not found. Install it from https://github.com/protomaps/go-pmtiles/releases",
+                    "pmtiles CLI not found. Install it from https://github.com/protomaps/go-pmtiles/releases"
+                    " — or switch the basemap to 'Stream from URL' mode (no install needed).",
                     "error"
                 )
                 self.finished.emit(False, "")
@@ -730,6 +733,8 @@ class MapSplatExporter(QObject):
             if not success:
                 self.finished.emit(False, "")
                 return
+        elif use_basemap and not style_only:
+            self.log_message.emit("Basemap: streaming live from the remote URL (no extraction).", "info")
             self.progress.emit(30)
 
         if style_only:
@@ -1248,11 +1253,19 @@ class MapSplatExporter(QObject):
         # Update basemap's vector tile source URL to point to local extracted file.
         # Match any vector source that has a URL (not just Protomaps-hosted ones),
         # so locally-sourced basemaps (e.g. pmtiles://maine4.pmtiles) are rewritten too.
+        # Stream mode -> the remote PMTiles (read via HTTP range requests in the browser);
+        # bundle mode -> the locally extracted file.
+        if self.settings.get("basemap_mode", "bundle") == "stream":
+            src_url = "pmtiles://" + self.settings.get("basemap_source", "").strip()
+            src_desc = "remote URL (streamed)"
+        else:
+            src_url = "pmtiles://data/basemap.pmtiles"
+            src_desc = "local file"
         for src_name, src in basemap.get("sources", {}).items():
             if src.get("type") == "vector" and src.get("url"):
-                src["url"] = "pmtiles://data/basemap.pmtiles"
+                src["url"] = src_url
                 self.log_message.emit(
-                    f"  Updated basemap source '{src_name}' to local file", "info"
+                    f"  Updated basemap source '{src_name}' to {src_desc}", "info"
                 )
                 break
 

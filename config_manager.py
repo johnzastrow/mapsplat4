@@ -26,7 +26,8 @@ _COMMENTS = {
     },
     "basemap": {
         "enabled": "Enable basemap overlay mode",
-        "source_type": 'Source type: "url" or "file"',
+        "mode": 'Basemap mode: "stream" = load from URL in the viewer (no CLI), "bundle" = clip+embed offline (needs pmtiles CLI)',
+        "source_type": 'Source type: "url" or "file" (bundle mode)',
         "source": "URL or local path to Protomaps .pmtiles",
         "style_path": "Path to Protomaps-compatible basemap style.json",
     },
@@ -63,6 +64,7 @@ _SECTION_KEYS = {
     ],
     "basemap": [
         "enabled",
+        "mode",
         "source_type",
         "source",
         "style_path",

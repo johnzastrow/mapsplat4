@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.17.2"
+__version__ = "0.18.0"
 
 import os
 
@@ -410,8 +410,32 @@ class MapSplatDockWidget(QDockWidget):
         )
         basemap_layout = QVBoxLayout(self.basemap_group)
 
-        # Source type radio buttons
-        source_type_layout = QHBoxLayout()
+        # Mode: stream from a URL (no install) vs download + clip for offline (needs CLI)
+        mode_layout = QHBoxLayout()
+        mode_layout.addWidget(QLabel("Mode:"))
+        self.radio_basemap_stream = QRadioButton("Stream from URL")
+        self.radio_basemap_stream.setToolTip(
+            "No install needed. The published map loads the basemap live from the remote URL\n"
+            "when viewed (the browser fetches only the visible tiles). Needs internet to view."
+        )
+        self.radio_basemap_bundle = QRadioButton("Download && clip offline")
+        self.radio_basemap_bundle.setToolTip(
+            "Clips the basemap to your data extent and embeds it in the export so the map works\n"
+            "with no internet. Requires the 'pmtiles' command-line tool on your PATH."
+        )
+        self.radio_basemap_stream.setChecked(True)
+        self._basemap_mode_group = QButtonGroup()
+        self._basemap_mode_group.addButton(self.radio_basemap_stream)
+        self._basemap_mode_group.addButton(self.radio_basemap_bundle)
+        mode_layout.addWidget(self.radio_basemap_stream)
+        mode_layout.addWidget(self.radio_basemap_bundle)
+        mode_layout.addStretch()
+        basemap_layout.addLayout(mode_layout)
+
+        # Source type (bundle mode only): URL vs local file
+        self._basemap_srctype_widget = QWidget()
+        source_type_layout = QHBoxLayout(self._basemap_srctype_widget)
+        source_type_layout.setContentsMargins(0, 0, 0, 0)
         source_type_layout.addWidget(QLabel("Source:"))
         self.radio_basemap_url = QRadioButton("Remote URL")
         self.radio_basemap_url.setToolTip("Fetch the basemap from a remote URL (e.g. build.protomaps.com). Requires internet during export.")
@@ -424,7 +448,8 @@ class MapSplatDockWidget(QDockWidget):
         source_type_layout.addWidget(self.radio_basemap_url)
         source_type_layout.addWidget(self.radio_basemap_file)
         source_type_layout.addStretch()
-        basemap_layout.addLayout(source_type_layout)
+        self._basemap_srctype_widget.setVisible(False)  # stream is the default
+        basemap_layout.addWidget(self._basemap_srctype_widget)
 
         # Source URL / file path row
         basemap_src_layout = QHBoxLayout()
@@ -437,10 +462,18 @@ class MapSplatDockWidget(QDockWidget):
             "Tiles within the export bounding box will be extracted\n"
             "to data/basemap.pmtiles in the output folder."
         )
+        self.btn_basemap_test = QPushButton("Test")
+        self.btn_basemap_test.setMaximumWidth(48)
+        self.btn_basemap_test.setToolTip(
+            "Check that the basemap source is reachable (URL) or exists (local file)\n"
+            "before you export."
+        )
+        self.btn_basemap_test.clicked.connect(self._test_basemap_source)
         self.btn_basemap_browse = QPushButton("Browse...")
         self.btn_basemap_browse.setVisible(False)
         self.btn_basemap_browse.clicked.connect(self._browse_basemap_file)
         basemap_src_layout.addWidget(self.txt_basemap_source, 1)
+        basemap_src_layout.addWidget(self.btn_basemap_test)
         basemap_src_layout.addWidget(self.btn_basemap_browse)
         basemap_layout.addLayout(basemap_src_layout)
 
@@ -482,6 +515,8 @@ class MapSplatDockWidget(QDockWidget):
         # Connect radio buttons to show/hide browse button
         self.radio_basemap_url.toggled.connect(self._on_basemap_source_type_changed)
         self.radio_basemap_file.toggled.connect(self._on_basemap_source_type_changed)
+        self.radio_basemap_stream.toggled.connect(self._on_basemap_mode_changed)
+        self.radio_basemap_bundle.toggled.connect(self._on_basemap_mode_changed)
         self.basemap_group.toggled.connect(self._update_tile_estimate)
 
         # (Output — project name + folder — now lives on the Inputs tab, beside
@@ -1167,6 +1202,7 @@ class MapSplatDockWidget(QDockWidget):
         s.setValue("viewer_north_reset", self.chk_viewer_north_reset.isChecked())
         s.setValue("viewer_attribution", self.txt_viewer_attribution.text())
         s.setValue("basemap_enabled", self.basemap_group.isChecked())
+        s.setValue("basemap_mode", "stream" if self.radio_basemap_stream.isChecked() else "bundle")
         s.setValue("basemap_source_type", "file" if self.radio_basemap_file.isChecked() else "url")
         s.setValue("basemap_source", self.txt_basemap_source.text().strip())
         s.setValue("basemap_style_path", self.txt_basemap_style.text().strip())
@@ -1236,6 +1272,13 @@ class MapSplatDockWidget(QDockWidget):
                 self.radio_basemap_file.setChecked(True)
             elif src_type == "url":
                 self.radio_basemap_url.setChecked(True)
+
+            basemap_mode = s.value("basemap_mode", None)
+            if basemap_mode == "bundle":
+                self.radio_basemap_bundle.setChecked(True)
+            else:
+                self.radio_basemap_stream.setChecked(True)
+            self._on_basemap_mode_changed()
 
             src = s.value("basemap_source", "")
             if src:
@@ -1353,8 +1396,47 @@ class MapSplatDockWidget(QDockWidget):
             self.txt_basemap_source.setPlaceholderText("path/to/basemap.pmtiles")
         else:
             self.txt_basemap_source.setPlaceholderText(
-                "https://build.protomaps.com/20260217.pmtiles"
+                "https://build.protomaps.com/20260401.pmtiles"
             )
+
+    def _on_basemap_mode_changed(self):
+        """Stream mode is URL-only (no CLI); bundle mode exposes the URL/file choice."""
+        if not hasattr(self, "_basemap_srctype_widget"):
+            return
+        stream = self.radio_basemap_stream.isChecked()
+        self._basemap_srctype_widget.setVisible(not stream)
+        if stream:
+            self.radio_basemap_url.setChecked(True)  # streaming always reads a URL
+        self._on_basemap_source_type_changed()
+        if not self._restoring:
+            self._save_settings()
+
+    def _test_basemap_source(self):
+        """Check the basemap source is reachable (URL) or exists (file); report inline."""
+        source = self.txt_basemap_source.text().strip()
+        if not source:
+            self._show_basemap_test("Enter a basemap URL or file path first.", ok=False)
+            return
+        if source.startswith(("http://", "https://")):
+            import urllib.request
+            try:
+                req = urllib.request.Request(source, method="HEAD")
+                with urllib.request.urlopen(req, timeout=6):  # nosec B310 - scheme checked above
+                    pass
+                self._show_basemap_test("Reachable — the URL responds.", ok=True)
+            except Exception as exc:
+                self._show_basemap_test(f"Not reachable: {exc}", ok=False)
+        elif os.path.isfile(source):
+            self._show_basemap_test("File found.", ok=True)
+        else:
+            self._show_basemap_test("File not found.", ok=False)
+
+    def _show_basemap_test(self, msg, ok):
+        """Show a basemap source test result (green ok / red problem)."""
+        colour = "#2e7d32" if ok else "#c62828"
+        self.lbl_basemap_source_error.setText(msg)
+        self.lbl_basemap_source_error.setStyleSheet(f"color: {colour}; font-size: 11px;")
+        self.lbl_basemap_source_error.setVisible(True)
 
     def _browse_basemap_file(self):
         """Open file browser for local basemap PMTiles file."""
@@ -1450,7 +1532,14 @@ class MapSplatDockWidget(QDockWidget):
                                     "Please enter a basemap PMTiles URL or file path.")
                 return False
 
-            if self.radio_basemap_file.isChecked() and not os.path.isfile(basemap_source):
+            if self.radio_basemap_stream.isChecked():
+                # Stream mode: the viewer reads the URL live, so it must be a web URL.
+                if not basemap_source.startswith(("http://", "https://")):
+                    QMessageBox.warning(self, "Basemap URL Required",
+                                        "Stream mode needs a basemap URL (http/https).\n"
+                                        "Use 'Download & clip offline' mode for a local file.")
+                    return False
+            elif self.radio_basemap_file.isChecked() and not os.path.isfile(basemap_source):
                 QMessageBox.warning(self, "Invalid Basemap File",
                                     "The basemap PMTiles file does not exist.")
                 return False
@@ -1511,6 +1600,7 @@ class MapSplatDockWidget(QDockWidget):
             "imported_style_path": self.imported_style_path,
             "max_zoom": self.spin_max_zoom.value(),
             "use_basemap": self.basemap_group.isChecked(),
+            "basemap_mode": "stream" if self.radio_basemap_stream.isChecked() else "bundle",
             "basemap_source_type": "file" if self.radio_basemap_file.isChecked() else "url",
             "basemap_source": self.txt_basemap_source.text().strip(),
             "basemap_style_path": self.txt_basemap_style.text().strip(),
@@ -1668,6 +1758,7 @@ class MapSplatDockWidget(QDockWidget):
             },
             "basemap": {
                 "enabled": self.basemap_group.isChecked(),
+                "mode": "stream" if self.radio_basemap_stream.isChecked() else "bundle",
                 "source_type": "file" if self.radio_basemap_file.isChecked() else "url",
                 "source": self.txt_basemap_source.text().strip(),
                 "style_path": self.txt_basemap_style.text().strip(),
@@ -1823,6 +1914,13 @@ class MapSplatDockWidget(QDockWidget):
                 self.radio_basemap_file.setChecked(True)
             else:
                 self.radio_basemap_url.setChecked(True)
+
+        if "mode" in basemap:
+            if basemap["mode"] == "bundle":
+                self.radio_basemap_bundle.setChecked(True)
+            else:
+                self.radio_basemap_stream.setChecked(True)
+            self._on_basemap_mode_changed()
             applied += 1
 
         if "source" in basemap:

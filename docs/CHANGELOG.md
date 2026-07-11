@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — basemap without the CLI (0.18.0)
+- **Basemap Overlay now has two modes:** **Stream from URL** (default — the viewer loads the basemap
+  live from a remote PMTiles URL via range requests; **no `pmtiles` CLI, no install**) and **Download
+  & clip offline** (the previous behaviour; clips+embeds for offline use, needs the CLI). Removes the
+  biggest barrier to using a basemap, since most users won't have the CLI.
+- A small **Test** button checks the basemap source is reachable (URL) or exists (file) before export.
+- `basemap.mode` added to the Save/Load **config file** (schema + read + write) and to `QgsSettings`,
+  so it round-trips. All new controls carry tooltips.
+
 ### Added — dock guidance & help (phase 3)
 - In-dock **guidance**: a header intro line, "Required." subtitles under Layers and Output, and an
   empty-state hint when the project has no layers.
