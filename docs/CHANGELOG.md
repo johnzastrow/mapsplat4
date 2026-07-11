@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-07-11
+
+### Changed — dock UX redesign (phase 1)
+- **Output fields (project name + folder) moved onto the Inputs tab**, beside Layers and Export, so a
+  whole export configures on **one tab** — no more hopping to the Options tab to run.
+- **Refresh button** in the Layers group; `refresh_layer_list` blocks signals during the clear/rebuild
+  and **preserves the selection** across a refresh.
+- **Zero-config start** — preselects the layers checked/visible in the Layers panel (or the active
+  layer) and defaults the output folder to the project folder (else Documents).
+- **Live readiness line + Export gating** — a calm blue message lists what's still missing and keeps
+  Export disabled until layers + name + folder are set.
+- **Version stamp** on the Log tab (`MapSplat vX.Y.Z`, read from metadata) to confirm the loaded build.
+
 ### Fixed — dock layer-list crashes & blank list
 - **QGIS crash (segfault) when a layer uses a categorized / graduated / rule-based renderer.**
   `_get_symbology_warning` dereferenced symbols owned by the *temporary* category/range/rule
@@ -23,11 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exercises real layer/renderer objects under QGIS's own Python — including a regression for the
   categorized-polygon crash (proven to fail-fast without the fix). The pure-Python `pytest` suite
   skips it automatically.
-
-### Note
-- The dock UX redesign (phase 1: one-screen setup, live readiness, Refresh button — see
-  `docs/DOCK_UX_REDESIGN.md`) is being **evaluated separately** against the current tabbed layout;
-  not merged here yet.
 
 ## [0.13.1] — 2026-07-10
 
