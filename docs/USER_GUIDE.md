@@ -100,7 +100,51 @@ from disk may not work — serve it over HTTP:
 - **Bundled dev server:** run `serve.py` in the export folder (`python serve.py`) and open the printed
   URL.
 - **Any static host** that supports range requests: Netlify, Cloudflare Pages, S3/CloudFront,
-  GitHub Pages, nginx, etc. Just upload the folder.
+  GitHub Pages, nginx, Caddy, etc. Just upload the folder.
+
+### Caching: keep re-exports fresh
+
+`serve.py` sends `Cache-Control: no-store` so re-exporting a map always shows the latest result. On a
+production host you want the same guarantee — otherwise, because MapSplat **overwrites files in place**
+(same `index.html` / `style.json` / `.pmtiles` names each export), a browser can serve a **stale**
+cached copy and a changed or added layer will look "missing" until a hard refresh.
+
+**Caddy** serves HTTP Range requests natively (so PMTiles just work); add cache headers to match:
+
+```caddy
+map.example.com {
+    root * /var/www/mymap_webmap
+    file_server                       # Range requests supported by default (PMTiles OK)
+
+    # Mirror serve.py — never serve a stale export
+    header Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    header Pragma "no-cache"
+    header Expires "0"
+}
+```
+
+If you prefer to cache the heavy, rarely-changing assets for speed and only force-revalidate the
+small files that change every export, no-store just the HTML/JSON and long-cache the rest:
+
+```caddy
+map.example.com {
+    root * /var/www/mymap_webmap
+    file_server
+
+    @fresh path *.json /index.html /  # style.json + the viewer must always be current
+    header @fresh Cache-Control "no-store"
+
+    @assets path /data/* /lib/* /patterns/* *.png  # tiles, libs, sprites, hatches
+    header @assets Cache-Control "public, max-age=3600, must-revalidate"
+}
+```
+
+> Note: MapSplat reuses filenames across exports, so long-lived caching of `/data/*` risks stale tiles
+> after a re-export. Use the second config only if you redeploy to a **fresh directory** (or purge the
+> CDN) on each publish; otherwise prefer the first (no-store everything).
+
+`nginx` equivalent: `add_header Cache-Control "no-store";` in the `location /` block (nginx serves
+Range requests by default).
 
 ---
 
