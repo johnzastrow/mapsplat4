@@ -105,6 +105,8 @@ class StyleConverter:
         self._layer_counter = {}
         self._log_callback = log_callback
         self._svg_sprite_map = {}  # populated by _generate_sprites(); {source_layer: sprite_key}
+        self._patterns = {}        # image_id -> pattern def (angle/spacing/width/colour)
+        self._pattern_ids = {}     # dedup signature -> image_id
 
     def _log(self, message):
         """Emit a log message via callback if one was provided."""
@@ -124,6 +126,8 @@ class StyleConverter:
         self._single_file = single_file
 
         self._svg_sprite_map = {}  # reset for each convert() call
+        self._patterns = {}
+        self._pattern_ids = {}
 
         # Pre-generate sprites for SVG single-symbol point layers
         has_sprites = False
@@ -189,6 +193,13 @@ class StyleConverter:
                 if maxzoom is not None:
                     label_layer["maxzoom"] = maxzoom
                 style["layers"].append(label_layer)
+
+        # Emit hatch/pattern images referenced by fill-pattern layers. The viewer loads
+        # these on the `styleimagemissing` event (see exporter viewer JS).
+        if self._patterns and output_dir:
+            meta = self._write_pattern_images(output_dir)
+            if meta:
+                style.setdefault("metadata", {})["mapsplat:patterns"] = meta
 
         return style
 
@@ -841,6 +852,23 @@ class StyleConverter:
                 }
             })
 
+            # Overlay a real hatch (fill-pattern) per hatched category, on top of the
+            # semi-transparent solid fallback above. If the image fails to load, the
+            # fallback solid still shows the right colour.
+            for cat in regular_cats:
+                pdef = self._hatch_pattern_def(cat.symbol())
+                if not pdef:
+                    continue
+                pid = self._register_pattern(pdef)
+                layers.append({
+                    "id": f"{source_layer}__hatch_{self._sanitize_name(str(cat.value()))}",
+                    "type": "fill",
+                    "source": source_name,
+                    "source-layer": source_layer,
+                    "filter": ["==", ["get", attr_name], cat.value()],
+                    "paint": {"fill-pattern": pid},
+                })
+
         elif geom_type == 1:  # Line
             color_pairs, width_pairs, opacity_pairs = [], [], []
             for label, cat in ([(c.value(), c) for c in regular_cats]
@@ -1332,6 +1360,97 @@ class StyleConverter:
 
         c = symbol.color()
         return (c.name() if (c and c.isValid()) else self.DEFAULT_FILL_COLOR), 0.0
+
+    def _hatch_pattern_def(self, symbol):
+        """If the symbol's visible fill is a line/point hatch, return its params, else None.
+
+        Mirrors ``_polygon_fill_paint``'s top-first walk: a real (non-NoBrush) SimpleFill on
+        top means a solid fill wins and there is no hatch to draw.
+        """
+        for i in range(symbol.symbolLayerCount() - 1, -1, -1):
+            sl = symbol.symbolLayer(i)
+            try:
+                if not sl.enabled():
+                    continue
+            except Exception:
+                pass
+            t = sl.layerType()
+            if t == "SimpleFill":
+                if self._is_no_brush(sl):
+                    continue
+                return None
+            if t == "LinePatternFill":
+                try:
+                    return {
+                        "kind": "line",
+                        "color": sl.color().name(),
+                        "angle": float(sl.lineAngle()),
+                        "spacing": max(3.0, self._convert_size(sl.distance(), sl.distanceUnit())),
+                        "width": max(1.0, self._convert_size(sl.lineWidth(), sl.lineWidthUnit())),
+                    }
+                except Exception:
+                    return None
+            if t in ("GradientFill", "ShapeburstFill", "RasterFill"):
+                return None
+        return None
+
+    def _register_pattern(self, pdef):
+        """Register a pattern def (dedup by signature) and return its stable image id."""
+        sig = "{kind}|{color}|{angle:.1f}|{spacing:.2f}|{width:.2f}".format(**pdef)
+        if sig not in self._pattern_ids:
+            pid = "mapsplat_hatch_{}".format(len(self._pattern_ids))
+            self._pattern_ids[sig] = pid
+            self._patterns[pid] = pdef
+        return self._pattern_ids[sig]
+
+    def _render_pattern_image(self, pdef, size=64):
+        """Render a hatch pattern to a transparent power-of-two QImage."""
+        import math
+        from qgis.PyQt.QtGui import QImage, QPainter, QPen, QColor
+        from qgis.PyQt.QtCore import Qt, QPointF
+        img = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
+        img.fill(Qt.GlobalColor.transparent)
+        p = QPainter(img)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        pen = QPen(QColor(pdef["color"]))
+        pen.setWidthF(max(1.0, pdef["width"]))
+        pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+        p.setPen(pen)
+        a = math.radians(pdef.get("angle", 45.0))
+        dx, dy = math.cos(a), math.sin(a)
+        nx, ny = -dy, dx
+        spacing = max(2.0, pdef.get("spacing", 8.0))
+        length = size * 1.5
+        k = int((size * 1.5) / spacing) + 1
+        for i in range(-k, k + 1):
+            off = i * spacing
+            cx, cy = nx * off + size / 2.0, ny * off + size / 2.0
+            p.drawLine(QPointF(cx - dx * length, cy - dy * length),
+                       QPointF(cx + dx * length, cy + dy * length))
+        p.end()
+        return img
+
+    def _write_pattern_images(self, output_dir):
+        """Write registered pattern PNGs into ``output_dir/patterns`` and return metadata.
+
+        :returns: {image_id: {"url": "patterns/<id>.png", "pixelRatio": 1}} for the viewer.
+        """
+        import os
+        meta = {}
+        pdir = os.path.join(output_dir, "patterns")
+        try:
+            os.makedirs(pdir, exist_ok=True)
+        except Exception as e:
+            self._log(f"Could not create patterns dir: {e}")
+            return meta
+        for pid, pdef in self._patterns.items():
+            fn = f"{pid}.png"
+            try:
+                self._render_pattern_image(pdef).save(os.path.join(pdir, fn), "PNG")
+                meta[pid] = {"url": f"patterns/{fn}", "pixelRatio": 1}
+            except Exception as e:
+                self._log(f"Pattern {pid} render failed: {e}")
+        return meta
 
     def _radius_px(self, diameter_px):
         """Marker radius from a diameter, kept faithful to the source number.

@@ -189,6 +189,11 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
     # Popup field config: {sanitized_source_layer: [field_names]} → JSON for JS constant
     _popup_field_config_json = json.dumps(settings.get('popup_fields', {}))
 
+    # Hatch/pattern images: {image_id: {url, pixelRatio}} → loaded on styleimagemissing
+    _mapsplat_patterns_json = json.dumps(
+        (style_json or {}).get("metadata", {}).get("mapsplat:patterns", {})
+    )
+
     # Map pixel dimensions — drives the outer container, not the map div itself.
     # All overlay controls are children of the container so they stay clipped.
     map_w = settings.get('map_width', 0)
@@ -597,11 +602,28 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         // MapLibre 4.x, unhandled styleimagemissing events stall the symbol
         // rendering queue and prevent business-layer icons from appearing.
         // Adding a transparent 1×1 placeholder immediately unblocks rendering.
+        // Hatch/pattern images generated at export time (QGIS hatch fills).
+        const mapsplatPatterns = {_mapsplat_patterns_json};
         map.on('styleimagemissing', (e) => {{
-            if (!map.hasImage(e.id)) {{
-                const empty = new ImageData(new Uint8ClampedArray(4), 1, 1);
-                map.addImage(e.id, empty);
+            if (map.hasImage(e.id)) return;
+            const pat = mapsplatPatterns[e.id];
+            if (pat && pat.url) {{
+                // Load the real hatch tile; fall back to a transparent pixel on error.
+                map.loadImage(pat.url).then((res) => {{
+                    if (!map.hasImage(e.id)) {{
+                        map.addImage(e.id, res.data, {{pixelRatio: pat.pixelRatio || 1}});
+                    }}
+                }}).catch(() => {{
+                    if (!map.hasImage(e.id)) {{
+                        map.addImage(e.id, new ImageData(new Uint8ClampedArray(4), 1, 1));
+                    }}
+                }});
+                return;
             }}
+            // Unknown missing image (e.g. basemap sprite icon): transparent placeholder
+            // so the symbol render queue doesn't stall.
+            const empty = new ImageData(new Uint8ClampedArray(4), 1, 1);
+            map.addImage(e.id, empty);
         }});
 
         // Popup field visibility config: source-layer name → allowed field names (null = all)
@@ -1278,6 +1300,11 @@ class MapSplatExporter(QObject):
             if layer.get("id") != "background"
         ]
         basemap.setdefault("layers", []).extend(overlay_layers)
+
+        # Preserve mapsplat hatch-pattern metadata so the viewer can load the images.
+        biz_patterns = business_style_json.get("metadata", {}).get("mapsplat:patterns")
+        if biz_patterns:
+            basemap.setdefault("metadata", {})["mapsplat:patterns"] = biz_patterns
 
         self.log_message.emit(
             f"  Merged {len(overlay_layers)} business layer(s) into basemap style", "info"

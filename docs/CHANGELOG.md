@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — real hatch/pattern fills (0.21.0)
+- **QGIS hatch fills now render as actual MapLibre `fill-pattern` hatching**, replacing the
+  semi-transparent-solid approximation from 0.20.0. At export time the converter renders a tileable
+  power-of-two hatch PNG per distinct pattern (angle, spacing, line width, and colour taken from the
+  QGIS `LinePatternFill`), writes them to `patterns/` in the export, and records them in the style's
+  `metadata["mapsplat:patterns"]`.
+- The viewer loads each pattern on MapLibre's `styleimagemissing` event (`loadImage` → `addImage`).
+  Each hatched category is emitted as its **own filtered `fill-pattern` layer** stacked over the
+  semi-transparent solid from 0.20.0 — so if an image ever fails to load, the fill degrades to the
+  correct colour instead of blanking. Pattern metadata is preserved through the basemap merge.
+- Spec-driven decisions (reviewed against the MapLibre style spec): no `fill-gradient` exists and
+  `line-gradient` needs a GeoJSON `lineMetrics` source (unavailable for PMTiles), so gradient/
+  shapeburst fills remain semi-transparent solids; `fill-pattern` tiles must be power-of-two.
+
 ### Fixed — categorized/graduated fidelity (0.20.0)
 - **Categorized polygons/lines/points now render every class.** The converter only emitted a
   `match` pair when a category's *bottom* symbol layer was a plain `SimpleFill`/`SimpleLine`/

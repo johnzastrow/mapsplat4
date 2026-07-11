@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.20.0
+version=0.21.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,12 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.21.0 - Real hatch/pattern fills
+    - QGIS hatch fills (LinePatternFill) now render as actual MapLibre fill-pattern hatching,
+      not just a flat alpha. Tileable hatch PNGs are generated at export time (angle/spacing/
+      width/colour from the QGIS symbol) and loaded in the viewer via styleimagemissing.
+    - Each hatched category gets its own filtered fill-pattern layer over a semi-transparent
+      solid fallback, so a failed image load degrades gracefully instead of blanking.
     0.20.0 - Symbology fidelity fixes
     - Categorized polygons/lines/points now render EVERY class (classes whose bottom symbol layer
       was a hatch/gradient were being dropped to invisible). Solid colours are sampled from the
