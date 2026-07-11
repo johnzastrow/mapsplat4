@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.24.0
+version=0.24.1
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,10 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.24.1 - Log the style build in the dock
+    - The Log tab now reports each layer as it's converted (renderer type → number of style
+      layers + label, and the source name), warns when a renderer converts to 0 layers, and
+      prints a final "Style built / Final style" summary. Makes "missing layer" issues visible.
     0.24.0 - Sprite icon render fix
     - Point layers using an SVG-marker sprite no longer render blank. The viewer's
       styleimagemissing handler was adding an empty placeholder for our own sprite icons

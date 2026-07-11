@@ -178,11 +178,15 @@ class StyleConverter:
             if icons:
                 style.setdefault("metadata", {})["mapsplat:sprite-icons"] = icons
 
+        self._log(f"Building style for {len(self.layers)} layer(s)...")
+
         # Convert each layer.  QGIS panel order is top-to-bottom (top layer renders on top),
         # but MapLibre's style["layers"] array is bottom-to-top (first entry = bottom).
         # Reversing self.layers maps QGIS panel order correctly to MapLibre rendering order.
         for layer in reversed(self.layers):
             minzoom, maxzoom = self._get_zoom_range(layer)
+            renderer = layer.renderer()
+            rtype = renderer.type() if renderer else "none"
             layer_styles = self._convert_layer(layer)
             for ls in layer_styles:
                 if minzoom is not None:
@@ -193,12 +197,24 @@ class StyleConverter:
 
             # Add labels if enabled
             label_layer = self._convert_labels(layer)
+            n_labels = 0
             if label_layer:
                 if minzoom is not None:
                     label_layer["minzoom"] = minzoom
                 if maxzoom is not None:
                     label_layer["maxzoom"] = maxzoom
                 style["layers"].append(label_layer)
+                n_labels = 1
+
+            total = len(layer_styles) + n_labels
+            src = self._sanitize_name(layer.name())
+            if total == 0:
+                self._log(f"  ⚠ '{layer.name()}' ({rtype}) → 0 style layers "
+                          f"— renderer not converted; layer will be invisible")
+            else:
+                lbl = f" + {n_labels} label" if n_labels else ""
+                self._log(f"  '{layer.name()}' ({rtype}) → {len(layer_styles)} layer(s){lbl} "
+                          f"[source '{src}']")
 
         # Emit hatch/pattern images referenced by fill-pattern layers. The viewer loads
         # these on the `styleimagemissing` event (see exporter viewer JS).
@@ -206,7 +222,14 @@ class StyleConverter:
             meta = self._write_pattern_images(output_dir)
             if meta:
                 style.setdefault("metadata", {})["mapsplat:patterns"] = meta
+                self._log(f"  Hatch patterns: {len(meta)} image(s)")
 
+        if has_sprites:
+            self._log(f"  Sprite atlas: {len(self._svg_sprite_map)} icon(s)")
+
+        n_business = len([lyr for lyr in style["layers"] if lyr.get("source-layer")])
+        self._log(f"Style built: {len(style['layers'])} total layers "
+                  f"({n_business} data), {len(style['sources'])} source(s)")
         return style
 
     def _convert_layer(self, layer):

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — style-build logging (0.24.1)
+- The dock **Log** tab now reports the style build: each layer as it's converted (renderer type →
+  number of style layers + label, and the source name), a **warning when a renderer produces 0
+  layers** (would-be-invisible), the sprite/pattern counts, and a final `Style built` / `Final style`
+  summary listing the data sources. Makes "missing layer" reports diagnosable at a glance.
+
 ### Fixed — sprite icon render race (0.24.0)
 - **SVG-marker point layers no longer render blank.** The viewer's `styleimagemissing` handler
   (added so *missing basemap* icons wouldn't stall rendering) was also adding an empty 1×1

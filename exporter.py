@@ -858,6 +858,15 @@ class MapSplatExporter(QObject):
         # reference can't make MapLibre reject the entire style ("source not found").
         style_json = self._prune_orphan_layers(style_json)
 
+        # Report the final style so the Log tab shows exactly what was written.
+        _biz = sorted({ly["source"] for ly in style_json.get("layers", [])
+                       if ly.get("source") and ly["source"] != "protomaps"})
+        self.log_message.emit(
+            f"Final style: {len(style_json.get('layers', []))} layers, "
+            f"{len(style_json.get('sources', {}))} sources; data layers: "
+            + (", ".join(_biz) if _biz else "(none)"), "info"
+        )
+
         self.progress.emit(75)
 
         # Write style.json if requested
