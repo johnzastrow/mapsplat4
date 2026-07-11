@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed / Added — draw order, hatch angles, robustness (0.22.0)
+- **Polygon draw order follows QGIS.** When a categorized layer defines a feature *order by*
+  expression (e.g. `"name" = 'park bounds' DESC` to push one class to the back), MapSplat now
+  splits it into per-category fill layers ordered to match, so overlapping polygons stack exactly
+  as in QGIS. Layers without an explicit order keep the single efficient match layer.
+- **Hatch angle matches QGIS.** Hatches were mirrored (`\` instead of `/`) because the tile is drawn
+  in image (y-down) coordinates; the angle is now negated so 45° draws `/` like QGIS.
+- **Crosshatch support.** Every stacked `LinePatternFill` in a symbol is reproduced, so a 45°+135°
+  pair renders as a real diamond grid instead of a single direction.
+- **Background colour override.** New optional `background_color` setting; default leaves the
+  supplied value unchanged (basemap keeps its own background).
+- **Robustness against dangling sources.** A layer that fails to tile is no longer handed to the
+  style converter, and `_prune_orphan_layers` drops any layer whose source is missing after merges —
+  MapLibre rejects an entire style on a single `source not found`, which previously blanked the map.
+
 ### Added — real hatch/pattern fills (0.21.0)
 - **QGIS hatch fills now render as actual MapLibre `fill-pattern` hatching**, replacing the
   semi-transparent-solid approximation from 0.20.0. At export time the converter renders a tileable

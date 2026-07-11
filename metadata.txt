@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.21.0
+version=0.22.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,13 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.22.0 - Draw order, hatch angles & robustness
+    - Categorized polygons now honour QGIS feature draw order (order-by), so overlapping
+      polygons stack the same as in QGIS (e.g. a big "bounds" polygon stays in the back).
+    - Hatch line angle now matches QGIS (was mirrored); stacked line patterns render as a
+      real crosshatch. Background colour is an optional override (default: no change).
+    - Robustness: layers that fail to tile no longer leave a dangling source reference, and
+      any orphan layer is pruned, so one bad reference can't blank the whole map.
     0.21.0 - Real hatch/pattern fills
     - QGIS hatch fills (LinePatternFill) now render as actual MapLibre fill-pattern hatching,
       not just a flat alpha. Tileable hatch PNGs are generated at export time (angle/spacing/

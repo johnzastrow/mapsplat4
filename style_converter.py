@@ -163,7 +163,8 @@ class StyleConverter:
                     "id": "background",
                     "type": "background",
                     "paint": {
-                        "background-color": "#f8f9fa"
+                        # Override only when set; otherwise keep the default supplied value.
+                        "background-color": self.settings.get("background_color") or "#f8f9fa"
                     }
                 }
             ]
@@ -823,51 +824,77 @@ class StyleConverter:
         layers = []
 
         if geom_type == 2:  # Polygon
-            fill_pairs, outline_pairs, opacity_pairs = [], [], []
-            # Emit a pair for EVERY category (regardless of its symbol-layer stack),
-            # so no category falls through to the invisible default. Colours are
-            # sampled from the top-most enabled fill layer, not just layer 0.
-            for label, cat in ([(c.value(), c) for c in regular_cats]
-                               + ([("__null__", null_cat)] if null_cat is not None else [])):
-                sym = cat.symbol()
-                fill_hex, fill_op = self._polygon_fill_paint(sym)
-                fill_pairs.append((label, fill_hex))
-                outline_pairs.append((label, self._symbol_stroke_color(sym).name()))
-                opacity_pairs.append((label, fill_op))
-            if catchall_cat is not None:
-                sym = catchall_cat.symbol()
-                fill_fb, opacity_fb = self._polygon_fill_paint(sym)
-                outline_fb = self._symbol_stroke_color(sym).name()
-            else:
-                fill_fb, outline_fb, opacity_fb = self.DEFAULT_FILL_COLOR, self.DEFAULT_LINE_COLOR, 0.0
-            layers.append({
-                "id": source_layer,
-                "type": "fill",
-                "source": source_name,
-                "source-layer": source_layer,
-                "paint": {
-                    "fill-color": _build_match(fill_pairs, fill_fb),
-                    "fill-opacity": _build_match(opacity_pairs, opacity_fb),
-                    "fill-outline-color": _build_match(outline_pairs, outline_fb),
-                }
-            })
+            ordered = self._ordered_polygon_categories(layer, renderer, regular_cats)
 
-            # Overlay a real hatch (fill-pattern) per hatched category, on top of the
-            # semi-transparent solid fallback above. If the image fails to load, the
-            # fallback solid still shows the right colour.
-            for cat in regular_cats:
+            def _hatch_layer(cat):
                 pdef = self._hatch_pattern_def(cat.symbol())
                 if not pdef:
-                    continue
+                    return None
                 pid = self._register_pattern(pdef)
-                layers.append({
+                return {
                     "id": f"{source_layer}__hatch_{self._sanitize_name(str(cat.value()))}",
                     "type": "fill",
                     "source": source_name,
                     "source-layer": source_layer,
                     "filter": ["==", ["get", attr_name], cat.value()],
                     "paint": {"fill-pattern": pid},
+                }
+
+            if ordered is not None:
+                # QGIS defines an explicit feature draw order (orderBy). Emit one filtered
+                # fill layer per category, bottom-first, so overlaps match QGIS exactly.
+                for cat in ordered:
+                    sym = cat.symbol()
+                    fill_hex, fill_op = self._polygon_fill_paint(sym)
+                    safe = self._sanitize_name(str(cat.value()))
+                    layers.append({
+                        "id": f"{source_layer}__cat_{safe}",
+                        "type": "fill",
+                        "source": source_name,
+                        "source-layer": source_layer,
+                        "filter": ["==", ["get", attr_name], cat.value()],
+                        "paint": {
+                            "fill-color": fill_hex,
+                            "fill-opacity": fill_op,
+                            "fill-outline-color": self._symbol_stroke_color(sym).name(),
+                        },
+                    })
+                    hl = _hatch_layer(cat)
+                    if hl:
+                        layers.append(hl)
+            else:
+                # No explicit ordering — one efficient match layer for all categories,
+                # with hatch overlays on top.  Emit a pair for EVERY category so none
+                # falls through to the invisible default.
+                fill_pairs, outline_pairs, opacity_pairs = [], [], []
+                for label, cat in ([(c.value(), c) for c in regular_cats]
+                                   + ([("__null__", null_cat)] if null_cat is not None else [])):
+                    sym = cat.symbol()
+                    fill_hex, fill_op = self._polygon_fill_paint(sym)
+                    fill_pairs.append((label, fill_hex))
+                    outline_pairs.append((label, self._symbol_stroke_color(sym).name()))
+                    opacity_pairs.append((label, fill_op))
+                if catchall_cat is not None:
+                    sym = catchall_cat.symbol()
+                    fill_fb, opacity_fb = self._polygon_fill_paint(sym)
+                    outline_fb = self._symbol_stroke_color(sym).name()
+                else:
+                    fill_fb, outline_fb, opacity_fb = self.DEFAULT_FILL_COLOR, self.DEFAULT_LINE_COLOR, 0.0
+                layers.append({
+                    "id": source_layer,
+                    "type": "fill",
+                    "source": source_name,
+                    "source-layer": source_layer,
+                    "paint": {
+                        "fill-color": _build_match(fill_pairs, fill_fb),
+                        "fill-opacity": _build_match(opacity_pairs, opacity_fb),
+                        "fill-outline-color": _build_match(outline_pairs, outline_fb),
+                    }
                 })
+                for cat in regular_cats:
+                    hl = _hatch_layer(cat)
+                    if hl:
+                        layers.append(hl)
 
         elif geom_type == 1:  # Line
             color_pairs, width_pairs, opacity_pairs = [], [], []
@@ -1362,12 +1389,15 @@ class StyleConverter:
         return (c.name() if (c and c.isValid()) else self.DEFAULT_FILL_COLOR), 0.0
 
     def _hatch_pattern_def(self, symbol):
-        """If the symbol's visible fill is a line/point hatch, return its params, else None.
+        """If the symbol's visible fill is a line hatch, return its params, else None.
 
-        Mirrors ``_polygon_fill_paint``'s top-first walk: a real (non-NoBrush) SimpleFill on
-        top means a solid fill wins and there is no hatch to draw.
+        Collects EVERY enabled ``LinePatternFill`` above the first solid fill so stacked
+        line patterns (e.g. 45° + 135° = crosshatch) are all reproduced. A real (non-NoBrush)
+        SimpleFill or a gradient on top means a solid wins and there is no hatch to draw.
+        Returns ``{"lines": [{color, angle, spacing, width}, ...]}`` (bottom-first) or None.
         """
-        for i in range(symbol.symbolLayerCount() - 1, -1, -1):
+        lines = []
+        for i in range(symbol.symbolLayerCount() - 1, -1, -1):  # top -> bottom
             sl = symbol.symbolLayer(i)
             try:
                 if not sl.enabled():
@@ -1378,25 +1408,67 @@ class StyleConverter:
             if t == "SimpleFill":
                 if self._is_no_brush(sl):
                     continue
-                return None
+                break  # a real solid fill covers any hatch below it
             if t == "LinePatternFill":
                 try:
-                    return {
-                        "kind": "line",
+                    lines.append({
                         "color": sl.color().name(),
                         "angle": float(sl.lineAngle()),
                         "spacing": max(3.0, self._convert_size(sl.distance(), sl.distanceUnit())),
                         "width": max(1.0, self._convert_size(sl.lineWidth(), sl.lineWidthUnit())),
-                    }
+                    })
                 except Exception:
-                    return None
-            if t in ("GradientFill", "ShapeburstFill", "RasterFill"):
+                    continue
+            elif t in ("GradientFill", "ShapeburstFill", "RasterFill"):
+                break
+        if not lines:
+            return None
+        lines.reverse()  # bottom-first draw order
+        return {"lines": lines}
+
+    def _ordered_polygon_categories(self, layer, renderer, cats):
+        """If QGIS defines an explicit feature draw order, return ``cats`` sorted bottom-first.
+
+        QGIS categorized layers can set an *order by* expression (e.g. push one class to the
+        back). MapLibre draws all features of one layer together in tile order, so to honour
+        that we must split into one filtered layer per category and order them. Returns the
+        categories bottom-first (drawn first), or ``None`` when there is no explicit order
+        (caller then uses the efficient single match layer).
+        """
+        if not cats:
+            return None
+        try:
+            if not renderer.orderByEnabled():
                 return None
-        return None
+        except Exception:
+            return None
+        attr = renderer.classAttribute()
+        try:
+            from qgis.core import QgsFeatureRequest
+            req = QgsFeatureRequest()
+            req.setOrderBy(renderer.orderBy())
+            try:
+                req.setFlags(QgsFeatureRequest.Flag.NoGeometry)
+                req.setSubsetOfAttributes([attr], layer.fields())
+            except Exception:
+                pass
+            rank = {}
+            for idx, f in enumerate(layer.getFeatures(req)):
+                v = f[attr]
+                if v not in rank:
+                    rank[v] = idx
+                if idx >= 100000:  # cap: don't scan unbounded layers
+                    break
+            return sorted(cats, key=lambda c: rank.get(c.value(), 1_000_000))
+        except Exception as e:
+            self._log(f"Draw-order read failed, using default order: {e}")
+            return None
 
     def _register_pattern(self, pdef):
         """Register a pattern def (dedup by signature) and return its stable image id."""
-        sig = "{kind}|{color}|{angle:.1f}|{spacing:.2f}|{width:.2f}".format(**pdef)
+        sig = "|".join(
+            "{color}:{angle:.1f}:{spacing:.2f}:{width:.2f}".format(**ln) for ln in pdef["lines"]
+        )
         if sig not in self._pattern_ids:
             pid = "mapsplat_hatch_{}".format(len(self._pattern_ids))
             self._pattern_ids[sig] = pid
@@ -1404,7 +1476,7 @@ class StyleConverter:
         return self._pattern_ids[sig]
 
     def _render_pattern_image(self, pdef, size=64):
-        """Render a hatch pattern to a transparent power-of-two QImage."""
+        """Render a (possibly multi-direction) hatch to a transparent power-of-two QImage."""
         import math
         from qgis.PyQt.QtGui import QImage, QPainter, QPen, QColor
         from qgis.PyQt.QtCore import Qt, QPointF
@@ -1412,21 +1484,24 @@ class StyleConverter:
         img.fill(Qt.GlobalColor.transparent)
         p = QPainter(img)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        pen = QPen(QColor(pdef["color"]))
-        pen.setWidthF(max(1.0, pdef["width"]))
-        pen.setCapStyle(Qt.PenCapStyle.FlatCap)
-        p.setPen(pen)
-        a = math.radians(pdef.get("angle", 45.0))
-        dx, dy = math.cos(a), math.sin(a)
-        nx, ny = -dy, dx
-        spacing = max(2.0, pdef.get("spacing", 8.0))
-        length = size * 1.5
-        k = int((size * 1.5) / spacing) + 1
-        for i in range(-k, k + 1):
-            off = i * spacing
-            cx, cy = nx * off + size / 2.0, ny * off + size / 2.0
-            p.drawLine(QPointF(cx - dx * length, cy - dy * length),
-                       QPointF(cx + dx * length, cy + dy * length))
+        for ln in pdef["lines"]:
+            pen = QPen(QColor(ln["color"]))
+            pen.setWidthF(max(1.0, ln["width"]))
+            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+            p.setPen(pen)
+            # QGIS measures the line angle counter-clockwise from horizontal; the image
+            # y-axis points down, so negate the y component to keep 45° drawing as "/".
+            a = math.radians(ln.get("angle", 45.0))
+            dx, dy = math.cos(a), -math.sin(a)
+            nx, ny = -dy, dx
+            spacing = max(2.0, ln.get("spacing", 8.0))
+            length = size * 1.5
+            k = int((size * 1.5) / spacing) + 1
+            for i in range(-k, k + 1):
+                off = i * spacing
+                cx, cy = nx * off + size / 2.0, ny * off + size / 2.0
+                p.drawLine(QPointF(cx - dx * length, cy - dy * length),
+                           QPointF(cx + dx * length, cy + dy * length))
         p.end()
         return img
 

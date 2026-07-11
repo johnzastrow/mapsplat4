@@ -759,6 +759,10 @@ class MapSplatExporter(QObject):
             self.log_message.emit("Basemap: streaming live from the remote URL (no extraction).", "info")
             self.progress.emit(30)
 
+        # Layers that actually made it into tiles — only these get style layers/sources,
+        # so a layer that fails to tile can't leave a dangling "source not found" reference.
+        exported_vector = list(layers["vector"])
+
         if style_only:
             # Skip data export, just generate style and HTML
             self.log_message.emit("Style-only mode: skipping data export", "info")
@@ -785,6 +789,7 @@ class MapSplatExporter(QObject):
             # Separate PMTiles file per layer
             self.log_message.emit("Exporting layers separately...", "info")
             total_layers = len(layers["vector"])
+            exported_vector = []
             for i, layer in enumerate(layers["vector"]):
                 if self._cancelled:
                     self.log_message.emit("Export cancelled.", "warning")
@@ -803,8 +808,11 @@ class MapSplatExporter(QObject):
                 success = self._convert_to_pmtiles(gpkg_path, pmtiles_path)
                 if not success:
                     self.log_message.emit(f"Failed to convert {layer_name}", "error")
-                    # Continue with other layers instead of aborting
+                    # Continue with other layers instead of aborting. Do NOT add it to
+                    # exported_vector, so no dangling style layer/source is emitted for it.
                     continue
+
+                exported_vector.append(layer)
 
                 # Clean up intermediate GeoPackage
                 if os.path.exists(gpkg_path):
@@ -819,7 +827,7 @@ class MapSplatExporter(QObject):
         # Convert styles
         self.log_message.emit("Converting styles...", "info")
         style_converter = StyleConverter(
-            layers["vector"],
+            exported_vector,
             self.settings,
             log_callback=lambda msg: self.log_message.emit(msg, "info"),
         )
@@ -835,6 +843,10 @@ class MapSplatExporter(QObject):
             style_json = self._merge_business_into_basemap(basemap_style_path, style_json)
         elif self.settings.get("imported_style_path"):
             style_json = self._merge_imported_style(style_json)
+
+        # Safety net: drop any layer whose source is missing, so a single dangling
+        # reference can't make MapLibre reject the entire style ("source not found").
+        style_json = self._prune_orphan_layers(style_json)
 
         self.progress.emit(75)
 
@@ -1253,6 +1265,24 @@ class MapSplatExporter(QObject):
 
         return True
 
+    def _prune_orphan_layers(self, style_json):
+        """Remove style layers that reference a source not present in `sources`.
+
+        MapLibre rejects the whole style if any layer points at a missing source, so a
+        single stale/dangling layer would blank the entire map. Layers without a source
+        (e.g. `background`) are always kept.
+        """
+        srcs = set(style_json.get("sources", {}).keys())
+        layers = style_json.get("layers", [])
+        kept = [ly for ly in layers if not ly.get("source") or ly.get("source") in srcs]
+        dropped = len(layers) - len(kept)
+        if dropped:
+            style_json["layers"] = kept
+            self.log_message.emit(
+                f"Pruned {dropped} layer(s) referencing a missing source", "warning"
+            )
+        return style_json
+
     def _merge_business_into_basemap(self, basemap_style_path, business_style_json):
         """Merge business layer sources and styles on top of a basemap style.
 
@@ -1290,6 +1320,14 @@ class MapSplatExporter(QObject):
                     f"  Updated basemap source '{src_name}' to {src_desc}", "info"
                 )
                 break
+
+        # Optionally override the basemap's background colour. Default: leave the basemap's
+        # supplied value unchanged; only override when the user set a background_color.
+        bg = self.settings.get("background_color")
+        if bg:
+            for bl in basemap.get("layers", []):
+                if bl.get("type") == "background":
+                    bl.setdefault("paint", {})["background-color"] = bg
 
         # Inject business data sources
         basemap.setdefault("sources", {}).update(business_style_json.get("sources", {}))
