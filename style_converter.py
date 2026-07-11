@@ -172,6 +172,11 @@ class StyleConverter:
 
         if has_sprites:
             style["sprite"] = "./sprites"
+            # Record our sprite icon names so the viewer's styleimagemissing handler never
+            # clobbers them with an empty placeholder while the sprite is still loading.
+            icons = sorted({entry[0] for entry in self._svg_sprite_map.values() if entry})
+            if icons:
+                style.setdefault("metadata", {})["mapsplat:sprite-icons"] = icons
 
         # Convert each layer.  QGIS panel order is top-to-bottom (top layer renders on top),
         # but MapLibre's style["layers"] array is bottom-to-top (first entry = bottom).

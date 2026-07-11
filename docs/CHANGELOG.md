@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — sprite icon render race (0.24.0)
+- **SVG-marker point layers no longer render blank.** The viewer's `styleimagemissing` handler
+  (added so *missing basemap* icons wouldn't stall rendering) was also adding an empty 1×1
+  placeholder for **our own** sprite icons if MapLibre requested one before the sprite finished
+  loading — permanently blanking that marker layer (the label still showed, since labels use
+  glyphs, not the sprite). The converter now records our sprite icon names in
+  `metadata["mapsplat:sprite-icons"]` (preserved through the basemap merge), and the handler
+  **skips** those ids so the sprite always provides them.
+
 ### Fixed / Added — labels, background override, export robustness (0.23.0)
 - **Label placement reads the real QGIS 4 settings.** The quadrant was read via a
   `quadrantPosition` attribute that no longer exists on QGIS 4's `QgsPalLayerSettings`, so it

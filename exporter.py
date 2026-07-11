@@ -193,6 +193,11 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
     _mapsplat_patterns_json = json.dumps(
         (style_json or {}).get("metadata", {}).get("mapsplat:patterns", {})
     )
+    # Our own sprite icon names — never replace these with an empty placeholder; the sprite
+    # sheet provides them (a race would otherwise blank a marker layer, e.g. point icons).
+    _mapsplat_sprite_icons_json = json.dumps(
+        (style_json or {}).get("metadata", {}).get("mapsplat:sprite-icons", [])
+    )
 
     # Map pixel dimensions — drives the outer container, not the map div itself.
     # All overlay controls are children of the container so they stay clipped.
@@ -604,8 +609,13 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         // Adding a transparent 1×1 placeholder immediately unblocks rendering.
         // Hatch/pattern images generated at export time (QGIS hatch fills).
         const mapsplatPatterns = {_mapsplat_patterns_json};
+        // Our own sprite icons: never substitute a placeholder — the sprite provides them.
+        const mapsplatSpriteIcons = new Set({_mapsplat_sprite_icons_json});
         map.on('styleimagemissing', (e) => {{
             if (map.hasImage(e.id)) return;
+            // A sprite icon may fire this before the sprite finishes loading; leave it for
+            // the sprite (adding an empty image here would permanently blank the marker).
+            if (mapsplatSpriteIcons.has(e.id)) return;
             const pat = mapsplatPatterns[e.id];
             if (pat && pat.url) {{
                 // Load the real hatch tile; fall back to a transparent pixel on error.
@@ -1352,6 +1362,10 @@ class MapSplatExporter(QObject):
         biz_patterns = business_style_json.get("metadata", {}).get("mapsplat:patterns")
         if biz_patterns:
             basemap.setdefault("metadata", {})["mapsplat:patterns"] = biz_patterns
+        # Preserve our sprite icon names so the viewer won't clobber them.
+        biz_icons = business_style_json.get("metadata", {}).get("mapsplat:sprite-icons")
+        if biz_icons:
+            basemap.setdefault("metadata", {})["mapsplat:sprite-icons"] = biz_icons
 
         self.log_message.emit(
             f"  Merged {len(overlay_layers)} business layer(s) into basemap style", "info"
