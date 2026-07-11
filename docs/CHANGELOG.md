@@ -7,17 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed — dock UX redesign, phase 1 (see `docs/DOCK_UX_REDESIGN.md`)
-- **Output fields moved onto the Inputs tab**, beside Layers and the Export button, so a whole export
-  can be configured on **one screen** — no more hopping to the Options tab and back just to run.
-  (The dock still uses tabs; height is unchanged — the single-panel redesign is a later phase.)
-- **Zero-config start:** the dock now opens export-ready when a project is loaded — it preselects the
-  layers checked/visible in the Layers panel (or the active layer), and defaults the output folder to
-  the project folder (falling back to your Documents folder). Project name is still seeded from the
-  project name.
-- **Live readiness line + Export gating:** a message under the Export button lists exactly what is
-  still missing (*select a layer / name the project / set an output folder*), and the button stays
-  disabled until all three are satisfied — instead of only warning after a click.
+### Fixed — dock layer-list crashes & blank list
+- **QGIS crash (segfault) when a layer uses a categorized / graduated / rule-based renderer.**
+  `_get_symbology_warning` dereferenced symbols owned by the *temporary* category/range/rule
+  containers returned by the renderer; once those were garbage-collected the symbol pointers dangled
+  → use-after-free. Now **clones** each symbol. (Root-caused with a crash-surviving trace.)
+- **Layer list appeared blank** for projects stored in a GeoPackage — `layerTreeRoot().layerOrder()`
+  returns empty for them. Now reads from `mapLayers()`, skips invalid layers, and normalises
+  `geometryType()` across the QGIS 3 (int) / QGIS 4 (enum) change.
+- **Crash during project load** — the `layersAdded`/`layersRemoved` handlers rebuilt the list
+  mid-teardown. They are now **debounced** so the refresh runs once, after the load settles.
+
+### Added
+- **QGIS-integration test tier** (`test/test_dock_qgis.py`, `scripts/run_qgis_tests.sh`) that
+  exercises real layer/renderer objects under QGIS's own Python — including a regression for the
+  categorized-polygon crash (proven to fail-fast without the fix). The pure-Python `pytest` suite
+  skips it automatically.
+
+### Note
+- The dock UX redesign (phase 1: one-screen setup, live readiness, Refresh button — see
+  `docs/DOCK_UX_REDESIGN.md`) is being **evaluated separately** against the current tabbed layout;
+  not merged here yet.
 
 ## [0.13.1] — 2026-07-10
 

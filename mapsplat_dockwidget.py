@@ -19,7 +19,7 @@ try:
 except ImportError:
     import config_manager  # test environment (no package)
 
-from qgis.PyQt.QtCore import pyqtSignal, Qt, QUrl, QStandardPaths
+from qgis.PyQt.QtCore import pyqtSignal, Qt, QUrl, QTimer
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
     QDockWidget,
@@ -102,16 +102,28 @@ class MapSplatDockWidget(QDockWidget):
         self._setup_ui()
         self.setWidget(self.main_widget)
 
-        # Connect to project layer changes
-        QgsProject.instance().layersAdded.connect(self.refresh_layer_list)
-        QgsProject.instance().layersRemoved.connect(self.refresh_layer_list)
+        # Connect to project layer changes via a DEBOUNCED scheduler. A project load
+        # fires a burst of add/remove signals while layers are still being built;
+        # coalescing them into one refresh that runs after the load settles avoids
+        # reading layers mid-teardown (which crashed QGIS).
+        QgsProject.instance().layersAdded.connect(self._schedule_layer_refresh)
+        QgsProject.instance().layersRemoved.connect(self._schedule_layer_refresh)
 
-        # Initial population then restore persisted settings, then seed any
-        # still-empty required fields from the open project (zero-config start).
+        # Initial population then restore persisted settings
         self.refresh_layer_list()
         self._restore_settings()
-        self._prefill_defaults()
-        self._update_readiness()
+
+    def _schedule_layer_refresh(self, *args):
+        """Coalesce a burst of layersAdded/Removed signals into a single refresh that
+        runs once the event loop is idle (i.e. after a project load has settled)."""
+        if getattr(self, "_refresh_pending", False):
+            return
+        self._refresh_pending = True
+        QTimer.singleShot(250, self._run_scheduled_refresh)
+
+    def _run_scheduled_refresh(self):
+        self._refresh_pending = False
+        self.refresh_layer_list()
 
     def _setup_ui(self):
         """Set up the user interface."""
@@ -136,7 +148,6 @@ class MapSplatDockWidget(QDockWidget):
         self.layer_list.setToolTip("Select the layers to include in the export.\nCtrl+click or Shift+click to select multiple layers.")
         self.layer_list.itemSelectionChanged.connect(self._update_layer_count)
         self.layer_list.itemSelectionChanged.connect(self._update_tile_estimate)
-        self.layer_list.itemSelectionChanged.connect(self._update_readiness)
         layer_layout.addWidget(self.layer_list)
 
         # Select all / none buttons
@@ -157,40 +168,6 @@ class MapSplatDockWidget(QDockWidget):
         layer_layout.addWidget(self.lbl_layer_count)
 
         inputs_layout.addWidget(layer_group, 1)  # stretch=1 so it fills space
-
-        # ============ Output (required) — kept beside Layers + Export so a whole
-        # run can be configured on ONE tab, no jumping to the Options tab. ============
-        output_group = QGroupBox("Output")
-        output_group.setToolTip("Where the web map is written. Both fields are required.")
-        output_group_layout = QVBoxLayout(output_group)
-        output_group_layout.setSpacing(6)
-
-        name_layout = QHBoxLayout()
-        name_layout.addWidget(QLabel("Project name:"))
-        self.txt_project_name = QLineEdit()
-        self.txt_project_name.setPlaceholderText("my_webmap")
-        self.txt_project_name.setToolTip(
-            "Name for the output subdirectory.\n"
-            "The export will be written to <output folder>/<project name>_webmap/."
-        )
-        self.txt_project_name.textChanged.connect(self._update_readiness)
-        name_layout.addWidget(self.txt_project_name)
-        output_group_layout.addLayout(name_layout)
-
-        folder_layout = QHBoxLayout()
-        folder_layout.addWidget(QLabel("Output folder:"))
-        self.txt_output_folder = QLineEdit()
-        self.txt_output_folder.setPlaceholderText("Select output folder...")
-        self.txt_output_folder.setToolTip("Parent directory where the export subdirectory will be created.")
-        self.txt_output_folder.textChanged.connect(self._save_settings)
-        self.txt_output_folder.textChanged.connect(self._update_readiness)
-        self.btn_browse = QPushButton("Browse...")
-        self.btn_browse.clicked.connect(self._browse_output_folder)
-        folder_layout.addWidget(self.txt_output_folder, 1)
-        folder_layout.addWidget(self.btn_browse)
-        output_group_layout.addLayout(folder_layout)
-
-        inputs_layout.addWidget(output_group)
 
         # ================================================================
         # --- Tab 1: Options (export settings, basemap, output) ---
@@ -404,8 +381,52 @@ class MapSplatDockWidget(QDockWidget):
         self.radio_basemap_file.toggled.connect(self._on_basemap_source_type_changed)
         self.basemap_group.toggled.connect(self._update_tile_estimate)
 
-        # (Output — project name + folder — now lives on the Inputs tab, beside
-        # Layers and Export, so the whole required setup is on one screen.)
+        # ==================== Output Settings (collapsible) ====================
+        self._out_toggle = QToolButton()
+        self._out_toggle.setText(" Output")
+        self._out_toggle.setCheckable(True)
+        self._out_toggle.setChecked(True)
+        self._out_toggle.setArrowType(Qt.ArrowType.DownArrow)
+        self._out_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._out_toggle.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        scroll_layout.addWidget(self._out_toggle)
+
+        out_container = QWidget()
+        output_layout = QVBoxLayout(out_container)
+        output_layout.setContentsMargins(16, 0, 0, 4)
+        output_layout.setSpacing(6)
+
+        # Project name
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Project name:"))
+        self.txt_project_name = QLineEdit()
+        self.txt_project_name.setPlaceholderText("my_webmap")
+        self.txt_project_name.setToolTip(
+            "Name for the output subdirectory.\n"
+            "The export will be written to <output folder>/<project name>_webmap/."
+        )
+        name_layout.addWidget(self.txt_project_name)
+        output_layout.addLayout(name_layout)
+
+        # Output folder
+        folder_layout = QHBoxLayout()
+        folder_layout.addWidget(QLabel("Output folder:"))
+        self.txt_output_folder = QLineEdit()
+        self.txt_output_folder.setPlaceholderText("Select output folder...")
+        self.txt_output_folder.setToolTip("Parent directory where the export subdirectory will be created.")
+        self.txt_output_folder.textChanged.connect(self._save_settings)
+        self.btn_browse = QPushButton("Browse...")
+        self.btn_browse.clicked.connect(self._browse_output_folder)
+        folder_layout.addWidget(self.txt_output_folder, 1)
+        folder_layout.addWidget(self.btn_browse)
+        output_layout.addLayout(folder_layout)
+
+        scroll_layout.addWidget(out_container)
+
+        self._out_toggle.toggled.connect(lambda checked: (
+            out_container.setVisible(checked),
+            self._out_toggle.setArrowType(Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow),
+        ))
 
         # Finish scroll area → goes into Options tab
         scroll_layout.addStretch()
@@ -471,14 +492,7 @@ class MapSplatDockWidget(QDockWidget):
         config_btn_layout.addWidget(self.btn_load_config)
         inputs_layout.addLayout(config_btn_layout)
 
-        # ==================== Readiness + Export (Inputs tab, pinned) ====================
-        # Live checklist so the user sees what's still missing BEFORE clicking
-        # (the modal warnings in _validate_export remain as a backstop).
-        self.lbl_readiness = QLabel("")
-        self.lbl_readiness.setWordWrap(True)
-        self.lbl_readiness.setStyleSheet("color: #c62828; font-size: 11px;")
-        inputs_layout.addWidget(self.lbl_readiness)
-
+        # ==================== Export Button (Inputs tab, pinned) ====================
         export_btn_row = QHBoxLayout()
 
         self.btn_export = QPushButton("Export Web Map")
@@ -772,31 +786,30 @@ class MapSplatDockWidget(QDockWidget):
         self.combo_extent_layer.addItem("Current map view", "__map_view__")
 
         project = QgsProject.instance()
-        # Use layerTreeRoot().layerOrder() so the list reflects QGIS panel order (top → bottom)
-        for layer in project.layerTreeRoot().layerOrder():
+        # Read from mapLayers(): layerTreeRoot().layerOrder() can come back EMPTY for
+        # some projects (e.g. one stored in a GeoPackage), which left the list blank.
+        # Skip invalid/half-built layers; this only runs at stable times (init, user
+        # action, or the debounced post-load refresh), never mid-teardown.
+        for layer in list(project.mapLayers().values()):
+            if layer is None or not layer.isValid():
+                continue
+            name = layer.name()
             item = QListWidgetItem()
 
-            # Determine layer type icon/prefix
+            # Layer type prefix (geometryType() is an enum on QGIS 4, int on QGIS 3)
             if isinstance(layer, QgsVectorLayer):
-                geom_type = layer.geometryType()
-                if geom_type == 0:  # Point
-                    prefix = "[Point]"
-                elif geom_type == 1:  # Line
-                    prefix = "[Line]"
-                elif geom_type == 2:  # Polygon
-                    prefix = "[Polygon]"
-                else:
-                    prefix = "[Vector]"
+                geom_type = int(layer.geometryType())
+                prefix = {0: "[Point]", 1: "[Line]", 2: "[Polygon]"}.get(geom_type, "[Vector]")
             elif isinstance(layer, QgsRasterLayer):
                 prefix = "[Raster]"
             else:
                 prefix = "[Other]"
                 item.setFlags(item.flags() & ~_ItemIsEnabled)
 
-            item.setText(f"{prefix} {layer.name()}")
+            item.setText(f"{prefix} {name}")
             item.setData(_UserRole, layer.id())
 
-            # Story 11: warn if layer uses symbology that won't translate well
+            # Warn if the layer uses symbology that won't translate well
             warning = self._get_symbology_warning(layer)
             if warning:
                 warn_icon, warn_tip = warning
@@ -804,9 +817,8 @@ class MapSplatDockWidget(QDockWidget):
                 item.setToolTip(warn_tip)
 
             self.layer_list.addItem(item)
-
             # Also add to extent combo (all layer types accepted)
-            self.combo_extent_layer.addItem(layer.name(), layer.id())
+            self.combo_extent_layer.addItem(name, layer.id())
 
         # Restore previously selected extent layer; default to "Current map view"
         if current_extent_id is not None:
@@ -826,29 +838,7 @@ class MapSplatDockWidget(QDockWidget):
             clean_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in project_name)
             self.txt_project_name.setText(clean_name)
 
-        # Zero-config start: on the FIRST population, preselect the layers that are
-        # already checked (visible) in the QGIS Layers panel, falling back to the
-        # active layer. Only done once so later add/remove refreshes never stomp on
-        # the user's own selection.
-        if not getattr(self, "_initial_selection_done", False):
-            self._preselect_default_layers(project)
-            self._initial_selection_done = True
-
         self._update_layer_count()
-
-    def _preselect_default_layers(self, project):
-        """Select the checked/visible layers (or the active layer) in the list."""
-        preferred = {lyr.id() for lyr in project.layerTreeRoot().checkedLayers()}
-        if not preferred:
-            active = self.iface.activeLayer()
-            if active is not None:
-                preferred = {active.id()}
-        if not preferred:
-            return
-        for i in range(self.layer_list.count()):
-            item = self.layer_list.item(i)
-            if item.flags() & _ItemIsEnabled and item.data(_UserRole) in preferred:
-                item.setSelected(True)
 
     def _get_symbology_warning(self, layer):
         """Return (icon, tooltip_text) if the layer uses symbology that won't translate well, else None."""
@@ -868,18 +858,32 @@ class MapSplatDockWidget(QDockWidget):
         if r_type == "pointCluster":
             return (warn_icon, "Point cluster renderer: clustering is not supported; all points will render at their original positions")
 
-        # Check for SVG or font markers inside any renderer's symbols
+        # Collect CLONES of the symbols. cat.symbol()/rng.symbol()/rule.symbol() return
+        # pointers OWNED by the temporary category/range/rule from the renderer; once
+        # that temporary container is garbage-collected, those pointers dangle and
+        # calling .symbolLayers() on one is a use-after-free that SEGFAULTS QGIS (hit on
+        # a categorizedSymbol polygon layer). clone() gives Python-owned copies that stay
+        # valid for the rest of this function.
         symbols = []
         if r_type == "singleSymbol":
-            sym = renderer.symbol()
-            if sym:
-                symbols = [sym]
+            s = renderer.symbol()
+            if s is not None:
+                symbols.append(s.clone())
         elif r_type == "categorizedSymbol":
-            symbols = [cat.symbol() for cat in renderer.categories() if cat.symbol()]
+            for cat in renderer.categories():
+                s = cat.symbol()
+                if s is not None:
+                    symbols.append(s.clone())
         elif r_type == "graduatedSymbol":
-            symbols = [rng.symbol() for rng in renderer.ranges() if rng.symbol()]
+            for rng in renderer.ranges():
+                s = rng.symbol()
+                if s is not None:
+                    symbols.append(s.clone())
         elif r_type == "RuleRenderer":
-            symbols = [rule.symbol() for rule in renderer.rootRule().descendants() if rule.symbol()]
+            for rule in renderer.rootRule().descendants():
+                s = rule.symbol()
+                if s is not None:
+                    symbols.append(s.clone())
 
         for sym in symbols:
             for sym_layer in sym.symbolLayers():
@@ -1095,53 +1099,6 @@ class MapSplatDockWidget(QDockWidget):
             s.endGroup()
         finally:
             self._restoring = False
-
-    def _prefill_defaults(self):
-        """Seed still-empty required fields so the dock opens export-ready.
-
-        Runs AFTER _restore_settings, and only fills a field when it is still
-        blank — so a remembered choice is never overwritten. Project name is
-        already seeded from the project in refresh_layer_list(); this covers the
-        output folder (project folder, else the OS Documents folder).
-        """
-        if not self.txt_output_folder.text().strip():
-            default_dir = QgsProject.instance().homePath()
-            if not default_dir or not os.path.isdir(default_dir):
-                default_dir = QStandardPaths.writableLocation(
-                    QStandardPaths.StandardLocation.DocumentsLocation
-                )
-            if default_dir and os.path.isdir(default_dir):
-                self.txt_output_folder.setText(default_dir)
-
-    def _run_readiness(self):
-        """Return (is_ready, [missing]) for the required-fields checklist.
-
-        Mirrors the hard checks in _validate_export so the user sees what's
-        missing continuously, not only after clicking Export.
-        """
-        missing = []
-        if not self.layer_list.selectedItems():
-            missing.append("select a layer")
-        if not self.txt_project_name.text().strip():
-            missing.append("name the project")
-        folder = self.txt_output_folder.text().strip()
-        if not folder or not os.path.isdir(folder):
-            missing.append("set an output folder")
-        return (not missing, missing)
-
-    def _update_readiness(self):
-        """Refresh the readiness label + Export button enabled state."""
-        # Guard: signals can fire before the label exists during construction.
-        if not hasattr(self, "lbl_readiness"):
-            return
-        ready, missing = self._run_readiness()
-        self.btn_export.setEnabled(ready)
-        if ready:
-            self.lbl_readiness.setText("Ready to export")
-            self.lbl_readiness.setStyleSheet("color: #2e7d32; font-size: 11px;")
-        else:
-            self.lbl_readiness.setText("To export: " + ", ".join(missing))
-            self.lbl_readiness.setStyleSheet("color: #c62828; font-size: 11px;")
 
     def _check_pmtiles_cli(self):
         """Check pmtiles CLI is on PATH; show install dialog if missing. Returns True if OK."""

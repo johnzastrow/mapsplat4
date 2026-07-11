@@ -22,3 +22,7 @@ mapsplat.zip
 
 # Local pre-refactor backups (kept out of git + zip)
 *.orig-*
+
+# A/B dock variant snapshots
+*.tabs-*
+*.phase1-*
