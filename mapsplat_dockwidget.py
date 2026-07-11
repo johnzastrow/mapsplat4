@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.16.0"
+__version__ = "0.17.0"
 
 import os
 
@@ -128,6 +128,14 @@ class MapSplatDockWidget(QDockWidget):
         self._refresh_pending = False
         self.refresh_layer_list()
 
+    def _open_user_guide(self):
+        """Open the bundled PDF user guide (fall back to the online docs)."""
+        pdf = os.path.join(os.path.dirname(os.path.abspath(__file__)), "help", "MapSplat_User_Guide.pdf")
+        if os.path.isfile(pdf):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(pdf))
+        else:
+            QDesktopServices.openUrl(QUrl("https://github.com/johnzastrow/mapsplat4"))
+
     def _plugin_version(self):
         """Read the shipped version from metadata.txt (what QGIS installs), so the
         stamp reflects the actual loaded build; fall back to the module constant."""
@@ -143,14 +151,27 @@ class MapSplatDockWidget(QDockWidget):
 
     def _setup_ui(self):
         """Set up the user interface."""
-        # ==================== Header intro ====================
+        # ==================== Header: intro + Help menu ====================
+        header_row = QHBoxLayout()
         lbl_intro = QLabel(
-            "Turn selected QGIS layers into a self-contained web map "
-            "(PMTiles + MapLibre) you can open in any browser."
+            "Turn selected QGIS layers into a self-contained web map (PMTiles + MapLibre)."
         )
         lbl_intro.setWordWrap(True)
         lbl_intro.setStyleSheet("color: gray; font-size: 11px;")
-        self.main_layout.addWidget(lbl_intro)
+        header_row.addWidget(lbl_intro, 1)
+
+        self.btn_help = QToolButton()
+        self.btn_help.setText("Help")
+        self.btn_help.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        help_menu = QMenu(self.btn_help)
+        help_menu.addAction("Open User Guide (PDF)", self._open_user_guide)
+        help_menu.addAction(
+            "Online docs / source",
+            lambda: QDesktopServices.openUrl(QUrl("https://github.com/johnzastrow/mapsplat4")),
+        )
+        self.btn_help.setMenu(help_menu)
+        header_row.addWidget(self.btn_help)
+        self.main_layout.addLayout(header_row)
 
         # ==================== Tab Widget ====================
         self.tabs = QTabWidget()

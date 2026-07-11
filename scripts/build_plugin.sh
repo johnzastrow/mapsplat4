@@ -11,8 +11,9 @@ WORK="$(mktemp -d)"; STAGE="$WORK/$PLUGIN"; trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$STAGE"
 
 for f in __init__.py mapsplat.py mapsplat_dockwidget.py exporter.py style_converter.py \
-         config_manager.py log_utils.py metadata.txt icon.png LICENSE install_pmtiles.sh; do
-  cp "$ROOT/$f" "$STAGE/$f"
+         config_manager.py log_utils.py metadata.txt icon.png LICENSE install_pmtiles.sh \
+         help/MapSplat_User_Guide.pdf; do
+  mkdir -p "$(dirname "$STAGE/$f")"; cp "$ROOT/$f" "$STAGE/$f"
 done
 
 find "$STAGE" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true

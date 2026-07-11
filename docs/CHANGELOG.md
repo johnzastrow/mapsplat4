@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — dock guidance & help (phase 3)
+- In-dock **guidance**: a header intro line, "Required." subtitles under Layers and Output, and an
+  empty-state hint when the project has no layers.
+- **Help menu** in the dock header → *Open User Guide (PDF)* and *Online docs / source*.
+- A bundled, professional **PDF User Guide** (`help/MapSplat_User_Guide.pdf`, generated from
+  `docs/USER_GUIDE.md` via `scripts/build_user_guide.sh`) shipped inside the plugin.
+
 ## [0.15.0] — 2026-07-11
 
 ### Changed — dock UX redesign (phase 1)
