@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — serve.py no-cache (0.24.2)
+- **`serve.py` now sends `Cache-Control: no-store` (and `Pragma`/`Expires`) on every response.**
+  Browsers were caching `style.json`, `index.html`, and tiles across exports, so after re-exporting
+  a project a changed/added layer would look **missing** until a hard refresh — the flip-flopping
+  "lost layers" behaviour. The data and style were always correct on disk (confirmed by a headless
+  render); this makes the local preview always reflect the latest export.
+
 ### Added — style-build logging (0.24.1)
 - The dock **Log** tab now reports the style build: each layer as it's converted (renderer type →
   number of style layers + label, and the source name), a **warning when a renderer produces 0

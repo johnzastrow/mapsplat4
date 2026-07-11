@@ -1666,6 +1666,14 @@ class RangeRequestHandler(http.server.SimpleHTTPRequestHandler):
         """Hide server implementation details."""
         return self.server_version
 
+    def end_headers(self):
+        """Disable browser caching so a re-export is always shown fresh (no stale
+        style.json/index.html/tiles after re-generating the map)."""
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
+
     def log_error(self, format, *args):
         """Suppress connection aborted errors (normal when browser cancels requests)."""
         if "ConnectionAbortedError" not in str(args):
