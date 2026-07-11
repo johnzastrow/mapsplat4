@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.15.0"
+__version__ = "0.16.0"
 
 import os
 
@@ -143,6 +143,15 @@ class MapSplatDockWidget(QDockWidget):
 
     def _setup_ui(self):
         """Set up the user interface."""
+        # ==================== Header intro ====================
+        lbl_intro = QLabel(
+            "Turn selected QGIS layers into a self-contained web map "
+            "(PMTiles + MapLibre) you can open in any browser."
+        )
+        lbl_intro.setWordWrap(True)
+        lbl_intro.setStyleSheet("color: gray; font-size: 11px;")
+        self.main_layout.addWidget(lbl_intro)
+
         # ==================== Tab Widget ====================
         self.tabs = QTabWidget()
         self.main_layout.addWidget(self.tabs)
@@ -158,6 +167,13 @@ class MapSplatDockWidget(QDockWidget):
         # ==================== Layer Selection ====================
         layer_group = QGroupBox("Layers to Export")
         layer_layout = QVBoxLayout(layer_group)
+        lbl_layers_help = QLabel(
+            "<b>Required.</b> Pick the vector layers to publish — their QGIS styles "
+            "and labels are read automatically."
+        )
+        lbl_layers_help.setWordWrap(True)
+        lbl_layers_help.setStyleSheet("color: gray; font-size: 11px;")
+        layer_layout.addWidget(lbl_layers_help)
 
         self.layer_list = QListWidget()
         self.layer_list.setSelectionMode(_MultiSelection)
@@ -200,6 +216,13 @@ class MapSplatDockWidget(QDockWidget):
         output_group.setToolTip("Where the web map is written. Both fields are required.")
         output_group_layout = QVBoxLayout(output_group)
         output_group_layout.setSpacing(6)
+        lbl_output_help = QLabel(
+            "<b>Required.</b> A <code>&lt;project name&gt;_webmap/</code> folder is "
+            "created inside the output folder."
+        )
+        lbl_output_help.setWordWrap(True)
+        lbl_output_help.setStyleSheet("color: gray; font-size: 11px;")
+        output_group_layout.addWidget(lbl_output_help)
 
         name_layout = QHBoxLayout()
         name_layout.addWidget(QLabel("Project name:"))
@@ -1068,10 +1091,13 @@ class MapSplatDockWidget(QDockWidget):
         self.layer_list.clearSelection()
 
     def _update_layer_count(self):
-        """Update the 'X of Y layers selected' label."""
+        """Update the 'X of Y layers selected' label (with an empty-state hint)."""
         total = self.layer_list.count()
         selected = len(self.layer_list.selectedItems())
-        self.lbl_layer_count.setText(f"{selected} of {total} layers selected")
+        if total == 0:
+            self.lbl_layer_count.setText("No layers in this project — add one in QGIS, then click Refresh.")
+        else:
+            self.lbl_layer_count.setText(f"{selected} of {total} layers selected")
 
     def _capture_canvas_bounds(self):
         """Return current map canvas extent as [W, S, E, N] in EPSG:4326.
