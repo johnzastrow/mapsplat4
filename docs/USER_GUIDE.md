@@ -62,14 +62,32 @@ That's the whole happy path. Everything below is optional and has sensible defau
 
 ## 5. Adding a Protomaps basemap (optional)
 
-On **Options ▸ Basemap Overlay**, enable it and give:
-- a **source** — a Protomaps `.pmtiles` archive (a remote build URL, or a local file you've
-  downloaded), and
-- a **basemap style.json** — a Protomaps-compatible MapLibre style.
+A basemap gives your data context (streets, water, terrain). MapSplat uses **Protomaps** — free,
+OpenStreetMap-derived vector basemaps in PMTiles format.
 
-MapSplat runs `pmtiles extract` to **clip the basemap to your data's bounding box**, so the offline
-map only carries the tiles it needs. This is the one feature that needs the `pmtiles` CLI on your
-`PATH`. See [docs.protomaps.com](https://docs.protomaps.com/pmtiles/cli).
+**Where to get the tiles.** Protomaps publishes daily global builds and an area extractor at
+**[build.protomaps.com](https://build.protomaps.com/)**:
+
+- *Small area (recommended)* — use the map on that page to draw your region and download a **trimmed
+  `.pmtiles`** for just that area. Small and fast.
+- *Whole planet* — download the full dated build (e.g. `20260401.pmtiles`). Large; MapSplat will clip it.
+
+Point MapSplat at either a **local file** you downloaded or a **remote build URL**.
+
+**Where to get the style.** You also need a Protomaps-compatible MapLibre **`style.json`** (colours,
+fonts, which basemap layers to draw). Protomaps ships ready-made styles (light, dark, etc.) — see
+**[docs.protomaps.com/basemaps](https://docs.protomaps.com/basemaps/maplibre)**.
+
+**How MapSplat uses them.** On **Options ▸ Basemap Overlay**, enable it and set the **source** and
+**basemap style.json**. At export, MapSplat runs **`pmtiles extract --bbox`** to clip the basemap to
+your data's bounding box — so the offline map carries only the tiles it needs — then overlays your
+layers on top.
+
+> **This step needs the `pmtiles` CLI.** The clip shells out to the `pmtiles` command. MapSplat no
+> longer *bundles* that program (QGIS forbids shipping executables in plugins), so install it once
+> from the [go-pmtiles releases](https://github.com/protomaps/go-pmtiles/releases) and put it on your
+> `PATH`. Exporting *your* layers uses GDAL and needs **no** CLI — only the basemap overlay does. If
+> you'd rather not install it, just publish your data without a basemap.
 
 ---
 
@@ -97,6 +115,48 @@ from disk may not work — serve it over HTTP:
   (or use *Plugin Reloader*). Confirm via the **version stamp** on the Log tab.
 - **A layer's symbology didn't translate** — a ⚠ icon in the layer list flags renderers/markers
   (heatmap, point cluster, font markers…) that don't map cleanly to MapLibre.
+
+---
+
+## 8. Styling — what carries over, and what doesn't
+
+MapSplat reads each layer's QGIS symbology and labels and converts them to a MapLibre style. Most
+everyday styling translates well; a few QGIS features have no MapLibre equivalent. Layers with
+symbology that won't translate cleanly are flagged with a **⚠** icon in the layer list (hover for why).
+
+**Translates well**
+- Single-symbol, categorized, graduated, and rule-based renderers.
+- Fill and stroke colours, widths, opacity, and simple line/dash patterns.
+- **SVG markers** — converted to a sprite sheet — and basic marker/line/fill symbols.
+- Labels: text, font, size, colour, and halo.
+
+**Limited or not supported**
+- **Heatmap renderer** — exported as circle markers, not a smooth heatmap.
+- **Point cluster renderer** — clustering isn't reproduced; points render at their true positions.
+- **Point displacement renderer** — displaced positions aren't preserved.
+- **Font markers** — render as a plain circle (use an SVG marker for a custom glyph).
+- **Draw effects** (drop shadow, glow, blur), **blend modes**, the **2.5D** renderer, and
+  **geometry generators** — no MapLibre equivalent; ignored.
+- **Data-defined (expression) overrides** on symbol properties — only simple cases translate.
+- Very complex or deeply nested rule sets may be simplified.
+
+*Tip:* for the most faithful web map, favour categorized / graduated / rule renderers with solid
+fills, strokes, and SVG markers, and keep data-defined symbology simple.
+
+## 9. Versions this build was made with
+
+| Component | Version |
+|---|---|
+| **MapSplat** | {{MAPSPLAT_VERSION}} |
+| MapLibre GL JS (viewer) | 4.7.1 |
+| PMTiles JS (viewer) | 3.2.0 |
+| `pmtiles` CLI (basemap only; tested) | 1.30.1 |
+| QGIS | 4.0+ required — built and tested on **4.2** |
+| GDAL | 3.8+ required (PMTiles driver) — tested on **3.12** |
+| Qt / Python bindings | PyQt6 (QGIS 4) |
+
+The MapLibre and PMTiles **JS** versions are pinned in the generated viewer; the `pmtiles` **CLI** is
+whatever you have installed on your `PATH`.
 
 ---
 

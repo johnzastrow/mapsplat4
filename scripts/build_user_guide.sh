@@ -17,6 +17,9 @@ a { color: #1b6ec2; text-decoration: none; }
 hr { border: none; border-top: 1px solid #ddd; margin: 1.1em 0; }
 CSSEOF
 mkdir -p help
-pandoc docs/USER_GUIDE.md -o /tmp/_ug.html --standalone --embed-resources --css "$CSS" --metadata title="MapSplat User Guide"
+# Inject the current version so the guide's "built with" table stays accurate.
+VER="$(grep -E '^version=' metadata.txt | cut -d= -f2)"
+sed "s/{{MAPSPLAT_VERSION}}/$VER/g" docs/USER_GUIDE.md > /tmp/_ug.md
+pandoc /tmp/_ug.md -o /tmp/_ug.html --standalone --embed-resources --css "$CSS" --metadata title="MapSplat User Guide"
 uv run --no-project --with weasyprint weasyprint /tmp/_ug.html help/MapSplat_User_Guide.pdf
 echo "wrote help/MapSplat_User_Guide.pdf"
