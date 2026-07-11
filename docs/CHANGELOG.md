@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — categorized/graduated fidelity (0.20.0)
+- **Categorized polygons/lines/points now render every class.** The converter only emitted a
+  `match` pair when a category's *bottom* symbol layer was a plain `SimpleFill`/`SimpleLine`/
+  `SimpleMarker`; any category whose bottom layer was a hatch (`LinePatternFill`), gradient
+  (`ShapeburstFill`), etc. was silently dropped from the match and fell through to the default
+  `fill-opacity: 0.0` — i.e. **invisible**. On a 6-class park layer only the one plain-fill class
+  showed; the other five vanished. Now a pair is emitted for *every* rendered class.
+- **Solid colours are sampled from the top-most visible fill layer, not layer 0.** `symbol.color()`
+  returns only the bottom symbol layer, so a symbol with an orange fill stacked over a maroon fill
+  came out maroon. New helpers walk the layer stack and take the top-most enabled colour, matching
+  what QGIS actually draws. Fixes the pavilion class (was maroon `#48002c`, now orange `#d28945`).
+- **Hatch/pattern fills are now see-through instead of opaque.** A hatch (`LinePatternFill`) is
+  commonly stacked under an outline-only `SimpleFill` (brush = `NoBrush`). The converter was reading
+  that NoBrush layer as an *opaque* solid, so a large hatched polygon (e.g. "park bounds") painted a
+  solid block over everything inside it. Now `_polygon_fill_paint` skips NoBrush layers, renders a
+  hatch as a **semi-transparent solid** in the pattern's ink colour (opacity ≈ the hatch's line
+  density), and honours gradient/shapeburst alpha — so overlapping polygons stay visible, matching
+  QGIS. (Real MapLibre `fill-pattern` hatching is a planned follow-up.) Also corrects "moms area"
+  (was reading the NoBrush `#6b18e8`; now the shapeburst `#c24dc2` at its true ~0.67 alpha).
+- **Graduated renderers** got the same treatment: dropped `interpolate` stops could leave an
+  expression with fewer than two stops (an *invalid* MapLibre expression that breaks the whole layer).
+  Every range now contributes a stop via the same helpers.
+- Sizes stay **faithful to the source numbers** when QGIS specifies them — a real small-but-nonzero
+  marker/line keeps its exact converted size; only a genuinely zero/missing value is bumped to a
+  visible minimum (marker radius fallback 3 px, line/stroke hairline 1 px) so nothing silently
+  vanishes. Point/line opacity now folds in the symbol-level opacity.
+
 ### Changed — viewer libraries (0.19.0)
 - **Updated the generated viewer to MapLibre GL JS 5.24.0 and PMTiles JS 4.4.1** (from 4.7.1 / 3.2.0)
   so new users on the current versions are supported. The v5 breaking change is `addProtocol`

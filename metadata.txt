@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.19.0
+version=0.20.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,13 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.20.0 - Symbology fidelity fixes
+    - Categorized polygons/lines/points now render EVERY class (classes whose bottom symbol layer
+      was a hatch/gradient were being dropped to invisible). Solid colours are sampled from the
+      top-most visible fill layer, not just layer 0 (fixes wrong colours on stacked symbols).
+    - Graduated renderers hardened the same way (no more dropped interpolate stops).
+    - QGIS "Hairline" strokes now render as a 1px outline instead of nothing.
+    - Full history: https://github.com/johnzastrow/mapsplat4/blob/main/docs/CHANGELOG.md
     0.13.1 - Security, packaging & licensing
     - Passes Bandit (0 high/medium), detect-secrets, and flake8 (plugins.qgis.org gates)
     - Removed the bundled go-pmtiles binary from the repo/zip; QGIS forbids binaries. Core export

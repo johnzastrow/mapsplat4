@@ -83,6 +83,16 @@ class StyleConverter:
     # Unit conversion (mm to pixels at 96 DPI)
     MM_TO_PX = 3.78
 
+    # QGIS "Hairline" stroke = width 0 but still drawn as the thinnest visible line.
+    # Web has no sub-pixel line, so render it as 1 px rather than nothing.
+    HAIRLINE_PX = 1.0
+
+    # Hatch/pattern fills have no MapLibre equivalent yet, so we approximate them as a
+    # semi-transparent solid (the pattern's ink colour). Opacity approximates the hatch's
+    # ink coverage so overlapping polygons stay see-through like QGIS.
+    HATCH_MIN_OPACITY = 0.20
+    HATCH_MAX_OPACITY = 0.85
+
     def __init__(self, layers, settings, log_callback=None):
         """Initialize converter.
 
@@ -519,11 +529,24 @@ class StyleConverter:
         if isinstance(sym_layer, QgsSimpleFillSymbolLayer):
             fill_color = sym_layer.fillColor()
             stroke_color = sym_layer.strokeColor()
-            stroke_width = self._convert_size(sym_layer.strokeWidth(), sym_layer.strokeWidthUnit())
-
-            # Extract opacity
-            fill_opacity = fill_color.alphaF()
             stroke_opacity = stroke_color.alphaF()
+
+            # A NoBrush SimpleFill paints only an outline (no fill). Emit an outline-only
+            # line layer rather than an opaque fill that would cover everything beneath.
+            if self._is_no_brush(sym_layer):
+                if self._stroke_drawn(sym_layer) and stroke_opacity > 0:
+                    return {
+                        "id": layer_id,
+                        "type": "line",
+                        "source": source_name,
+                        "source-layer": source_layer,
+                        "paint": {
+                            "line-color": stroke_color.name(),
+                            "line-width": self._stroke_width_px(sym_layer),
+                            "line-opacity": stroke_opacity,
+                        },
+                    }
+                return None
 
             result = {
                 "id": layer_id,
@@ -532,21 +555,25 @@ class StyleConverter:
                 "source-layer": source_layer,
                 "paint": {
                     "fill-color": fill_color.name(),
-                    "fill-opacity": fill_opacity,
+                    "fill-opacity": fill_color.alphaF(),
                 }
             }
 
-            # Add outline as separate line layer if stroke is visible
-            if stroke_width > 0 and stroke_opacity > 0:
+            # Add outline whenever the pen is drawn (incl. QGIS "Hairline"); MapLibre's
+            # fill-outline-color is always a 1px line, matching a hairline outline.
+            if self._stroke_drawn(sym_layer) and stroke_opacity > 0:
                 result["paint"]["fill-outline-color"] = stroke_color.name()
 
             return result
 
-        # Unsupported fill type (gradient, shape-burst, pattern, etc.) —
-        # extract the darkest available color rather than using a hardcoded default.
+        # Hatch / pattern / gradient fill — no MapLibre fill-pattern yet, so render as a
+        # semi-transparent solid (its ink colour) so overlapping polygons stay see-through.
         color = self._extract_darkest_color(sym_layer)
-        opacity = 0.5 if isinstance(sym_layer, (QgsLinePatternFillSymbolLayer,
-                                                 QgsPointPatternFillSymbolLayer)) else 0.7
+        if isinstance(sym_layer, (QgsLinePatternFillSymbolLayer,
+                                  QgsPointPatternFillSymbolLayer)):
+            opacity = self._hatch_opacity(sym_layer)
+        else:
+            opacity = 0.7
         return {
             "id": layer_id,
             "type": "fill",
@@ -565,6 +592,8 @@ class StyleConverter:
             width = self._convert_size(sym_layer.width(), sym_layer.widthUnit())
             opacity = color.alphaF()
 
+            # Hairline / zero-width lines -> 1px (thicken when in doubt); keep real widths.
+            line_width = width if (width and width > 0) else self.HAIRLINE_PX
             result = {
                 "id": layer_id,
                 "type": "line",
@@ -572,7 +601,7 @@ class StyleConverter:
                 "source-layer": source_layer,
                 "paint": {
                     "line-color": color.name(),
-                    "line-width": max(0.5, width),
+                    "line-width": line_width,
                     "line-opacity": opacity,
                 }
             }
@@ -621,7 +650,7 @@ class StyleConverter:
             fill_color = sym_layer.fillColor()
             stroke_color = sym_layer.strokeColor()
             size = self._convert_size(sym_layer.size(), sym_layer.sizeUnit())
-            stroke_width = self._convert_size(sym_layer.strokeWidth(), sym_layer.strokeWidthUnit())
+            stroke_width = self._stroke_width_px(sym_layer)  # hairline -> 1px, NoPen -> 0
 
             fill_opacity = fill_color.alphaF()
             stroke_opacity = stroke_color.alphaF()
@@ -634,7 +663,7 @@ class StyleConverter:
                 "paint": {
                     "circle-color": fill_color.name(),
                     "circle-opacity": fill_opacity,
-                    "circle-radius": max(2, size / 2),  # Size is diameter, radius for MapLibre
+                    "circle-radius": self._radius_px(size),  # diameter->radius; faithful, floors only 0
                     "circle-stroke-color": stroke_color.name(),
                     "circle-stroke-width": stroke_width,
                     "circle-stroke-opacity": stroke_opacity,
@@ -659,7 +688,7 @@ class StyleConverter:
                 "source-layer": source_layer,
                 "paint": {
                     "circle-color": fill_color.name() if fill_color else self.DEFAULT_POINT_COLOR,
-                    "circle-radius": max(2, size / 2),
+                    "circle-radius": self._radius_px(size),
                     "circle-stroke-color": "#ffffff",
                     "circle-stroke-width": 1,
                 },
@@ -677,7 +706,7 @@ class StyleConverter:
                 "source-layer": source_layer,
                 "paint": {
                     "circle-color": color.name(),
-                    "circle-radius": max(2, size / 2),
+                    "circle-radius": self._radius_px(size),
                     "circle-stroke-color": "#ffffff",
                     "circle-stroke-width": 1,
                 }
@@ -784,26 +813,20 @@ class StyleConverter:
 
         if geom_type == 2:  # Polygon
             fill_pairs, outline_pairs, opacity_pairs = [], [], []
-            for cat in regular_cats:
-                sl = cat.symbol().symbolLayer(0)
-                if isinstance(sl, QgsSimpleFillSymbolLayer):
-                    fill_pairs.append((cat.value(), sl.fillColor().name()))
-                    outline_pairs.append((cat.value(), sl.strokeColor().name()))
-                    opacity_pairs.append((cat.value(), sl.fillColor().alphaF()))
-            if null_cat is not None:
-                sl = null_cat.symbol().symbolLayer(0)
-                if isinstance(sl, QgsSimpleFillSymbolLayer):
-                    fill_pairs.append(("__null__", sl.fillColor().name()))
-                    outline_pairs.append(("__null__", sl.strokeColor().name()))
-                    opacity_pairs.append(("__null__", sl.fillColor().alphaF()))
+            # Emit a pair for EVERY category (regardless of its symbol-layer stack),
+            # so no category falls through to the invisible default. Colours are
+            # sampled from the top-most enabled fill layer, not just layer 0.
+            for label, cat in ([(c.value(), c) for c in regular_cats]
+                               + ([("__null__", null_cat)] if null_cat is not None else [])):
+                sym = cat.symbol()
+                fill_hex, fill_op = self._polygon_fill_paint(sym)
+                fill_pairs.append((label, fill_hex))
+                outline_pairs.append((label, self._symbol_stroke_color(sym).name()))
+                opacity_pairs.append((label, fill_op))
             if catchall_cat is not None:
-                sl = catchall_cat.symbol().symbolLayer(0)
-                if isinstance(sl, QgsSimpleFillSymbolLayer):
-                    fill_fb = sl.fillColor().name()
-                    outline_fb = sl.strokeColor().name()
-                    opacity_fb = sl.fillColor().alphaF()
-                else:
-                    fill_fb, outline_fb, opacity_fb = self.DEFAULT_FILL_COLOR, self.DEFAULT_LINE_COLOR, 0.0
+                sym = catchall_cat.symbol()
+                fill_fb, opacity_fb = self._polygon_fill_paint(sym)
+                outline_fb = self._symbol_stroke_color(sym).name()
             else:
                 fill_fb, outline_fb, opacity_fb = self.DEFAULT_FILL_COLOR, self.DEFAULT_LINE_COLOR, 0.0
             layers.append({
@@ -820,26 +843,19 @@ class StyleConverter:
 
         elif geom_type == 1:  # Line
             color_pairs, width_pairs, opacity_pairs = [], [], []
-            for cat in regular_cats:
-                sl = cat.symbol().symbolLayer(0)
-                if isinstance(sl, QgsSimpleLineSymbolLayer):
-                    color_pairs.append((cat.value(), sl.color().name()))
-                    width_pairs.append((cat.value(), self._convert_size(sl.width(), sl.widthUnit())))
-                    opacity_pairs.append((cat.value(), sl.color().alphaF()))
-            if null_cat is not None:
-                sl = null_cat.symbol().symbolLayer(0)
-                if isinstance(sl, QgsSimpleLineSymbolLayer):
-                    color_pairs.append(("__null__", sl.color().name()))
-                    width_pairs.append(("__null__", self._convert_size(sl.width(), sl.widthUnit())))
-                    opacity_pairs.append(("__null__", sl.color().alphaF()))
+            for label, cat in ([(c.value(), c) for c in regular_cats]
+                               + ([("__null__", null_cat)] if null_cat is not None else [])):
+                sym = cat.symbol()
+                col = self._symbol_line_color(sym)
+                color_pairs.append((label, col.name()))
+                width_pairs.append((label, self._symbol_line_width(sym)))
+                opacity_pairs.append((label, self._symbol_opacity(sym, col)))
             if catchall_cat is not None:
-                sl = catchall_cat.symbol().symbolLayer(0)
-                if isinstance(sl, QgsSimpleLineSymbolLayer):
-                    color_fb = sl.color().name()
-                    width_fb = self._convert_size(sl.width(), sl.widthUnit())
-                    opacity_fb = sl.color().alphaF()
-                else:
-                    color_fb, width_fb, opacity_fb = self.DEFAULT_LINE_COLOR, 2, 0.0
+                sym = catchall_cat.symbol()
+                col = self._symbol_line_color(sym)
+                color_fb = col.name()
+                width_fb = self._symbol_line_width(sym)
+                opacity_fb = self._symbol_opacity(sym, col)
             else:
                 color_fb, width_fb, opacity_fb = self.DEFAULT_LINE_COLOR, 2, 0.0
             layers.append({
@@ -856,29 +872,21 @@ class StyleConverter:
 
         elif geom_type == 0:  # Point
             color_pairs, radius_pairs, stroke_pairs, opacity_pairs = [], [], [], []
-            for cat in regular_cats:
-                sl = cat.symbol().symbolLayer(0)
-                if isinstance(sl, QgsSimpleMarkerSymbolLayer):
-                    color_pairs.append((cat.value(), sl.fillColor().name()))
-                    radius_pairs.append((cat.value(), self._convert_size(sl.size(), sl.sizeUnit()) / 2))
-                    stroke_pairs.append((cat.value(), sl.strokeColor().name()))
-                    opacity_pairs.append((cat.value(), sl.fillColor().alphaF()))
-            if null_cat is not None:
-                sl = null_cat.symbol().symbolLayer(0)
-                if isinstance(sl, QgsSimpleMarkerSymbolLayer):
-                    color_pairs.append(("__null__", sl.fillColor().name()))
-                    radius_pairs.append(("__null__", self._convert_size(sl.size(), sl.sizeUnit()) / 2))
-                    stroke_pairs.append(("__null__", sl.strokeColor().name()))
-                    opacity_pairs.append(("__null__", sl.fillColor().alphaF()))
+            for label, cat in ([(c.value(), c) for c in regular_cats]
+                               + ([("__null__", null_cat)] if null_cat is not None else [])):
+                sym = cat.symbol()
+                col = self._symbol_marker_color(sym)
+                color_pairs.append((label, col.name()))
+                radius_pairs.append((label, self._radius_px(self._symbol_marker_size(sym))))
+                stroke_pairs.append((label, self._symbol_stroke_color(sym).name()))
+                opacity_pairs.append((label, self._symbol_opacity(sym, col)))
             if catchall_cat is not None:
-                sl = catchall_cat.symbol().symbolLayer(0)
-                if isinstance(sl, QgsSimpleMarkerSymbolLayer):
-                    color_fb = sl.fillColor().name()
-                    radius_fb = self._convert_size(sl.size(), sl.sizeUnit()) / 2
-                    stroke_fb = sl.strokeColor().name()
-                    opacity_fb = sl.fillColor().alphaF()
-                else:
-                    color_fb, radius_fb, stroke_fb, opacity_fb = self.DEFAULT_POINT_COLOR, 6, "#ffffff", 0.0
+                sym = catchall_cat.symbol()
+                col = self._symbol_marker_color(sym)
+                color_fb = col.name()
+                radius_fb = self._radius_px(self._symbol_marker_size(sym))
+                stroke_fb = self._symbol_stroke_color(sym).name()
+                opacity_fb = self._symbol_opacity(sym, col)
             else:
                 color_fb, radius_fb, stroke_fb, opacity_fb = self.DEFAULT_POINT_COLOR, 6, "#ffffff", 0.0
             layers.append({
@@ -913,20 +921,18 @@ class StyleConverter:
             for r in ranges:
                 sym = r.symbol()
                 if sym and sym.symbolLayerCount() > 0:
-                    sym_layer = sym.symbolLayer(0)
-                    if isinstance(sym_layer, QgsSimpleFillSymbolLayer):
-                        fill_expr.extend([r.lowerValue(), sym_layer.fillColor().name()])
-                        opacity_expr.extend([r.lowerValue(), sym_layer.fillColor().alphaF()])
+                    hex_c, op = self._polygon_fill_paint(sym)
+                    fill_expr.extend([r.lowerValue(), hex_c])
+                    opacity_expr.extend([r.lowerValue(), op])
 
             # Capping stop: upperValue of last range keeps last color/opacity
             if len(ranges) > 0:
                 last_r = ranges[-1]
                 last_sym = last_r.symbol()
                 if last_sym and last_sym.symbolLayerCount() > 0:
-                    last_sl = last_sym.symbolLayer(0)
-                    if isinstance(last_sl, QgsSimpleFillSymbolLayer):
-                        fill_expr.extend([last_r.upperValue(), last_sl.fillColor().name()])
-                        opacity_expr.extend([last_r.upperValue(), last_sl.fillColor().alphaF()])
+                    hex_c, op = self._polygon_fill_paint(last_sym)
+                    fill_expr.extend([last_r.upperValue(), hex_c])
+                    opacity_expr.extend([last_r.upperValue(), op])
 
             layers.append({
                 "id": source_layer,
@@ -947,20 +953,16 @@ class StyleConverter:
             for r in ranges:
                 sym = r.symbol()
                 if sym and sym.symbolLayerCount() > 0:
-                    sym_layer = sym.symbolLayer(0)
-                    if isinstance(sym_layer, QgsSimpleLineSymbolLayer):
-                        line_expr.extend([r.lowerValue(), sym_layer.color().name()])
-                        width_expr.extend([r.lowerValue(), self._convert_size(sym_layer.width(), sym_layer.widthUnit())])
+                    line_expr.extend([r.lowerValue(), self._symbol_line_color(sym).name()])
+                    width_expr.extend([r.lowerValue(), self._symbol_line_width(sym)])
 
             # Capping stop
             if len(ranges) > 0:
                 last_r = ranges[-1]
                 last_sym = last_r.symbol()
                 if last_sym and last_sym.symbolLayerCount() > 0:
-                    last_sl = last_sym.symbolLayer(0)
-                    if isinstance(last_sl, QgsSimpleLineSymbolLayer):
-                        line_expr.extend([last_r.upperValue(), last_sl.color().name()])
-                        width_expr.extend([last_r.upperValue(), self._convert_size(last_sl.width(), last_sl.widthUnit())])
+                    line_expr.extend([last_r.upperValue(), self._symbol_line_color(last_sym).name()])
+                    width_expr.extend([last_r.upperValue(), self._symbol_line_width(last_sym)])
 
             layers.append({
                 "id": source_layer,
@@ -980,20 +982,16 @@ class StyleConverter:
             for r in ranges:
                 sym = r.symbol()
                 if sym and sym.symbolLayerCount() > 0:
-                    sym_layer = sym.symbolLayer(0)
-                    if isinstance(sym_layer, QgsSimpleMarkerSymbolLayer):
-                        color_expr.extend([r.lowerValue(), sym_layer.fillColor().name()])
-                        radius_expr.extend([r.lowerValue(), self._convert_size(sym_layer.size(), sym_layer.sizeUnit()) / 2])
+                    color_expr.extend([r.lowerValue(), self._symbol_marker_color(sym).name()])
+                    radius_expr.extend([r.lowerValue(), self._radius_px(self._symbol_marker_size(sym))])
 
             # Capping stop
             if len(ranges) > 0:
                 last_r = ranges[-1]
                 last_sym = last_r.symbol()
                 if last_sym and last_sym.symbolLayerCount() > 0:
-                    last_sl = last_sym.symbolLayer(0)
-                    if isinstance(last_sl, QgsSimpleMarkerSymbolLayer):
-                        color_expr.extend([last_r.upperValue(), last_sl.fillColor().name()])
-                        radius_expr.extend([last_r.upperValue(), self._convert_size(last_sl.size(), last_sl.sizeUnit()) / 2])
+                    color_expr.extend([last_r.upperValue(), self._symbol_marker_color(last_sym).name()])
+                    radius_expr.extend([last_r.upperValue(), self._radius_px(self._symbol_marker_size(last_sym))])
 
             layers.append({
                 "id": source_layer,
@@ -1142,6 +1140,240 @@ class StyleConverter:
             }]
 
         return []
+
+    def _symbol_fill_color(self, symbol):
+        """Representative solid fill colour for a (possibly multi-layer) fill symbol.
+
+        QGIS renders symbol layers bottom-to-top, so the visible solid colour is the
+        *top-most enabled* fill layer.  ``symbol.color()`` only returns layer 0, which
+        is wrong for stacked symbols (e.g. an orange SimpleFill sitting on top of a
+        maroon SimpleFill, or a SimpleFill under a hatch/shapeburst).  Returns a QColor.
+        """
+        from qgis.PyQt.QtGui import QColor
+        fill_types = ("SimpleFill", "GradientFill", "ShapeburstFill",
+                      "LinePatternFill", "PointPatternFill", "RandomMarkerFill",
+                      "CentroidFill", "SVGFill", "RasterFill")
+        best = None
+        for i in range(symbol.symbolLayerCount()):
+            sl = symbol.symbolLayer(i)
+            try:
+                if not sl.enabled():
+                    continue
+            except Exception:
+                pass
+            if sl.layerType() in fill_types:
+                c = sl.color()
+                if c and c.isValid():
+                    best = c
+        if best is None or not best.isValid():
+            best = symbol.color()
+        return best if (best and best.isValid()) else QColor(self.DEFAULT_FILL_COLOR)
+
+    def _symbol_stroke_color(self, symbol):
+        """Top-most enabled stroke/outline colour for a symbol.  Returns a QColor."""
+        from qgis.PyQt.QtGui import QColor
+        for i in range(symbol.symbolLayerCount() - 1, -1, -1):
+            sl = symbol.symbolLayer(i)
+            if hasattr(sl, "strokeColor"):
+                try:
+                    c = sl.strokeColor()
+                except Exception:
+                    c = None
+                if c and c.isValid():
+                    return c
+        return QColor(self.DEFAULT_LINE_COLOR)
+
+    def _symbol_line_color(self, symbol):
+        """Top-most enabled line colour for a line symbol.  Returns a QColor."""
+        from qgis.PyQt.QtGui import QColor
+        best = None
+        for i in range(symbol.symbolLayerCount()):
+            sl = symbol.symbolLayer(i)
+            try:
+                if not sl.enabled():
+                    continue
+            except Exception:
+                pass
+            if hasattr(sl, "color"):
+                c = sl.color()
+                if c and c.isValid():
+                    best = c
+        if best is None or not best.isValid():
+            best = symbol.color()
+        return best if (best and best.isValid()) else QColor(self.DEFAULT_LINE_COLOR)
+
+    def _symbol_marker_color(self, symbol):
+        """Top-most enabled marker fill colour.  Returns a QColor."""
+        from qgis.PyQt.QtGui import QColor
+        best = None
+        for i in range(symbol.symbolLayerCount()):
+            sl = symbol.symbolLayer(i)
+            try:
+                if not sl.enabled():
+                    continue
+            except Exception:
+                pass
+            for attr in ("fillColor", "color"):
+                if hasattr(sl, attr):
+                    try:
+                        c = getattr(sl, attr)()
+                    except Exception:
+                        c = None
+                    if c and c.isValid():
+                        best = c
+                        break
+        if best is None or not best.isValid():
+            best = symbol.color()
+        return best if (best and best.isValid()) else QColor(self.DEFAULT_POINT_COLOR)
+
+    def _symbol_line_width(self, symbol):
+        """Top-most enabled line width in pixels (fallback 1.0)."""
+        for i in range(symbol.symbolLayerCount() - 1, -1, -1):
+            sl = symbol.symbolLayer(i)
+            if hasattr(sl, "width") and hasattr(sl, "widthUnit"):
+                try:
+                    w = self._convert_size(sl.width(), sl.widthUnit())
+                except Exception:
+                    w = None
+                if w and w > 0:
+                    return w
+        return 1.0
+
+    def _symbol_marker_size(self, symbol):
+        """Marker diameter in pixels (fallback 6.0)."""
+        try:
+            s = self._convert_size(symbol.size(), symbol.sizeUnit())
+            if s and s > 0:
+                return s
+        except Exception:
+            pass
+        for i in range(symbol.symbolLayerCount()):
+            sl = symbol.symbolLayer(i)
+            if hasattr(sl, "size") and hasattr(sl, "sizeUnit"):
+                try:
+                    s = self._convert_size(sl.size(), sl.sizeUnit())
+                except Exception:
+                    s = None
+                if s and s > 0:
+                    return s
+        return 6.0
+
+    def _is_no_brush(self, sym_layer):
+        """True if a SimpleFill has brush style Qt.NoBrush (paints an outline, no fill)."""
+        try:
+            bs = sym_layer.brushStyle()
+        except Exception:
+            return False
+        try:
+            if int(bs) == 0:
+                return True
+        except Exception:
+            pass
+        return "NoBrush" in str(bs)
+
+    def _hatch_opacity(self, sl):
+        """Approximate a hatch/pattern layer's ink coverage as a solid-fill opacity."""
+        try:
+            w = sl.lineWidth()
+            d = sl.distance()
+            if d and d > 0:
+                return max(self.HATCH_MIN_OPACITY, min(self.HATCH_MAX_OPACITY, (w / d) + 0.15))
+        except Exception:
+            pass
+        return 0.35
+
+    def _polygon_fill_paint(self, symbol):
+        """Return ``(hex_color, opacity)`` for the *visible* fill of a polygon symbol.
+
+        Walks the symbol layers top-to-bottom (QGIS draws bottom-up, so the top layer
+        wins) and returns the first layer that actually paints a fill:
+
+        - ``SimpleFill`` with a real brush -> its colour, opaque (× layer/symbol alpha).
+          A ``NoBrush`` SimpleFill paints *no fill* (outline only) and is skipped — this
+          is the common "hatch + outline-only SimpleFill on top" stack.
+        - hatch/pattern fill (``LinePatternFill`` etc.) -> the pattern's ink colour as a
+          semi-transparent solid so overlapping polygons stay see-through like QGIS
+          (opacity ≈ ink coverage). Real ``fill-pattern`` hatching is a future upgrade.
+        - gradient/shapeburst -> its colour at its own alpha (already semi-transparent).
+
+        Returns ``(DEFAULT_FILL_COLOR, 0.0)`` when nothing paints a fill.
+        """
+        try:
+            base = symbol.opacity()
+        except Exception:
+            base = 1.0
+
+        def clamp(x):
+            return max(0.0, min(1.0, x))
+
+        for i in range(symbol.symbolLayerCount() - 1, -1, -1):
+            sl = symbol.symbolLayer(i)
+            try:
+                if not sl.enabled():
+                    continue
+            except Exception:
+                pass
+            t = sl.layerType()
+            if t == "SimpleFill":
+                if self._is_no_brush(sl):  # outline only, no fill -> skip to lower layers
+                    continue
+                col = sl.fillColor() if hasattr(sl, "fillColor") else sl.color()
+                if col and col.isValid():
+                    return col.name(), clamp(col.alphaF() * base)
+            elif t in ("LinePatternFill", "PointPatternFill", "SVGFill",
+                       "CentroidFill", "RandomMarkerFill"):
+                col = sl.color()
+                if col and col.isValid():
+                    return col.name(), clamp(self._hatch_opacity(sl) * base * col.alphaF())
+            elif t in ("GradientFill", "ShapeburstFill", "RasterFill"):
+                col = sl.color()
+                if col and col.isValid():
+                    return col.name(), clamp(col.alphaF() * base)
+
+        c = symbol.color()
+        return (c.name() if (c and c.isValid()) else self.DEFAULT_FILL_COLOR), 0.0
+
+    def _radius_px(self, diameter_px):
+        """Marker radius from a diameter, kept faithful to the source number.
+
+        A real, small-but-nonzero size is preserved exactly (match the numbers when
+        QGIS has them); only a genuinely zero/missing size is bumped to a visible
+        minimum so the marker never vanishes (thicken only when in doubt).
+        """
+        r = (diameter_px or 0) / 2.0
+        return r if r > 0 else 3.0
+
+    def _stroke_drawn(self, sym_layer):
+        """True if the symbol layer's stroke/outline pen is actually drawn (not Qt.NoPen)."""
+        try:
+            return sym_layer.strokeStyle() != 0  # Qt.NoPen == 0
+        except Exception:
+            return True  # no strokeStyle() -> assume a stroke is intended
+
+    def _stroke_width_px(self, sym_layer):
+        """Stroke width in px, mapping QGIS 'Hairline' (width 0, pen drawn) to HAIRLINE_PX.
+
+        Returns 0 only when the pen is genuinely off (Qt.NoPen).
+        """
+        if not self._stroke_drawn(sym_layer):
+            return 0.0
+        try:
+            w = self._convert_size(sym_layer.strokeWidth(), sym_layer.strokeWidthUnit())
+        except Exception:
+            w = 0
+        return w if (w and w > 0) else self.HAIRLINE_PX
+
+    def _symbol_opacity(self, symbol, color):
+        """Combined opacity: symbol-level opacity × the sampled colour's alpha."""
+        try:
+            base = symbol.opacity()
+        except Exception:
+            base = 1.0
+        try:
+            a = color.alphaF()
+        except Exception:
+            a = 1.0
+        return max(0.0, min(1.0, base * a))
 
     def _extract_darkest_color(self, sym_layer):
         """Try to extract the darkest usable color from an unsupported symbol layer.
