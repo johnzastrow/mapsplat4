@@ -148,8 +148,8 @@ fills, strokes, and SVG markers, and keep data-defined symbology simple.
 | Component | Version |
 |---|---|
 | **MapSplat** | {{MAPSPLAT_VERSION}} |
-| MapLibre GL JS (viewer) | 4.7.1 |
-| PMTiles JS (viewer) | 3.2.0 |
+| MapLibre GL JS (viewer) | 5.24.0 |
+| PMTiles JS (viewer) | 4.4.1 |
 | `pmtiles` CLI (basemap only; tested) | 1.30.1 |
 | QGIS | 4.0+ required — built and tested on **4.2** |
 | GDAL | 3.8+ required (PMTiles driver) — tested on **3.12** |

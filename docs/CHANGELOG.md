@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — viewer libraries (0.19.0)
+- **Updated the generated viewer to MapLibre GL JS 5.24.0 and PMTiles JS 4.4.1** (from 4.7.1 / 3.2.0)
+  so new users on the current versions are supported. The v5 breaking change is `addProtocol`
+  (now Promise + AbortController), which pmtiles 4 implements; the standard
+  `addProtocol("pmtiles", protocol.tile)` registration is unchanged. Verified end-to-end by exporting
+  a real map and rendering the viewer (data layers + streamed Protomaps basemap) in a browser.
+
 ### Security / packaging (0.18.1)
 - **Removed `install_pmtiles.sh` from the repo and zip.** The plugins.qgis.org scanner flags shell
   installers (it `wget`s a binary and `sudo mv`s it into `/usr/local/bin`), and it's now redundant —

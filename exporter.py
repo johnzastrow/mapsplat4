@@ -70,9 +70,9 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         _pmtiles_js = '<script src="lib/pmtiles.js"></script>'
     else:
         _assets_comment = "<!-- MapLibre GL JS from CDN (replace with local files for offline use) -->"
-        _maplibre_css = '<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">'
-        _maplibre_js = '<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>'
-        _pmtiles_js = '<script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>'
+        _maplibre_css = '<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">'
+        _maplibre_js = '<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>'
+        _pmtiles_js = '<script src="https://unpkg.com/pmtiles@4.4.1/dist/pmtiles.js"></script>'
 
     if use_external_style:
         # Fetch style.json at runtime and pass as inline object.
@@ -1433,9 +1433,9 @@ class MapSplatExporter(QObject):
             return False
 
         assets = [
-            ("https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css", "maplibre-gl.css"),
-            ("https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js", "maplibre-gl.js"),
-            ("https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js", "pmtiles.js"),
+            ("https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css", "maplibre-gl.css"),
+            ("https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js", "maplibre-gl.js"),
+            ("https://unpkg.com/pmtiles@4.4.1/dist/pmtiles.js", "pmtiles.js"),
         ]
 
         lib_dir = os.path.join(output_dir, "lib")
