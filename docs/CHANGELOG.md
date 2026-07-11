@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed / Added — labels, background override, export robustness (0.23.0)
+- **Label placement reads the real QGIS 4 settings.** The quadrant was read via a
+  `quadrantPosition` attribute that no longer exists on QGIS 4's `QgsPalLayerSettings`, so it
+  silently used the default (below-point). It now reads `pointSettings().quadrant()`, so a
+  point label is pinned to the quadrant QGIS actually uses (e.g. centred). "Exact" placement
+  mode uses `text-anchor` + `text-offset` (deterministic, no drift); "auto" mode uses
+  `text-variable-anchor` to avoid overlaps. The QGIS Y offset (cartographic, +Y up) is negated
+  to MapLibre's +Y-down convention.
+- **Background colour override.** New optional field on the **Viewer** tab (and `background_color`
+  in the config file). Blank leaves the basemap/default background unchanged; a hex value overrides
+  both the generated background layer and the basemap's.
+- **`serve.py` no longer crashes on a busy port** — it auto-advances through the next 20 ports and
+  prints a clean message instead of a raw `Address already in use` traceback.
+- **Invalid-CRS layers are skipped cleanly.** A layer with no valid CRS can't be placed on a web map;
+  it's now skipped with a clear message instead of exporting geometry to the wrong location.
+
 ### Fixed / Added — draw order, hatch angles, robustness (0.22.0)
 - **Polygon draw order follows QGIS.** When a categorized layer defines a feature *order by*
   expression (e.g. `"name" = 'park bounds' DESC` to push one class to the back), MapSplat now

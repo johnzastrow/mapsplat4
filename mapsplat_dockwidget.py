@@ -707,6 +707,17 @@ class MapSplatDockWidget(QDockWidget):
         attribution_row.addWidget(self.txt_viewer_attribution, 1)
         viewer_group_layout.addLayout(attribution_row)
 
+        background_row = QHBoxLayout()
+        background_row.addWidget(QLabel("Background:"))
+        self.txt_viewer_background = QLineEdit()
+        self.txt_viewer_background.setPlaceholderText("#ffffff (blank = no change)")
+        self.txt_viewer_background.setToolTip(
+            "Optional map background colour, as a hex value (e.g. #ffffff).\n"
+            "Leave blank to keep the basemap's own background (or the default) unchanged."
+        )
+        background_row.addWidget(self.txt_viewer_background, 1)
+        viewer_group_layout.addLayout(background_row)
+
         viewer_layout.addWidget(viewer_group)
 
         # Map Dimensions group
@@ -855,6 +866,7 @@ class MapSplatDockWidget(QDockWidget):
         self.spin_map_width.valueChanged.connect(self._save_settings)
         self.spin_map_height.valueChanged.connect(self._save_settings)
         self.txt_viewer_attribution.editingFinished.connect(self._save_settings)
+        self.txt_viewer_background.editingFinished.connect(self._save_settings)
         self.basemap_group.toggled.connect(self._save_settings)
         self.txt_basemap_source.editingFinished.connect(self._save_settings)
         self.txt_basemap_source.editingFinished.connect(self._validate_basemap_source)
@@ -1201,6 +1213,7 @@ class MapSplatDockWidget(QDockWidget):
         s.setValue("viewer_reset_view", self.chk_viewer_reset_view.isChecked())
         s.setValue("viewer_north_reset", self.chk_viewer_north_reset.isChecked())
         s.setValue("viewer_attribution", self.txt_viewer_attribution.text())
+        s.setValue("viewer_background_color", self.txt_viewer_background.text())
         s.setValue("basemap_enabled", self.basemap_group.isChecked())
         s.setValue("basemap_mode", "stream" if self.radio_basemap_stream.isChecked() else "bundle")
         s.setValue("basemap_source_type", "file" if self.radio_basemap_file.isChecked() else "url")
@@ -1291,6 +1304,10 @@ class MapSplatDockWidget(QDockWidget):
             attribution = s.value("viewer_attribution", "")
             if attribution:
                 self.txt_viewer_attribution.setText(attribution)
+
+            background_color = s.value("viewer_background_color", "")
+            if background_color:
+                self.txt_viewer_background.setText(background_color)
 
             s.endGroup()
         finally:
@@ -1619,6 +1636,7 @@ class MapSplatDockWidget(QDockWidget):
             "map_width": self.spin_map_width.value(),
             "map_height": self.spin_map_height.value(),
             "attribution": self.txt_viewer_attribution.text().strip(),
+            "background_color": self.txt_viewer_background.text().strip(),
             "popup_fields": self._popup_fields_by_name(),
             "extent_layer_id": (
                 None if self.combo_extent_layer.currentData() == "__map_view__"
@@ -1778,6 +1796,7 @@ class MapSplatDockWidget(QDockWidget):
                 "map_width": self.spin_map_width.value(),
                 "map_height": self.spin_map_height.value(),
                 "attribution": self.txt_viewer_attribution.text().strip(),
+                "background_color": self.txt_viewer_background.text().strip(),
             },
             "popup": self._popup_fields_for_config(),
         }
@@ -1966,6 +1985,10 @@ class MapSplatDockWidget(QDockWidget):
 
         if "attribution" in viewer:
             self.txt_viewer_attribution.setText(viewer["attribution"])
+            applied += 1
+
+        if "background_color" in viewer:
+            self.txt_viewer_background.setText(viewer["background_color"])
             applied += 1
 
         # --- [popup] section ---

@@ -44,6 +44,7 @@ _COMMENTS = {
         "map_width": "Map pixel width; 0 = responsive full-window",
         "map_height": "Map pixel height; 0 = responsive full-window",
         "attribution": "Custom attribution text shown in the map (leave blank for default)",
+        "background_color": "Map background colour override (hex, e.g. #ffffff); blank = leave the basemap/default unchanged",
     },
 }
 
@@ -82,6 +83,7 @@ _SECTION_KEYS = {
         "map_width",
         "map_height",
         "attribution",
+        "background_color",
     ],
 }
 

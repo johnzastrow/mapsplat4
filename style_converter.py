@@ -293,6 +293,18 @@ class StyleConverter:
         maxzoom = self._scale_to_zoom(layer.maximumScale())
         return (minzoom, maxzoom)
 
+    def _label_quadrant(self, settings):
+        """QGIS label quadrant (0..8) via QGIS-4 pointSettings(), falling back for QGIS 3.
+
+        QGIS 4 moved the quadrant onto ``pointSettings().quadrant()``; the old
+        ``quadrantPosition`` attribute no longer exists, so a plain getattr silently
+        returned the default. Defaults to 4 (Over / centre) when unavailable.
+        """
+        try:
+            return int(settings.pointSettings().quadrant())
+        except Exception:
+            return int(getattr(settings, 'quadrantPosition', 4))
+
     def _convert_labels(self, layer):
         """Convert layer labels to MapLibre symbol layer.
 
@@ -442,22 +454,22 @@ class StyleConverter:
             layout["text-anchor"] = "center"
 
         elif geom_type == 0:  # Point
+            dist_px = self._convert_size(
+                getattr(settings, 'dist', 0),
+                getattr(settings, 'distUnits', QgsUnitTypes.RenderMillimeters),
+            )
+            # "exact" pins each label to QGIS's chosen quadrant (deterministic, no drift);
+            # "auto" lets MapLibre pick among positions to avoid overlaps (variable-anchor).
             if label_placement_mode == "auto":
                 layout["text-variable-anchor"] = [
                     "top", "bottom", "left", "right",
                     "top-left", "top-right", "bottom-left", "bottom-right",
                 ]
-                dist = getattr(settings, 'dist', 0)
-                dist_unit = getattr(
-                    settings, 'distUnits', QgsUnitTypes.RenderMillimeters
-                )
-                dist_px = self._convert_size(dist, dist_unit)
-                dist_ems = dist_px / font_size_px
-                if dist_ems > 0:
-                    layout["text-radial-offset"] = dist_ems
-            else:  # exact mode
-                quadrant = int(getattr(settings, 'quadrantPosition', 1))
-                anchor = _QGIS_QUADRANT_TO_ANCHOR.get(quadrant, "bottom")
+                if dist_px > 0:
+                    layout["text-radial-offset"] = dist_px / font_size_px
+            else:  # fixed placement (Over Point / explicit quadrant)
+                quadrant = self._label_quadrant(settings)
+                anchor = _QGIS_QUADRANT_TO_ANCHOR.get(quadrant, "center")
                 layout["text-anchor"] = anchor
 
                 offset_unit = getattr(
@@ -469,14 +481,12 @@ class StyleConverter:
                 offset_y = self._convert_size(
                     getattr(settings, 'yOffset', 0), offset_unit
                 )
-                dist = self._convert_size(
-                    getattr(settings, 'dist', 0),
-                    getattr(settings, 'distUnits', QgsUnitTypes.RenderMillimeters),
-                )
                 dx, dy = _ANCHOR_DIST_DIR.get(anchor, (0, 0))
+                # QGIS Y offset is cartographic (+Y = up); MapLibre text-offset is +Y = down,
+                # so negate the QGIS Y component to keep labels on the correct side.
                 offset_ems = [
-                    offset_x / font_size_px + dx * (dist / font_size_px),
-                    offset_y / font_size_px + dy * (dist / font_size_px),
+                    offset_x / font_size_px + dx * (dist_px / font_size_px),
+                    -offset_y / font_size_px + dy * (dist_px / font_size_px),
                 ]
                 if offset_ems != [0.0, 0.0]:
                     layout["text-offset"] = offset_ems

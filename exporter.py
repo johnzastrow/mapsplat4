@@ -922,10 +922,19 @@ class MapSplatExporter(QObject):
             else:
                 options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
 
-            # Transform to Web Mercator
-            if layer.crs() != self.target_crs:
+            # Transform to Web Mercator. Reproject from ANY valid source CRS; a layer
+            # with an invalid/unset CRS can't be placed on a web map, so warn and skip
+            # it (rather than emit points at null island or a dangling source).
+            src_crs = layer.crs()
+            if not src_crs.isValid():
+                self.log_message.emit(
+                    f"  Skipping '{layer.name()}': layer has no valid CRS — set one in QGIS "
+                    f"(Layer Properties ▸ Source) and re-export.", "warning"
+                )
+                continue
+            if src_crs != self.target_crs:
                 options.ct = QgsCoordinateTransform(
-                    layer.crs(),
+                    src_crs,
                     self.target_crs,
                     self.project
                 )
@@ -1759,12 +1768,24 @@ def shutdown_server(signum=None, frame=None):
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)) or ".")
 
+    # Bind, auto-advancing the port if it's already in use (a stale server or a second
+    # export), so we print a clean message instead of a raw "Address already in use".
+    httpd = None
+    for _candidate in range(PORT, PORT + 20):
+        try:
+            httpd = ThreadingHTTPServer((HOST, _candidate), RangeRequestHandler)
+            PORT = _candidate
+            break
+        except OSError:
+            print(f"Port {_candidate} is in use, trying {_candidate + 1}...")
+    if httpd is None:
+        print(f"No free port found in {args.port}-{args.port + 19}. Use --port <N> to pick one.")
+        sys.exit(1)
+
     print(f"Starting server at http://localhost:{PORT}")
     if HOST != "127.0.0.1":
         print(f"  (listening on {HOST}:{PORT})")
     print("Press Ctrl+C to stop (or close this window)\\n")
-
-    httpd = ThreadingHTTPServer((HOST, PORT), RangeRequestHandler)
 
     # Register signal handlers for clean shutdown
     signal.signal(signal.SIGINT, shutdown_server)
