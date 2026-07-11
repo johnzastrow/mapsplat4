@@ -132,6 +132,39 @@ class DockQgisTests(unittest.TestCase):
         self.assertTrue(any(t.startswith("[Line]") for t in texts))
         self.assertTrue(any(t.startswith("[Polygon]") for t in texts))
 
+    def test_refresh_with_selection_no_crash(self):
+        """Phase 1 / Pitfall 4 regression: refreshing (e.g. the Refresh button) while
+        layers are SELECTED must not crash — clear() with a live selection used to fire
+        itemSelectionChanged mid-mutation into slots reading half-deleted items."""
+        QgsProject.instance().addMapLayers(self._all_fixtures())
+        self.dock.refresh_layer_list()
+        for i in range(min(4, self.dock.layer_list.count())):
+            self.dock.layer_list.item(i).setSelected(True)
+        self.dock.refresh_layer_list()   # the crash trigger
+        self.dock.refresh_layer_list()   # and again
+        self.assertGreater(self.dock.layer_list.count(), 0)
+        # selection is preserved across refresh
+        self.assertGreater(len(self.dock.layer_list.selectedItems()), 0)
+
+    def test_readiness_gating(self):
+        """Phase 1: readiness reflects the required fields and gates the Export button."""
+        import tempfile
+        if not hasattr(self.dock, "_run_readiness"):
+            self.skipTest("tabs build has no readiness")
+        QgsProject.instance().addMapLayers(self._all_fixtures())
+        self.dock.refresh_layer_list()
+        self.dock.txt_project_name.setText("")
+        self.dock.txt_output_folder.setText("")
+        self.dock.layer_list.clearSelection()
+        ready, missing = self.dock._run_readiness()
+        self.assertFalse(ready)
+        self.assertEqual(set(missing), {"select a layer", "name the project", "set an output folder"})
+        self.dock.layer_list.item(0).setSelected(True)
+        self.dock.txt_project_name.setText("webmap")
+        self.dock.txt_output_folder.setText(tempfile.gettempdir())
+        ready, missing = self.dock._run_readiness()
+        self.assertTrue(ready, missing)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

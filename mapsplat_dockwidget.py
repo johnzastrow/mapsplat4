@@ -19,7 +19,7 @@ try:
 except ImportError:
     import config_manager  # test environment (no package)
 
-from qgis.PyQt.QtCore import pyqtSignal, Qt, QUrl, QTimer
+from qgis.PyQt.QtCore import pyqtSignal, Qt, QUrl, QTimer, QStandardPaths
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
     QDockWidget,
@@ -109,9 +109,12 @@ class MapSplatDockWidget(QDockWidget):
         QgsProject.instance().layersAdded.connect(self._schedule_layer_refresh)
         QgsProject.instance().layersRemoved.connect(self._schedule_layer_refresh)
 
-        # Initial population then restore persisted settings
+        # Initial population, restore persisted settings, then seed still-empty
+        # required fields from the open project (zero-config start).
         self.refresh_layer_list()
         self._restore_settings()
+        self._prefill_defaults()
+        self._update_readiness()
 
     def _schedule_layer_refresh(self, *args):
         """Coalesce a burst of layersAdded/Removed signals into a single refresh that
@@ -148,18 +151,27 @@ class MapSplatDockWidget(QDockWidget):
         self.layer_list.setToolTip("Select the layers to include in the export.\nCtrl+click or Shift+click to select multiple layers.")
         self.layer_list.itemSelectionChanged.connect(self._update_layer_count)
         self.layer_list.itemSelectionChanged.connect(self._update_tile_estimate)
+        self.layer_list.itemSelectionChanged.connect(self._update_readiness)
         layer_layout.addWidget(self.layer_list)
 
-        # Select all / none buttons
+        # Select all / none / refresh buttons
         btn_layout = QHBoxLayout()
         self.btn_select_all = QPushButton("Select All")
         self.btn_select_all.setToolTip("Select all layers in the list.")
         self.btn_select_none = QPushButton("Select None")
         self.btn_select_none.setToolTip("Deselect all layers.")
+        self.btn_refresh_layers = QPushButton("Refresh")
+        self.btn_refresh_layers.setToolTip(
+            "Re-read the layers from the current map/project.\n"
+            "Use after renaming, reordering, adding or restyling layers.\n"
+            "Your current selection is kept for layers that still exist."
+        )
         self.btn_select_all.clicked.connect(self._select_all_layers)
         self.btn_select_none.clicked.connect(self._select_no_layers)
+        self.btn_refresh_layers.clicked.connect(self.refresh_layer_list)
         btn_layout.addWidget(self.btn_select_all)
         btn_layout.addWidget(self.btn_select_none)
+        btn_layout.addWidget(self.btn_refresh_layers)
         layer_layout.addLayout(btn_layout)
 
         # Layer count summary label
@@ -168,6 +180,40 @@ class MapSplatDockWidget(QDockWidget):
         layer_layout.addWidget(self.lbl_layer_count)
 
         inputs_layout.addWidget(layer_group, 1)  # stretch=1 so it fills space
+
+        # ============ Output (required) — beside Layers + Export so a whole run
+        # can be configured on ONE tab, no jumping to the Options tab. ============
+        output_group = QGroupBox("Output")
+        output_group.setToolTip("Where the web map is written. Both fields are required.")
+        output_group_layout = QVBoxLayout(output_group)
+        output_group_layout.setSpacing(6)
+
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Project name:"))
+        self.txt_project_name = QLineEdit()
+        self.txt_project_name.setPlaceholderText("my_webmap")
+        self.txt_project_name.setToolTip(
+            "Name for the output subdirectory.\n"
+            "The export is written to <output folder>/<project name>_webmap/."
+        )
+        self.txt_project_name.textChanged.connect(self._update_readiness)
+        name_layout.addWidget(self.txt_project_name)
+        output_group_layout.addLayout(name_layout)
+
+        folder_layout = QHBoxLayout()
+        folder_layout.addWidget(QLabel("Output folder:"))
+        self.txt_output_folder = QLineEdit()
+        self.txt_output_folder.setPlaceholderText("Select output folder...")
+        self.txt_output_folder.setToolTip("Parent directory where the export subdirectory is created.")
+        self.txt_output_folder.textChanged.connect(self._save_settings)
+        self.txt_output_folder.textChanged.connect(self._update_readiness)
+        self.btn_browse = QPushButton("Browse...")
+        self.btn_browse.clicked.connect(self._browse_output_folder)
+        folder_layout.addWidget(self.txt_output_folder, 1)
+        folder_layout.addWidget(self.btn_browse)
+        output_group_layout.addLayout(folder_layout)
+
+        inputs_layout.addWidget(output_group)
 
         # ================================================================
         # --- Tab 1: Options (export settings, basemap, output) ---
@@ -381,52 +427,8 @@ class MapSplatDockWidget(QDockWidget):
         self.radio_basemap_file.toggled.connect(self._on_basemap_source_type_changed)
         self.basemap_group.toggled.connect(self._update_tile_estimate)
 
-        # ==================== Output Settings (collapsible) ====================
-        self._out_toggle = QToolButton()
-        self._out_toggle.setText(" Output")
-        self._out_toggle.setCheckable(True)
-        self._out_toggle.setChecked(True)
-        self._out_toggle.setArrowType(Qt.ArrowType.DownArrow)
-        self._out_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self._out_toggle.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        scroll_layout.addWidget(self._out_toggle)
-
-        out_container = QWidget()
-        output_layout = QVBoxLayout(out_container)
-        output_layout.setContentsMargins(16, 0, 0, 4)
-        output_layout.setSpacing(6)
-
-        # Project name
-        name_layout = QHBoxLayout()
-        name_layout.addWidget(QLabel("Project name:"))
-        self.txt_project_name = QLineEdit()
-        self.txt_project_name.setPlaceholderText("my_webmap")
-        self.txt_project_name.setToolTip(
-            "Name for the output subdirectory.\n"
-            "The export will be written to <output folder>/<project name>_webmap/."
-        )
-        name_layout.addWidget(self.txt_project_name)
-        output_layout.addLayout(name_layout)
-
-        # Output folder
-        folder_layout = QHBoxLayout()
-        folder_layout.addWidget(QLabel("Output folder:"))
-        self.txt_output_folder = QLineEdit()
-        self.txt_output_folder.setPlaceholderText("Select output folder...")
-        self.txt_output_folder.setToolTip("Parent directory where the export subdirectory will be created.")
-        self.txt_output_folder.textChanged.connect(self._save_settings)
-        self.btn_browse = QPushButton("Browse...")
-        self.btn_browse.clicked.connect(self._browse_output_folder)
-        folder_layout.addWidget(self.txt_output_folder, 1)
-        folder_layout.addWidget(self.btn_browse)
-        output_layout.addLayout(folder_layout)
-
-        scroll_layout.addWidget(out_container)
-
-        self._out_toggle.toggled.connect(lambda checked: (
-            out_container.setVisible(checked),
-            self._out_toggle.setArrowType(Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow),
-        ))
+        # (Output — project name + folder — now lives on the Inputs tab, beside
+        # Layers and Export, so the whole required setup is on one screen.)
 
         # Finish scroll area → goes into Options tab
         scroll_layout.addStretch()
@@ -492,7 +494,14 @@ class MapSplatDockWidget(QDockWidget):
         config_btn_layout.addWidget(self.btn_load_config)
         inputs_layout.addLayout(config_btn_layout)
 
-        # ==================== Export Button (Inputs tab, pinned) ====================
+        # ============ Readiness + Export (Inputs tab, pinned) ============
+        # Live checklist so the user sees what's still missing BEFORE clicking
+        # (the modal warnings in _validate_export remain as a backstop).
+        self.lbl_readiness = QLabel("")
+        self.lbl_readiness.setWordWrap(True)
+        self.lbl_readiness.setStyleSheet("color: #1565c0; font-size: 11px;")
+        inputs_layout.addWidget(self.lbl_readiness)
+
         export_btn_row = QHBoxLayout()
 
         self.btn_export = QPushButton("Export Web Map")
@@ -776,69 +785,147 @@ class MapSplatDockWidget(QDockWidget):
         self._restoring = False
 
     def refresh_layer_list(self):
-        """Refresh the layer list and extent combo from the current project."""
-        self.layer_list.clear()
+        """Refresh the layer list and extent combo from the current project.
 
-        # Repopulate extent-layer combo, preserving current selection by layer id
-        current_extent_id = self.combo_extent_layer.currentData()
-        self.combo_extent_layer.clear()
-        self.combo_extent_layer.addItem("Full extent of data", None)
-        self.combo_extent_layer.addItem("Current map view", "__map_view__")
-
+        Signals are BLOCKED during the clear/rebuild: clearing a list that has a live
+        selection emits itemSelectionChanged mid-mutation, whose slots read half-deleted
+        items -> crash. Dependent UI is updated once afterwards, on a consistent state.
+        Layers come from mapLayers() (layerOrder() is empty for gpkg-stored projects).
+        """
+        # Preserve the current selection (by layer id) so a manual Refresh keeps it.
+        previously_selected = {
+            self.layer_list.item(i).data(_UserRole)
+            for i in range(self.layer_list.count())
+            if self.layer_list.item(i).isSelected()
+        }
         project = QgsProject.instance()
-        # Read from mapLayers(): layerTreeRoot().layerOrder() can come back EMPTY for
-        # some projects (e.g. one stored in a GeoPackage), which left the list blank.
-        # Skip invalid/half-built layers; this only runs at stable times (init, user
-        # action, or the debounced post-load refresh), never mid-teardown.
-        for layer in list(project.mapLayers().values()):
-            if layer is None or not layer.isValid():
-                continue
-            name = layer.name()
-            item = QListWidgetItem()
+        blocked = self.layer_list.blockSignals(True)
+        try:
+            self.layer_list.clear()
 
-            # Layer type prefix (geometryType() is an enum on QGIS 4, int on QGIS 3)
-            if isinstance(layer, QgsVectorLayer):
-                geom_type = int(layer.geometryType())
-                prefix = {0: "[Point]", 1: "[Line]", 2: "[Polygon]"}.get(geom_type, "[Vector]")
-            elif isinstance(layer, QgsRasterLayer):
-                prefix = "[Raster]"
+            current_extent_id = self.combo_extent_layer.currentData()
+            self.combo_extent_layer.clear()
+            self.combo_extent_layer.addItem("Full extent of data", None)
+            self.combo_extent_layer.addItem("Current map view", "__map_view__")
+
+            for layer in list(project.mapLayers().values()):
+                if layer is None or not layer.isValid():
+                    continue
+                name = layer.name()
+                item = QListWidgetItem()
+
+                # Layer type prefix (geometryType() is an enum on QGIS 4, int on QGIS 3)
+                if isinstance(layer, QgsVectorLayer):
+                    geom_type = int(layer.geometryType())
+                    prefix = {0: "[Point]", 1: "[Line]", 2: "[Polygon]"}.get(geom_type, "[Vector]")
+                elif isinstance(layer, QgsRasterLayer):
+                    prefix = "[Raster]"
+                else:
+                    prefix = "[Other]"
+                    item.setFlags(item.flags() & ~_ItemIsEnabled)
+
+                item.setText(f"{prefix} {name}")
+                item.setData(_UserRole, layer.id())
+
+                warning = self._get_symbology_warning(layer)
+                if warning:
+                    warn_icon, warn_tip = warning
+                    item.setIcon(warn_icon)
+                    item.setToolTip(warn_tip)
+
+                self.layer_list.addItem(item)
+                self.combo_extent_layer.addItem(name, layer.id())
+
+            # Restore previously selected extent layer; default to "Current map view"
+            if current_extent_id is not None:
+                idx = self.combo_extent_layer.findData(current_extent_id)
+                if idx >= 0:
+                    self.combo_extent_layer.setCurrentIndex(idx)
             else:
-                prefix = "[Other]"
-                item.setFlags(item.flags() & ~_ItemIsEnabled)
+                self.combo_extent_layer.setCurrentIndex(
+                    self.combo_extent_layer.findData("__map_view__")
+                )
 
-            item.setText(f"{prefix} {name}")
-            item.setData(_UserRole, layer.id())
+            # Restore prior selection for layers that still exist.
+            if previously_selected:
+                for i in range(self.layer_list.count()):
+                    it = self.layer_list.item(i)
+                    if it.flags() & _ItemIsEnabled and it.data(_UserRole) in previously_selected:
+                        it.setSelected(True)
 
-            # Warn if the layer uses symbology that won't translate well
-            warning = self._get_symbology_warning(layer)
-            if warning:
-                warn_icon, warn_tip = warning
-                item.setIcon(warn_icon)
-                item.setToolTip(warn_tip)
-
-            self.layer_list.addItem(item)
-            # Also add to extent combo (all layer types accepted)
-            self.combo_extent_layer.addItem(name, layer.id())
-
-        # Restore previously selected extent layer; default to "Current map view"
-        if current_extent_id is not None:
-            idx = self.combo_extent_layer.findData(current_extent_id)
-            if idx >= 0:
-                self.combo_extent_layer.setCurrentIndex(idx)
-        else:
-            # Default: use map canvas view extent
-            self.combo_extent_layer.setCurrentIndex(
-                self.combo_extent_layer.findData("__map_view__")
-            )
+            # Zero-config: on the FIRST population with nothing carried over, preselect
+            # the layers checked (visible) in the Layers panel, else the active layer.
+            if not getattr(self, "_initial_selection_done", False):
+                if not self.layer_list.selectedItems():
+                    self._preselect_default_layers(project)
+                self._initial_selection_done = True
+        finally:
+            self.layer_list.blockSignals(blocked)
 
         # Auto-populate project name from QGIS project
         project_name = project.baseName()
         if project_name and not self.txt_project_name.text():
-            # Clean up name for filesystem
             clean_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in project_name)
             self.txt_project_name.setText(clean_name)
 
+        # Dependent UI, updated once on the now-consistent state.
         self._update_layer_count()
+        self._update_readiness()
+        self._update_tile_estimate()
+
+    def _preselect_default_layers(self, project):
+        """Select the checked/visible layers (or the active layer) in the list."""
+        preferred = {lyr.id() for lyr in project.layerTreeRoot().checkedLayers()}
+        if not preferred:
+            active = self.iface.activeLayer()
+            if active is not None:
+                preferred = {active.id()}
+        if not preferred:
+            return
+        for i in range(self.layer_list.count()):
+            item = self.layer_list.item(i)
+            if item.flags() & _ItemIsEnabled and item.data(_UserRole) in preferred:
+                item.setSelected(True)
+
+    def _prefill_defaults(self):
+        """Seed still-empty required fields so the dock opens export-ready (runs once,
+        after _restore_settings, and only fills a field that is still blank)."""
+        if not self.txt_output_folder.text().strip():
+            default_dir = QgsProject.instance().homePath()
+            if not default_dir or not os.path.isdir(default_dir):
+                default_dir = QStandardPaths.writableLocation(
+                    QStandardPaths.StandardLocation.DocumentsLocation
+                )
+            if default_dir and os.path.isdir(default_dir):
+                self.txt_output_folder.setText(default_dir)
+
+    def _run_readiness(self):
+        """Return (is_ready, [missing]) mirroring the hard checks in _validate_export."""
+        missing = []
+        if not self.layer_list.selectedItems():
+            missing.append("select a layer")
+        if not self.txt_project_name.text().strip():
+            missing.append("name the project")
+        folder = self.txt_output_folder.text().strip()
+        if not folder or not os.path.isdir(folder):
+            missing.append("set an output folder")
+        return (not missing, missing)
+
+    def _update_readiness(self):
+        """Refresh the readiness label + Export button enabled state."""
+        if not hasattr(self, "lbl_readiness"):
+            return
+        ready, missing = self._run_readiness()
+        self.btn_export.setEnabled(ready)
+        if ready:
+            self.lbl_readiness.setText("Ready to export")
+            self.lbl_readiness.setStyleSheet("color: #2e7d32; font-size: 11px;")
+        else:
+            self.lbl_readiness.setText("To export: " + ", ".join(missing))
+            self.lbl_readiness.setStyleSheet(
+                "color: #1565c0; background-color: #e3f2fd;"
+                "padding: 3px 6px; border-radius: 3px; font-size: 11px;"
+            )
 
     def _get_symbology_warning(self, layer):
         """Return (icon, tooltip_text) if the layer uses symbology that won't translate well, else None."""
