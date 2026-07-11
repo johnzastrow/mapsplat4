@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security / packaging (0.18.1)
+- **Removed `install_pmtiles.sh` from the repo and zip.** The plugins.qgis.org scanner flags shell
+  installers (it `wget`s a binary and `sudo mv`s it into `/usr/local/bin`), and it's now redundant —
+  the CLI is only needed for the *optional offline* basemap mode, and the User Guide + in-app link
+  cover installing it. The build's self-check now also **rejects any `.sh`** from the zip.
+
 ### Added — basemap without the CLI (0.18.0)
 - **Basemap Overlay now has two modes:** **Stream from URL** (default — the viewer loads the basemap
   live from a remote PMTiles URL via range requests; **no `pmtiles` CLI, no install**) and **Download

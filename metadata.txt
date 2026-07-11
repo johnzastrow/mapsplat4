@@ -3,9 +3,9 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.18.0
+version=0.18.1
 author=John Zastrow
-email=john@northredoubt.com
+email=mapsplat@example.com
 
 about=MapSplat exports your QGIS project layers to self-contained web map packages that can be hosted on any static web server. It converts vector and raster layers to PMTiles format and generates a ready-to-deploy HTML viewer using MapLibre GL JS.
 
@@ -25,8 +25,8 @@ hasProcessingProvider=no
 changelog=
     0.13.1 - Security, packaging & licensing
     - Passes Bandit (0 high/medium), detect-secrets, and flake8 (plugins.qgis.org gates)
-    - Removed the bundled go-pmtiles binary from the repo/zip (install via install_pmtiles.sh,
-      or the in-app download link); QGIS forbids binaries. Core export uses GDAL's PMTiles driver.
+    - Removed the bundled go-pmtiles binary from the repo/zip; QGIS forbids binaries. Core export
+      uses GDAL's PMTiles driver. The pmtiles CLI (offline-basemap mode only) is installed by the user.
     - Correct LICENSE (GPL-2.0-or-later; the old file was go-pmtiles' BSD); no longer experimental
     - Reliable self-verifying build (scripts/build_plugin.sh); dropped dead compiled resources
     - Full history: https://github.com/johnzastrow/mapsplat4/blob/main/docs/CHANGELOG.md
