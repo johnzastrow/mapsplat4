@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"
 
 import os
 
@@ -127,6 +127,19 @@ class MapSplatDockWidget(QDockWidget):
     def _run_scheduled_refresh(self):
         self._refresh_pending = False
         self.refresh_layer_list()
+
+    def _plugin_version(self):
+        """Read the shipped version from metadata.txt (what QGIS installs), so the
+        stamp reflects the actual loaded build; fall back to the module constant."""
+        try:
+            meta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metadata.txt")
+            with open(meta, encoding="utf-8") as fh:
+                for line in fh:
+                    if line.startswith("version="):
+                        return line.split("=", 1)[1].strip()
+        except Exception:
+            pass
+        return __version__
 
     def _setup_ui(self):
         """Set up the user interface."""
@@ -704,6 +717,12 @@ class MapSplatDockWidget(QDockWidget):
         self.txt_log.setReadOnly(True)
         self.txt_log.setStyleSheet("font-family: monospace; font-size: 11px;")
         log_layout.addWidget(self.txt_log)
+
+        # Version stamp — confirms at a glance which build QGIS actually loaded.
+        self.lbl_version = QLabel(f"MapSplat v{self._plugin_version()}")
+        self.lbl_version.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.lbl_version.setStyleSheet("color: gray; font-size: 10px;")
+        log_layout.addWidget(self.lbl_version)
 
         # --- Offline tab ---
         offline_tab = QWidget()
