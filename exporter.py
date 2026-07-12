@@ -74,17 +74,27 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         _maplibre_js = '<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>'
         _pmtiles_js = '<script src="https://unpkg.com/pmtiles@4.4.1/dist/pmtiles.js"></script>'
 
+    # Both paths expose the style as a local `mapStyle` object so the sprite URL can be
+    # rewritten to absolute before the map is created (MapLibre GL JS 5.x REJECTS a relative
+    # sprite URL like "./sprites" — it must be absolute).
+    _sprite_fixup = (
+        "\n        if (mapStyle.sprite && !/^https?:\\/\\//.test(mapStyle.sprite)) {"
+        "\n            mapStyle.sprite = new URL(mapStyle.sprite, window.location.href).href;"
+        "\n        }"
+    )
     if use_external_style:
         # Fetch style.json at runtime and pass as inline object.
         # Passing './style.json' as a URL string causes MapLibre to normalise
         # source URLs against the style base URL, which prevents pmtiles://
         # sources from being queryable via querySourceFeatures.
         style_ref = "mapStyle"
-        _init_open = "\n        fetch('./style.json').then(r => r.json()).then(function(mapStyle) {"
+        _init_open = ("\n        fetch('./style.json').then(r => r.json()).then(function(mapStyle) {"
+                      + _sprite_fixup)
         _init_close = "\n        });"
     else:
-        style_ref = json.dumps(style_json, indent=2)
-        _init_open = ""
+        style_ref = "mapStyle"
+        _init_open = ("\n        const mapStyle = " + json.dumps(style_json, indent=2) + ";"
+                      + _sprite_fixup)
         _init_close = ""
 
     # ---------- Conditional control snippets ----------

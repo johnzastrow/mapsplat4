@@ -105,6 +105,7 @@ class StyleConverter:
         self._layer_counter = {}
         self._log_callback = log_callback
         self._svg_sprite_map = {}  # populated by _generate_sprites(); {source_layer: sprite_key}
+        self._cat_sprite_map = {}  # {source_layer: {category_value: sprite_key}} for categorized markers
         self._patterns = {}        # image_id -> pattern def (angle/spacing/width/colour)
         self._pattern_ids = {}     # dedup signature -> image_id
 
@@ -126,6 +127,7 @@ class StyleConverter:
         self._single_file = single_file
 
         self._svg_sprite_map = {}  # reset for each convert() call
+        self._cat_sprite_map = {}
         self._patterns = {}
         self._pattern_ids = {}
 
@@ -174,9 +176,10 @@ class StyleConverter:
             style["sprite"] = "./sprites"
             # Record our sprite icon names so the viewer's styleimagemissing handler never
             # clobbers them with an empty placeholder while the sprite is still loading.
-            icons = sorted({entry[0] for entry in self._svg_sprite_map.values() if entry})
+            icons = {entry[0] for entry in self._svg_sprite_map.values() if entry}
+            icons |= {key for cmap in self._cat_sprite_map.values() for key in cmap.values()}
             if icons:
-                style.setdefault("metadata", {})["mapsplat:sprite-icons"] = icons
+                style.setdefault("metadata", {})["mapsplat:sprite-icons"] = sorted(icons)
 
         self._log(f"Building style for {len(self.layers)} layer(s)...")
 
@@ -963,6 +966,30 @@ class StyleConverter:
                 }
             })
 
+        elif geom_type == 0 and source_layer in self._cat_sprite_map:
+            # Per-category sprite icons were rendered — emit a symbol layer with a
+            # data-driven icon-image so each class shows its real QGIS marker.
+            cat_icons = self._cat_sprite_map[source_layer]
+            icon_pairs = [(cat.value(), cat_icons[cat.value()])
+                          for cat in regular_cats if cat.value() in cat_icons]
+            if null_cat is not None and null_cat.value() in cat_icons:
+                icon_pairs.append(("__null__", cat_icons[null_cat.value()]))
+            if icon_pairs:
+                default_icon = (cat_icons.get(catchall_cat.value()) if catchall_cat else None) \
+                    or icon_pairs[0][1]
+                layers.append({
+                    "id": source_layer,
+                    "type": "symbol",
+                    "source": source_name,
+                    "source-layer": source_layer,
+                    "layout": {
+                        "icon-image": _build_match(icon_pairs, default_icon),
+                        "icon-size": 1.0,
+                        "icon-allow-overlap": True,
+                        "icon-ignore-placement": True,
+                    },
+                })
+
         elif geom_type == 0:  # Point
             color_pairs, radius_pairs, stroke_pairs, opacity_pairs = [], [], [], []
             for label, cat in ([(c.value(), c) for c in regular_cats]
@@ -1739,12 +1766,37 @@ class StyleConverter:
             self._log(f"SVG render failed for '{svg_path}': {e}")
             return None
 
-    def _generate_sprites(self, output_dir):
-        """Render SVG single-symbol point layers to a sprite atlas.
+    def _svg_marker_icon(self, symbol, size_hint=16):
+        """Render an SVG marker symbol's layer-0 to (img, img_2x) via QSvgRenderer.
 
-        Writes sprites.png and sprites.json to output_dir.
-        Populates self._svg_sprite_map with {source_layer_name: sprite_key} for
-        each layer successfully rendered.
+        Returns (None, None) if the symbol's first layer is not an SVG marker. This is the
+        crash-safe path (``symbolPreviewPixmap`` segfaults headless), so categorized SVG
+        markers get real icons while other marker types fall back to circles.
+        """
+        if symbol is None or symbol.symbolLayerCount() == 0:
+            return (None, None)
+        sl = symbol.symbolLayer(0)
+        if not isinstance(sl, QgsSvgMarkerSymbolLayer):
+            return (None, None)
+        try:
+            size_px = max(16, int(self._convert_size(sl.size(), sl.sizeUnit())))
+            stroke_w = self._convert_size(sl.strokeWidth(), sl.strokeWidthUnit())
+            img = self._render_svg_to_qimage(sl.path(), size_px, sl.fillColor(),
+                                             sl.strokeColor(), stroke_w)
+            img2 = self._render_svg_to_qimage(sl.path(), size_px * 2, sl.fillColor(),
+                                              sl.strokeColor(), stroke_w)
+            return (img, img2)
+        except Exception as e:
+            self._log(f"SVG class icon render failed: {e}")
+            return (None, None)
+
+    def _generate_sprites(self, output_dir):
+        """Render marker point layers to a sprite atlas.
+
+        Handles single-symbol SVG markers (one icon per layer) AND categorized/graduated
+        marker renderers (one icon per class). Writes sprites.png/json (+ @2x) to output_dir.
+        Populates ``self._svg_sprite_map`` ({source_layer: (key, colour, dataurl)}) and
+        ``self._cat_sprite_map`` ({source_layer: {class_value: key}}).
 
         :param output_dir: Directory to write sprite files (same level as index.html)
         :returns: True if at least one sprite was generated
@@ -1786,6 +1838,46 @@ class StyleConverter:
                 )
             if img_2x and not img_2x.isNull():
                 images_2x[source_layer] = img_2x
+
+        # Categorized / graduated marker renderers → one sprite icon per class, so the
+        # markers render as their real QGIS symbols instead of the circle fallback.
+        for layer in self.layers:
+            if layer.geometryType() != 0:
+                continue
+            renderer = layer.renderer()
+            # Categorized SVG markers → one icon per class. clone() — cat .symbol() returns a
+            # pointer owned by a temporary; storing it for later use is a use-after-free that
+            # segfaults QGIS. (Graduated markers still use the circle path for now.)
+            if not isinstance(renderer, QgsCategorizedSymbolRenderer):
+                continue
+            classes = [(c.value(), c.symbol().clone()) for c in renderer.categories()
+                       if c.renderState() and c.symbol()]
+            if not classes:
+                continue
+
+            # Only sprite the layer when EVERY rendered class is an SVG marker; otherwise
+            # keep the whole layer on the circle path (a symbol layer can't draw circles).
+            source_layer = self._sanitize_name(layer.name())
+            cat_map = {}
+            all_svg = True
+            for value, sym in classes:
+                img, img2 = self._svg_marker_icon(sym)
+                if not img or img.isNull():
+                    all_svg = False
+                    break
+                key = f"{source_layer}__c_{self._sanitize_name(str(value))}"
+                images[key] = img
+                if img2 and not img2.isNull():
+                    images_2x[key] = img2
+                cat_map[value] = key
+            if all_svg and cat_map:
+                self._cat_sprite_map[source_layer] = cat_map
+                self._log(f"Rendered {len(cat_map)} SVG class icon(s) for '{layer.name()}'")
+            else:
+                # Roll back any icons added for this layer; it uses the circle fallback.
+                for key in cat_map.values():
+                    images.pop(key, None)
+                    images_2x.pop(key, None)
 
         if not images:
             return False

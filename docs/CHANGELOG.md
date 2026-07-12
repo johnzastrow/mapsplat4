@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added / Fixed — categorized SVG markers + MapLibre-5 sprite URL (0.25.0)
+- **Categorized point layers with SVG markers now render their real markers.** A categorized
+  marker renderer used to collapse to plain circles; MapSplat now renders **one sprite icon per
+  class** (crash-safe via `QSvgRenderer`, not `symbolPreviewPixmap`, which segfaults headless) and
+  emits a `symbol` layer with a data-driven `icon-image` `match`, so each class shows its own icon.
+  Non-SVG marker classes still use the circle fallback.
+- **Fixed: MapLibre GL JS 5 rejects a relative `sprite` URL** (`Invalid sprite URL "./sprites", must
+  be absolute`). This silently broke **all** sprite icons — including single-symbol SVG markers. The
+  viewer now resolves the sprite URL to absolute (`new URL(sprite, location.href)`) before creating
+  the map, for both embedded and fetched styles. Verified with a headless render (icons load and the
+  markers paint).
+- Per-class icon names are recorded in `metadata["mapsplat:sprite-icons"]` so the
+  `styleimagemissing` handler doesn't clobber them.
+
 ### Fixed — serve.py no-cache (0.24.2)
 - **`serve.py` now sends `Cache-Control: no-store` (and `Pragma`/`Expires`) on every response.**
   Browsers were caching `style.json`, `index.html`, and tiles across exports, so after re-exporting
