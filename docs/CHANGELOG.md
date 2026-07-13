@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — plugin version in export log (0.27.6)
+- The export log now records the MapSplat version — in the `--- Export run … (MapSplat x.y.z) ---`
+  header and as the first `[INFO]` line — so a saved `export.log` is self-identifying and matches the
+  `mapsplat:version` embedded in `style.json`.
+
 ### Fixed — no solid stand-in for marker/hash lines (0.27.5)
 - **Decorative marker/hash lines no longer inject a solid line.** A QGIS line symbol can stack a
   marker line (symbols placed along the line, e.g. paw prints) or hash/tick line over a base line.

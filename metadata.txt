@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.27.5
+version=0.27.6
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,9 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.27.6 - Record MapSplat version in the export log
+    - The export log now records the plugin version in the run header and as the first INFO line,
+      so a saved export.log is self-identifying (matches mapsplat:version in style.json).
     0.27.5 - Don't inject a solid line for marker/hash decorative lines
     - Marker lines (symbols placed along a line, e.g. paw prints) and hash/tick lines can't render as
       symbols-on-a-line here. Previously they fell back to a plain solid line, which muddied the real

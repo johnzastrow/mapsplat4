@@ -1498,6 +1498,18 @@ class MapSplatDockWidget(QDockWidget):
             except OSError:
                 pass
 
+    def _plugin_version(self):
+        """Read the plugin version from metadata.txt (best-effort)."""
+        try:
+            meta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metadata.txt")
+            with open(meta, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("version="):
+                        return line.split("=", 1)[1].strip()
+        except Exception:
+            pass
+        return "unknown"
+
     def _close_log_file(self):
         """Close the export log file if open."""
         if self._log_file:
@@ -1591,12 +1603,14 @@ class MapSplatDockWidget(QDockWidget):
                 from datetime import datetime
                 self._log_file = open(log_path, "a", encoding="utf-8")
                 self._log_file.write(
-                    f"\n--- Export run {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ---\n"
+                    f"\n--- Export run {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} "
+                    f"(MapSplat {self._plugin_version()}) ---\n"
                 )
             except OSError as e:
                 self._log_file = None
                 self._log(f"Warning: could not open log file: {e}", "warning")
 
+        self._log(f"MapSplat version {self._plugin_version()}", "info")
         self._log("Starting export...", "info")
         self.tabs.setCurrentIndex(4)  # Log tab
 
