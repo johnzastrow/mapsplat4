@@ -758,7 +758,17 @@ class StyleConverter:
 
             return result
 
-        # Unsupported line type — extract best available color.
+        # Marker/hash decorative lines (paw prints, tick marks, arrows placed ALONG a line) can't
+        # be rendered as symbols-on-a-line here. A plain solid substitute is worse than nothing —
+        # it muddies the real line it sits over (e.g. a solid underlay beneath a dashed main line,
+        # as with wandering_cat). Omit it rather than inject a solid line.
+        try:
+            if sym_layer.layerType() in ("MarkerLine", "HashLine"):
+                return None
+        except Exception:
+            pass
+
+        # Other unsupported line type — a solid line in the layer's colour is a fair stand-in.
         color = self._extract_darkest_color(sym_layer)
         return {
             "id": layer_id,

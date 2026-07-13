@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — no solid stand-in for marker/hash lines (0.27.5)
+- **Decorative marker/hash lines no longer inject a solid line.** A QGIS line symbol can stack a
+  marker line (symbols placed along the line, e.g. paw prints) or hash/tick line over a base line.
+  These can't render as symbols-on-a-line in the web map, and the previous plain-solid fallback
+  muddied the real line beneath it (a solid underlay under the dashed `wandering_cat` line). Those
+  sublayers (`layerType()` `MarkerLine`/`HashLine`) are now omitted, so the intended dashed/simple
+  line renders cleanly. Genuinely unsupported *simple* line types still get a solid colour stand-in.
+
 ### Added — dashed categorized/graduated lines (0.27.4)
 - **Categorized and graduated line layers now render dashes.** Previously only single-symbol lines
   got a `line-dasharray`; class-based line layers always rendered solid. `line-dasharray` cannot be
