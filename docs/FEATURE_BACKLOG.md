@@ -21,7 +21,7 @@ Unordered list of desired usability improvements. Prioritization and implementat
 ## Web-map viewer tools & styling fidelity *(requested 2026-07-13)*
 
 ### Styling fidelity
-- [ ] **Line-dash rendering quality** — the `wandering_cat` dashed line renders poorly in the web map
+- [x] **Line-dash rendering quality** (v0.27.3) — the `wandering_cat` dashed line renders poorly in the web map
       (dash pattern/scale off vs QGIS). Review `line-dasharray` conversion (units, normalisation to
       line width) in `style_converter._line_symbol_layer_to_maplibre` and the categorized/graduated
       line paths.

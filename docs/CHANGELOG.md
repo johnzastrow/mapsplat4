@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — dashed line rendering (0.27.3)
+- **Dashed lines render at the correct scale.** MapLibre's `line-dasharray` is specified in units of
+  **line width**, but the converter was emitting **absolute pixels** (the code comment even said
+  "normalize to line width" but didn't) — so dashes came out ~3-4x too large (the poorly-rendered
+  `wandering_cat` line). New `_line_dash` helper divides the QGIS dash lengths by the line width, and
+  also converts the **Qt preset pen styles** (Dash/Dot/DashDot/DashDotDot), which were previously
+  ignored and rendered solid. Malformed (odd-length) dash arrays are dropped.
+
 ### Fixed — vertical legend layout (0.27.2)
 - Per-class legend entries (marker icons / class swatches) now wrap onto their own full-width line
   **below** the layer row instead of being laid out to the right of it (`display:flex` was putting

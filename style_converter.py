@@ -684,6 +684,38 @@ class StyleConverter:
             }
         }
 
+    def _line_dash(self, sym_layer, line_width_px):
+        """MapLibre ``line-dasharray`` for a QGIS line symbol layer, or None for a solid line.
+
+        MapLibre scales ``line-dasharray`` by the line width — the values are in *width units*,
+        not pixels. QGIS dash lengths are absolute (mm/px), so they must be divided by the line
+        width or the dashes render at the wrong scale (the "poorly rendered dashes" bug). Handles
+        both a custom dash vector and the Qt preset pen styles (Dash/Dot/DashDot…).
+        """
+        w = line_width_px if (line_width_px and line_width_px > 0) else 1.0
+        try:
+            if sym_layer.useCustomDashPattern():
+                vec = sym_layer.customDashVector()
+                if vec:
+                    px = [self._convert_size(d, sym_layer.customDashPatternUnit()) for d in vec]
+                    arr = [round(max(0.1, d / w), 3) for d in px if d is not None]
+                    # dasharray must have an even count (dash, gap, …); drop if malformed
+                    if arr and len(arr) % 2 == 0 and all(d > 0 for d in arr):
+                        return arr
+        except Exception:
+            pass
+        # Preset Qt pen styles — patterns already expressed in line-width units.
+        try:
+            ps = int(sym_layer.penStyle())
+        except Exception:
+            ps = 1  # Qt.SolidLine
+        return {
+            2: [4, 2],              # Qt.DashLine
+            3: [1, 2],              # Qt.DotLine
+            4: [4, 2, 1, 2],        # Qt.DashDotLine
+            5: [4, 2, 1, 2, 1, 2],  # Qt.DashDotDotLine
+        }.get(ps)
+
     def _line_symbol_layer_to_maplibre(self, sym_layer, layer_id, source_layer, source_name):
         """Convert a line symbol layer to MapLibre layer."""
         if isinstance(sym_layer, QgsSimpleLineSymbolLayer):
@@ -719,14 +751,10 @@ class StyleConverter:
                 result["layout"] = result.get("layout", {})
                 result["layout"]["line-join"] = join_map[pen_join]
 
-            # Dash pattern
-            if sym_layer.useCustomDashPattern():
-                dash_vector = sym_layer.customDashVector()
-                if dash_vector:
-                    # Convert from mm to pixels, normalize to line width
-                    dash_array = [self._convert_size(d, sym_layer.customDashPatternUnit()) for d in dash_vector]
-                    if dash_array and all(d > 0 for d in dash_array):
-                        result["paint"]["line-dasharray"] = dash_array
+            # Dash pattern (normalized to line width — see _line_dash)
+            dash = self._line_dash(sym_layer, line_width)
+            if dash:
+                result["paint"]["line-dasharray"] = dash
 
             return result
 
