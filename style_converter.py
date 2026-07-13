@@ -106,6 +106,7 @@ class StyleConverter:
         self._log_callback = log_callback
         self._svg_sprite_map = {}  # populated by _generate_sprites(); {source_layer: sprite_key}
         self._cat_sprite_map = {}  # {source_layer: {category_value: sprite_key}} for categorized markers
+        self._cat_legend = {}      # {source_layer: [(label, icon_data_url), ...]} for the legend
         self._patterns = {}        # image_id -> pattern def (angle/spacing/width/colour)
         self._pattern_ids = {}     # dedup signature -> image_id
 
@@ -128,6 +129,7 @@ class StyleConverter:
 
         self._svg_sprite_map = {}  # reset for each convert() call
         self._cat_sprite_map = {}
+        self._cat_legend = {}
         self._patterns = {}
         self._pattern_ids = {}
 
@@ -230,10 +232,54 @@ class StyleConverter:
         if has_sprites:
             self._log(f"  Sprite atlas: {len(self._svg_sprite_map)} icon(s)")
 
+        # Capture QGIS layer-tree groups so the legend can show collapsible group sections.
+        groups = self._build_legend_groups()
+        if groups:
+            style.setdefault("metadata", {})["mapsplat:legend-groups"] = groups
+
         n_business = len([lyr for lyr in style["layers"] if lyr.get("source-layer")])
         self._log(f"Style built: {len(style['layers'])} total layers "
                   f"({n_business} data), {len(style['sources'])} source(s)")
         return style
+
+    def _build_legend_groups(self):
+        """Map the exported layers to their QGIS layer-tree groups (in tree order).
+
+        :returns: ordered list of {"name": group_name_or_None, "layers": [source_layer, ...]};
+                  ``name`` is None for top-level (ungrouped) layers.
+        """
+        try:
+            from qgis.core import QgsProject, QgsLayerTreeGroup, QgsLayerTreeLayer
+            root = QgsProject.instance().layerTreeRoot()
+        except Exception:
+            return []
+        selected_ids = {lyr.id() for lyr in self.layers}
+        ordered = []  # (group_name_or_None, source_layer) in tree order
+
+        def walk(node, group_name):
+            for child in node.children():
+                if isinstance(child, QgsLayerTreeGroup):
+                    walk(child, child.name())
+                elif isinstance(child, QgsLayerTreeLayer):
+                    lyr = child.layer()
+                    if lyr is not None and lyr.id() in selected_ids:
+                        ordered.append((group_name, self._sanitize_name(lyr.name())))
+
+        try:
+            walk(root, None)
+        except Exception as e:
+            self._log(f"Legend group capture failed: {e}")
+            return []
+
+        groups, index = [], {}
+        for gname, src in ordered:
+            key = gname if gname is not None else "\x00top"
+            if key not in index:
+                index[key] = len(groups)
+                groups.append({"name": gname, "layers": []})
+            groups[index[key]]["layers"].append(src)
+        # Only useful if there is at least one real (named) group.
+        return groups if any(g["name"] for g in groups) else []
 
     def _convert_layer(self, layer):
         """Convert a single layer to MapLibre layer definitions.
@@ -977,7 +1023,7 @@ class StyleConverter:
             if icon_pairs:
                 default_icon = (cat_icons.get(catchall_cat.value()) if catchall_cat else None) \
                     or icon_pairs[0][1]
-                layers.append({
+                symbol_layer = {
                     "id": source_layer,
                     "type": "symbol",
                     "source": source_name,
@@ -988,7 +1034,17 @@ class StyleConverter:
                         "icon-allow-overlap": True,
                         "icon-ignore-placement": True,
                     },
-                })
+                }
+                # Per-class icons for the legend (data URLs so the viewer needs no sprite lookup).
+                legend = self._cat_legend.get(source_layer)
+                if legend:
+                    symbol_layer["metadata"] = {
+                        "mapsplat:legend-classes": [
+                            {"label": "(no value)" if v is None else str(v), "icon": url}
+                            for v, url in legend
+                        ]
+                    }
+                layers.append(symbol_layer)
 
         elif geom_type == 0:  # Point
             color_pairs, radius_pairs, stroke_pairs, opacity_pairs = [], [], [], []
@@ -1859,6 +1915,7 @@ class StyleConverter:
             # keep the whole layer on the circle path (a symbol layer can't draw circles).
             source_layer = self._sanitize_name(layer.name())
             cat_map = {}
+            legend = []
             all_svg = True
             for value, sym in classes:
                 img, img2 = self._svg_marker_icon(sym)
@@ -1870,8 +1927,10 @@ class StyleConverter:
                 if img2 and not img2.isNull():
                     images_2x[key] = img2
                 cat_map[value] = key
+                legend.append((value, self._qimage_to_data_url(img, size_px=20)))
             if all_svg and cat_map:
                 self._cat_sprite_map[source_layer] = cat_map
+                self._cat_legend[source_layer] = legend
                 self._log(f"Rendered {len(cat_map)} SVG class icon(s) for '{layer.name()}'")
             else:
                 # Roll back any icons added for this layer; it uses the circle fallback.

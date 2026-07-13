@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — legend: per-class icons, QGIS groups, collapsing (0.27.0)
+- **Per-class marker icons in the legend.** A categorized point layer with SVG markers now shows each
+  class's actual icon + label (embedded as data URLs in `metadata["mapsplat:legend-classes"]` on the
+  symbol layer); previously it showed nothing useful. `buildLegendEntries`/`makeLayerSwatch` render
+  these icon rows.
+- **QGIS layer-tree groups.** Groups (e.g. `My Layers`) are captured via `_build_legend_groups`
+  (`layerTreeRoot`) into `metadata["mapsplat:legend-groups"]` (preserved through the basemap merge)
+  and rendered as **collapsible `<details>` sections, collapsed by default**. Ungrouped and basemap
+  layers stay at the top level.
+- **Collapsing long class lists.** A layer with **more than 6** class entries wraps them in a
+  collapsible "N classes" toggle (collapsed by default), keeping the legend compact.
+- Verified with a headless Chromium render: the group collapses, per-class icons appear, and the
+  many-class toggle collapses.
+
 ### Added — dual basemap+business sprites & serve.py banner (0.26.0)
 - **Basemap icons and business marker icons now coexist.** When the basemap ships its own sprite
   (shields, POIs), MapSplat combines it with the business sprite via a MapLibre **sprite array**:

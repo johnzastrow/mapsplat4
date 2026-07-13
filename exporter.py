@@ -369,6 +369,21 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         .legend-entries {{ margin: 3px 0 3px 22px; }}
         .legend-entry {{ display: flex; align-items: center; margin: 2px 0; font-size: 11px; color: #555; }}
         .legend-entry .legend-swatch {{ margin-right: 5px; flex-shrink: 0; }}
+        /* Collapsible QGIS layer-tree groups */
+        details.legend-group {{ margin: 2px 0; }}
+        details.legend-group > summary {{
+            cursor: pointer; font-size: 12px; font-weight: 600; color: #333;
+            padding: 2px 0; list-style-position: inside; user-select: none;
+        }}
+        details.legend-group > summary:hover {{ color: #000; }}
+        details.legend-group > .layer-item {{ margin-left: 14px; }}
+        /* Collapsible per-layer class list ("N classes") */
+        details.legend-entries-collapse {{ margin: 2px 0 2px 22px; }}
+        details.legend-entries-collapse > summary {{
+            cursor: pointer; font-size: 11px; color: #777; user-select: none;
+        }}
+        details.legend-entries-collapse > summary:hover {{ color: #333; }}
+        details.legend-entries-collapse > .legend-entries {{ margin-left: 8px; }}
     </style>
     <!-- <----- END MAPSPLAT <head> section ----- -->
 </head>
@@ -474,9 +489,12 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                     swatch.classList.add('circle');
                     swatch.style.backgroundColor = color;
                 }} else if (ltype === 'symbol') {{
-                    // Use the pre-rendered icon data URL embedded in layer metadata
+                    // Use the pre-rendered icon data URL embedded in layer metadata (single-symbol
+                    // marker) or the first per-class icon (categorized markers).
                     const meta = layer.metadata || {{}};
-                    const iconDataUrl = meta['mapsplat:legend-icon'];
+                    const _cls = meta['mapsplat:legend-classes'];
+                    const iconDataUrl = meta['mapsplat:legend-icon']
+                        || (_cls && _cls.length && _cls[0].icon);
                     if (iconDataUrl) {{
                         swatch.style.cssText = 'background-image:url(' + iconDataUrl + ');'
                             + 'background-size:contain;background-repeat:no-repeat;'
@@ -498,8 +516,29 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 return swatch;
             }}
 
+            // A legend row showing a sprite-icon (data URL) + label — for marker classes.
+            function makeIconEntry(iconUrl, label) {{
+                const row = document.createElement('div');
+                row.className = 'legend-entry';
+                const s = document.createElement('div');
+                s.className = 'legend-swatch';
+                s.style.cssText = 'background-image:url(' + iconUrl + ');background-size:contain;'
+                    + 'background-repeat:no-repeat;background-position:center;background-color:transparent;'
+                    + 'border:none;width:16px;height:16px;min-width:16px;';
+                row.appendChild(s);
+                const lbl = document.createElement('span');
+                lbl.textContent = String(label);
+                row.appendChild(lbl);
+                return row;
+            }}
+
             // Build per-class/category legend entries from a layer's paint expression
             function buildLegendEntries(layer) {{
+                // Categorized markers: per-class sprite icons embedded in layer metadata.
+                const _cls = (layer.metadata || {{}})['mapsplat:legend-classes'];
+                if (_cls && _cls.length) {{
+                    return _cls.filter(c => c && c.icon).map(c => makeIconEntry(c.icon, c.label));
+                }}
                 const paint = layer.paint || {{}};
                 const prop = paint['fill-color'] || paint['line-color'] ||
                              paint['circle-color'] || paint['text-color'];
@@ -574,12 +613,12 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 _slGroups[sl].push(layer);
             }});
 
-            _slOrder.forEach(sourceLayer => {{
+            // Build one legend row (checkbox + swatch + label, plus per-class entries).
+            function renderLayerItem(sourceLayer) {{
                 const groupLayers = _slGroups[sourceLayer];
-                // Pick best representative — lowest priority value wins
-                const layer = groupLayers.reduce((best, l) => {{
-                    return _layerPri(l) < _layerPri(best) ? l : best;
-                }});
+                if (!groupLayers) return null;
+                const layer = groupLayers.reduce((best, l) =>
+                    _layerPri(l) < _layerPri(best) ? l : best);
 
                 const div = document.createElement('div');
                 div.className = 'layer-item';
@@ -589,32 +628,67 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 checkbox.id = 'toggle-' + sourceLayer;
                 checkbox.checked = true;
 
-                const swatch = makeLayerSwatch(layer);
-
                 const label = document.createElement('label');
                 label.htmlFor = checkbox.id;
                 label.textContent = sourceLayer.replace(/_/g, ' ');
                 label.title = sourceLayer;
 
                 checkbox.addEventListener('change', () => {{
-                    groupLayers.forEach(l => {{
-                        map.setLayoutProperty(l.id, 'visibility',
-                            checkbox.checked ? 'visible' : 'none');
-                    }});
+                    groupLayers.forEach(l => map.setLayoutProperty(l.id, 'visibility',
+                        checkbox.checked ? 'visible' : 'none'));
                 }});
 
                 div.appendChild(checkbox);
-                div.appendChild(swatch);
+                div.appendChild(makeLayerSwatch(layer));
                 div.appendChild(label);
-                layerToggles.appendChild(div);
 
                 if ({_advanced_legend}) {{
-                    const entriesDiv = document.createElement('div');
-                    entriesDiv.className = 'legend-entries';
                     const entries = buildLegendEntries(layer);
-                    entries.forEach(e => entriesDiv.appendChild(e));
-                    if (entries.length > 1) div.appendChild(entriesDiv);
+                    if (entries.length > 1) {{
+                        // Collapse long class lists behind an "N classes" toggle.
+                        if (entries.length > 6) {{
+                            const det = document.createElement('details');
+                            det.className = 'legend-entries-collapse';
+                            const sum = document.createElement('summary');
+                            sum.textContent = entries.length + ' classes';
+                            det.appendChild(sum);
+                            const ed = document.createElement('div');
+                            ed.className = 'legend-entries';
+                            entries.forEach(e => ed.appendChild(e));
+                            det.appendChild(ed);
+                            div.appendChild(det);
+                        }} else {{
+                            const ed = document.createElement('div');
+                            ed.className = 'legend-entries';
+                            entries.forEach(e => ed.appendChild(e));
+                            div.appendChild(ed);
+                        }}
+                    }}
                 }}
+                return div;
+            }}
+
+            // QGIS layer-tree groups → collapsible sections (collapsed by default).
+            const legendGroups = (style.metadata || {{}})['mapsplat:legend-groups'] || [];
+            const grouped = new Set();
+            legendGroups.forEach(g => {{
+                if (!g.name) return;
+                const det = document.createElement('details');
+                det.className = 'legend-group';
+                const sum = document.createElement('summary');
+                sum.textContent = g.name;
+                det.appendChild(sum);
+                (g.layers || []).forEach(sl => {{
+                    const item = renderLayerItem(sl);
+                    if (item) {{ det.appendChild(item); grouped.add(sl); }}
+                }});
+                if (det.children.length > 1) layerToggles.appendChild(det);
+            }});
+            // Ungrouped layers (incl. basemap) at the top level, in render order.
+            _slOrder.forEach(sourceLayer => {{
+                if (grouped.has(sourceLayer)) return;
+                const item = renderLayerItem(sourceLayer);
+                if (item) layerToggles.appendChild(item);
             }});
         }});
 
@@ -1404,6 +1478,10 @@ class MapSplatExporter(QObject):
         biz_patterns = business_style_json.get("metadata", {}).get("mapsplat:patterns")
         if biz_patterns:
             basemap.setdefault("metadata", {})["mapsplat:patterns"] = biz_patterns
+        # Preserve the legend-group structure so the viewer can show collapsible groups.
+        biz_groups = business_style_json.get("metadata", {}).get("mapsplat:legend-groups")
+        if biz_groups:
+            basemap.setdefault("metadata", {})["mapsplat:legend-groups"] = biz_groups
 
         self.log_message.emit(
             f"  Merged {len(overlay_layers)} business layer(s) into basemap style", "info"
