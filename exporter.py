@@ -173,11 +173,23 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         " 'Z: ' + map.getZoom().toFixed(1);"
         if settings.get('viewer_zoom_display', True) else ""
     )
+    # Shared look for all custom map buttons — 29x29 (matches MapLibre's control buttons, e.g.
+    # the geolocate "find my location" button), white background, black line-art icon.
+    _btn_css = ('position:absolute;right:10px;z-index:1;width:29px;height:29px;padding:0;'
+                'display:flex;align-items:center;justify-content:center;color:#000;background:#fff;'
+                'border:none;border-radius:4px;box-shadow:0 0 0 2px rgba(0,0,0,0.1);cursor:pointer;')
+    # Line-art icons (stroke=currentColor so they invert to white when a button is active).
+    _svg_open = ('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+                 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">')
+    _ICON_RESET = _svg_open + '<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 0-2-2v-3"/></svg>'
+    _ICON_NORTH = ('<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" '
+                   'stroke-width="1" stroke-linejoin="round"><path d="M12 2l6 19-6-4-6 4z"/></svg>')
+    _ICON_MEASURE = _svg_open + '<rect x="2" y="8" width="20" height="8" rx="1"/><path d="M6 8v3M10 8v4M14 8v3M18 8v4"/></svg>'
+    _ICON_DRAW = _svg_open + '<path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>'
+    _ICON_EXPORT = _svg_open + '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>'
+
     reset_view_html = (
-        f'\n    <button id="reset-view"'
-        f' style="position:absolute;top:{_tr_top}px;right:10px;z-index:1;'
-        'background:white;border:1px solid #ccc;border-radius:4px;'
-        'padding:4px 8px;cursor:pointer;font-size:12px;" title="Reset view">&#8962;</button>'
+        f'\n    <button id="reset-view" style="{_btn_css}top:{_tr_top}px;" title="Reset view">{_ICON_RESET}</button>'
         if settings.get('viewer_reset_view', True) else ""
     )
     reset_view_js = (
@@ -187,10 +199,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         if settings.get('viewer_reset_view', True) else ""
     )
     north_reset_html = (
-        f'\n    <button id="north-reset"'
-        f' style="position:absolute;top:{_tr_top + 37}px;right:10px;z-index:1;'
-        'background:white;border:1px solid #ccc;border-radius:4px;'
-        'padding:4px 8px;cursor:pointer;font-size:12px;" title="Reset north">N</button>'
+        f'\n    <button id="north-reset" style="{_btn_css}top:{_tr_top + 37}px;" title="Reset north">{_ICON_NORTH}</button>'
         if settings.get('viewer_north_reset', True) else ""
     )
     north_reset_js = (
@@ -232,8 +241,11 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 addButton(opts) {
                     const b = document.createElement('button');
                     b.innerHTML = opts.icon; b.title = opts.title || '';
-                    b.style.cssText = 'position:absolute;right:10px;z-index:1;background:#fff;border:1px solid #ccc;'
-                        + 'border-radius:4px;padding:4px 8px;cursor:pointer;font-size:13px;line-height:1;top:' + slot + 'px;';
+                    // 29x29 to match MapLibre's native control buttons (e.g. geolocate), white bg,
+                    // black line-art icon centred; stroke=currentColor lets it invert when active.
+                    b.style.cssText = 'position:absolute;right:10px;z-index:1;width:29px;height:29px;padding:0;'
+                        + 'display:flex;align-items:center;justify-content:center;color:#000;background:#fff;border:none;'
+                        + 'border-radius:4px;box-shadow:0 0 0 2px rgba(0,0,0,0.1);cursor:pointer;top:' + slot + 'px;';
                     b._top = slot; slot += 37;
                     container().appendChild(b);
                     if (opts.onClick) b.addEventListener('click', () => opts.onClick(b));
@@ -277,7 +289,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         MapSplatTools.register({ id: 'measure', setup(map, ctx) {
             const R = 6371008.8, SRC = 'mapsplat-measure';
             let measuring = false, pts = [], finished = false, units = '__UNITS__';
-            const btn = ctx.addButton({ icon: '&#128207;', title: 'Measure distance & area', onClick: () => setMode(!measuring) });
+            const btn = ctx.addButton({ icon: '__ICON__', title: 'Measure distance & area', onClick: () => setMode(!measuring) });
             const readout = ctx.makePanel(btn, 'top:auto;bottom:40px;right:10px;max-width:250px;line-height:1.35;');
             const fc = (f) => ({ type: 'FeatureCollection', features: f });
             function ensureLayers() {
@@ -299,27 +311,27 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 if (pts.length >= 2) html += '<div><b>Length:</b> ' + fmtLen(pathLength(pts, finished && pts.length >= 3)) + '</div>';
                 if (finished && pts.length >= 3) html += '<div><b>Area:</b> ' + fmtArea(ringArea(pts)) + '</div>';
                 if (!pts.length) html += '<div>Click the map to add points.</div>';
-                else if (!finished) html += '<div style="opacity:.65;margin-top:3px;">Double-click to finish \\u00B7 Esc to clear</div>';
+                else if (!finished) html += '<div style="opacity:.65;margin-top:3px;">Right-click to finish \\u00B7 Esc to clear</div>';
                 else html += '<div style="opacity:.65;margin-top:3px;">Click to start a new measurement \\u00B7 Esc to clear</div>';
                 readout.innerHTML = html;
                 const u = document.getElementById('mm-units'); if (u) u.onclick = cycleUnits;
             }
             function render() { ensureLayers(); const f = pts.map(p => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: p } })); if (pts.length >= 2) f.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts } }); if (finished && pts.length >= 3) f.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [pts.concat([pts[0]])] } }); map.getSource(SRC).setData(fc(f)); updateReadout(); }
             function clearAll() { pts = []; finished = false; if (map.getSource(SRC)) map.getSource(SRC).setData(fc([])); updateReadout(); }
-            function setMode(on) { measuring = on; ctx.setActive(btn, on, '#e0245e'); readout.style.display = on ? 'block' : 'none'; map.getCanvas().style.cursor = on ? 'crosshair' : ''; if (on) { ctx.activateExclusive('measure'); map.doubleClickZoom.disable(); ensureLayers(); updateReadout(); } else { map.doubleClickZoom.enable(); clearAll(); } }
+            function setMode(on) { measuring = on; ctx.setActive(btn, on, '#e0245e'); readout.style.display = on ? 'block' : 'none'; map.getCanvas().style.cursor = on ? 'crosshair' : ''; if (on) { ctx.activateExclusive('measure'); map.doubleClickZoom.disable(); ensureLayers(); updateReadout(); } else { map.doubleClickZoom.enable(); clearAll(); } window.__mapsplatToolActive = on; }
             ctx.registerDeactivator('measure', () => setMode(false));
             map.on('click', (e) => { if (!measuring) return; if (finished) { pts = []; finished = false; } pts.push([e.lngLat.lng, e.lngLat.lat]); render(); });
-            map.on('dblclick', (e) => { if (!measuring) return; e.preventDefault(); if (pts.length >= 2) { finished = true; render(); } });
+            map.on('contextmenu', (e) => { if (!measuring) return; if (e.originalEvent) e.originalEvent.preventDefault(); if (pts.length >= 2) { finished = true; render(); } });
             document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && measuring) clearAll(); });
             window.__mapsplatMeasure = { setMode, addPoint: (lng, lat) => { if (finished) { pts = []; finished = false; } pts.push([lng, lat]); render(); }, finish: () => { if (pts.length >= 2) { finished = true; render(); } }, setUnits: (u) => { units = u; updateReadout(); }, readEl: () => readout, length: () => pathLength(pts, finished && pts.length >= 3), area: () => (finished && pts.length >= 3 ? ringArea(pts) : 0) };
-        }});""".replace('__UNITS__', _measure_units)) if _measure_on else ""
+        }});""".replace('__UNITS__', _measure_units).replace('__ICON__', _ICON_MEASURE)) if _measure_on else ""
 
     _draw_reg = ("""
         // ----- Draw / sketch plugin -----
         MapSplatTools.register({ id: 'draw', setup(map, ctx) {
             const SRC = 'mapsplat-draw', DEFAULT = '__COLOR__';
             let active = false, mode = 'point', color = DEFAULT, features = [], pending = [];
-            const btn = ctx.addButton({ icon: '&#9998;', title: 'Draw & export', onClick: () => setActive(!active) });
+            const btn = ctx.addButton({ icon: '__ICON__', title: 'Draw & export', onClick: () => setActive(!active) });
             const panel = ctx.makePanel(btn, 'width:158px;');
             const fc = (f) => ({ type: 'FeatureCollection', features: f });
             const feat = (type, coords) => ({ type: 'Feature', properties: { color: color }, geometry: { type: type, coordinates: coords } });
@@ -364,19 +376,19 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 const r3 = document.createElement('div'); r3.style.marginTop = '3px'; const gj = ctx.mkBtn('\\u2b07 GeoJSON'); gj.onclick = () => ctx.download(new Blob([toGeoJSON()], { type: 'application/geo+json' }), 'mapsplat-drawing.geojson'); const km = ctx.mkBtn('\\u2b07 KML'); km.onclick = () => ctx.download(new Blob([toKML()], { type: 'application/vnd.google-earth.kml+xml' }), 'mapsplat-drawing.kml'); r3.append(gj, km);
                 panel.append(r1, rc, r2, r3); refreshModes();
             }
-            function setActive(on) { active = on; ctx.setActive(btn, on, DEFAULT); panel.style.display = on ? 'block' : 'none'; map.getCanvas().style.cursor = on ? 'crosshair' : ''; if (on) { ctx.activateExclusive('draw'); map.doubleClickZoom.disable(); ensureLayers(); buildPanel(); } else { map.doubleClickZoom.enable(); pending = []; render(); } }
+            function setActive(on) { active = on; ctx.setActive(btn, on, DEFAULT); panel.style.display = on ? 'block' : 'none'; map.getCanvas().style.cursor = on ? 'crosshair' : ''; if (on) { ctx.activateExclusive('draw'); map.doubleClickZoom.disable(); ensureLayers(); buildPanel(); } else { map.doubleClickZoom.enable(); pending = []; render(); } window.__mapsplatToolActive = on; }
             ctx.registerDeactivator('draw', () => setActive(false));
             map.on('click', (e) => { if (active) addVertex(e.lngLat.lng, e.lngLat.lat); });
-            map.on('dblclick', (e) => { if (active && mode !== 'point') { e.preventDefault(); commitPending(); } });
+            map.on('contextmenu', (e) => { if (active && mode !== 'point') { if (e.originalEvent) e.originalEvent.preventDefault(); commitPending(); } });
             document.addEventListener('keydown', (ev) => { if (!active) return; if (ev.key === 'Escape') { pending = []; render(); } else if (ev.key === 'Enter') commitPending(); });
             window.__mapsplatDraw = { setActive, setMode: (m) => { mode = m; pending = []; }, setColor: (c) => { color = c; }, addPoint: addVertex, finish: commitPending, count: () => features.length, toGeoJSON, toKML };
-        }});""".replace('__COLOR__', _draw_color)) if _draw_on else ""
+        }});""".replace('__COLOR__', _draw_color).replace('__ICON__', _ICON_DRAW)) if _draw_on else ""
 
     _export_reg = ("""
         // ----- Print / export plugin -----
         MapSplatTools.register({ id: 'export', setup(map, ctx) {
             const SCALEBAR = __SCALEBAR__;
-            const btn = ctx.addButton({ icon: '&#128247;', title: 'Export map image (JPG / PDF)', onClick: () => { panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none'; } });
+            const btn = ctx.addButton({ icon: '__ICON__', title: 'Export map image (JPG / PDF)', onClick: () => { panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none'; } });
             const panel = ctx.makePanel(btn, 'white-space:nowrap;');
             const jpgB = ctx.mkBtn('JPG'); const pdfB = ctx.mkBtn('PDF');
             const note = document.createElement('div'); note.textContent = 'map + drawings' + (SCALEBAR ? ' + scale bar' : ''); note.style.cssText = 'opacity:.6;font-size:11px;margin-top:2px;';
@@ -433,7 +445,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 jpegBytes: () => b64ToBytes(composite(map.getCanvas()).toDataURL('image/jpeg', 0.92)),
                 pdfBlob: () => { const o = composite(map.getCanvas()); return jpegToPdf(b64ToBytes(o.toDataURL('image/jpeg', 0.92)), o.width, o.height); }
             };
-        }});""".replace('__SCALEBAR__', _export_scalebar)) if _export_on else ""
+        }});""".replace('__SCALEBAR__', _export_scalebar).replace('__ICON__', _ICON_EXPORT)) if _export_on else ""
 
     tools_js = (
         (_framework_js + _measure_reg + _draw_reg + _export_reg
@@ -992,6 +1004,8 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
 
         // Click handler for feature identification
         map.on('click', (e) => {{
+            // Suppress identify popups while an interactive tool (measure/draw) is capturing clicks.
+            if (window.__mapsplatToolActive) return;
             const features = map.queryRenderedFeatures(e.point);
             if (features.length > 0) {{
                 const feature = features[0];

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — toolbar polish + drawing interactions (0.31.0)
+- **Consistent native-style tool buttons.** The custom map buttons (reset view, reset north, measure,
+  draw, export) are now **29×29** with **black line-art SVG icons** (stroke `currentColor`, so they
+  invert to white when a tool is active), matching MapLibre's own control buttons (e.g. the geolocate
+  "find my location" button). Replaces the old mixed-size, multi-coloured emoji buttons.
+- **Right-click to finish.** Completing a drawn line/polygon or a measurement is now a **right-click**
+  (context menu) instead of a double-click — a double-click added stray vertices before finishing.
+- **Identify suppressed during tools.** While the measure or draw tool is active, the feature-identify
+  **popups no longer fire on click**, so they don't get in the way of sketching. Popups resume when
+  the tool is switched off. Verified headless: 29×29 SVG buttons, right-click commits a polygon, and
+  no popup appears on click while a tool is active.
+
 ### Fixed — export now includes drawings + scale bar (0.30.1)
 - **Exported JPG/PDF now reliably show drawn/measured features and a scale bar.** The export tool
   composites the WebGL map canvas onto a 2D canvas and reads it **synchronously inside a render

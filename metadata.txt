@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.30.1
+version=0.31.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,13 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.31.0 - Toolbar polish + drawing interaction fixes
+    - Map tool buttons (reset, north, measure, draw, export) are now 29x29 with black line-art SVG
+      icons, matching MapLibre's native control buttons (e.g. the geolocate button) instead of the
+      old mixed-size emoji buttons.
+    - Right-click now completes a drawing or measurement (was double-click), avoiding stray points.
+    - Identify popups are suppressed while the measure or draw tool is active, so they no longer get
+      in the way while sketching.
     0.30.1 - Export tool now captures drawings + scale bar
     - JPG/PDF export composites the map onto a 2D canvas and captures it synchronously within a render
       frame, so drawn/measured features reliably appear (previously the async capture could miss them).
