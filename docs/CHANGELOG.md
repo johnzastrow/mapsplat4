@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — measure tool (0.28.0)
+- **Optional on-map measure tool.** A ruler button (Viewer tab → *Measure tool*, off by default)
+  lets viewers click to add points and read a live **geodesic distance**; double-click closes a
+  polygon and adds **area**. Both are shown in **metric and imperial** (m/km/ha/km² and ft/mi/ac/mi²).
+  Implemented as self-contained offline JS (haversine length + spherical-excess area) — no external
+  library, no CDN. Verified headless: for a test quad the readout matched an independent geodesic
+  calc to the decimal (perimeter 1477.06 m, area 13.508 ha).
+
 ### Added — plugin version in export log (0.27.6)
 - The export log now records the MapSplat version — in the `--- Export run … (MapSplat x.y.z) ---`
   header and as the first `[INFO]` line — so a saved `export.log` is self-identifying and matches the

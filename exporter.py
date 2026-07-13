@@ -199,6 +199,121 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         if settings.get('viewer_north_reset', True) else ""
     )
 
+    # ---------- Measure tool (distance + area, metric + imperial) ----------
+    _measure_on = settings.get('viewer_measure', False)
+    _tools_top = _tr_top + 74  # below the reset-view / north-reset button slots
+    measure_html = (
+        (f'\n    <button id="measure-btn"'
+         f' style="position:absolute;top:{_tools_top}px;right:10px;z-index:1;'
+         'background:white;border:1px solid #ccc;border-radius:4px;'
+         'padding:4px 8px;cursor:pointer;font-size:13px;line-height:1;"'
+         ' title="Measure distance &amp; area">&#128207;</button>'
+         '\n    <div id="measure-readout"'
+         ' style="position:absolute;bottom:40px;right:10px;z-index:2;display:none;'
+         'background:rgba(255,255,255,0.92);border:1px solid #ccc;border-radius:4px;'
+         'padding:6px 9px;font-family:sans-serif;font-size:12px;max-width:250px;'
+         'line-height:1.35;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>')
+        if _measure_on else ""
+    )
+    measure_js = ("""
+        // ----- Measure tool -----
+        (function () {
+            const btn = document.getElementById('measure-btn');
+            const readout = document.getElementById('measure-readout');
+            const SRC = 'mapsplat-measure';
+            const R = 6371008.8;  // mean Earth radius (m)
+            let measuring = false, pts = [], finished = false;
+
+            const fc = (features) => ({ type: 'FeatureCollection', features });
+            function ensureLayers() {
+                if (map.getSource(SRC)) return;
+                map.addSource(SRC, { type: 'geojson', data: fc([]) });
+                map.addLayer({ id: SRC + '-fill', type: 'fill', source: SRC,
+                    filter: ['==', '$type', 'Polygon'],
+                    paint: { 'fill-color': '#e0245e', 'fill-opacity': 0.12 } });
+                map.addLayer({ id: SRC + '-line', type: 'line', source: SRC,
+                    filter: ['==', '$type', 'LineString'],
+                    paint: { 'line-color': '#e0245e', 'line-width': 2, 'line-dasharray': [2, 1] } });
+                map.addLayer({ id: SRC + '-pts', type: 'circle', source: SRC,
+                    filter: ['==', '$type', 'Point'],
+                    paint: { 'circle-radius': 4, 'circle-color': '#fff',
+                             'circle-stroke-color': '#e0245e', 'circle-stroke-width': 2 } });
+            }
+            function haversine(a, b) {
+                const t = Math.PI / 180, dLat = (b[1]-a[1])*t, dLon = (b[0]-a[0])*t;
+                const h = Math.sin(dLat/2)**2 + Math.cos(a[1]*t)*Math.cos(b[1]*t)*Math.sin(dLon/2)**2;
+                return 2 * R * Math.asin(Math.sqrt(h));
+            }
+            function pathLength(coords, close) {
+                let d = 0;
+                for (let i = 1; i < coords.length; i++) d += haversine(coords[i-1], coords[i]);
+                if (close && coords.length >= 3) d += haversine(coords[coords.length-1], coords[0]);
+                return d;
+            }
+            function ringArea(coords) {  // spherical excess, m^2 (absolute)
+                if (coords.length < 3) return 0;
+                const t = Math.PI / 180, ring = coords.concat([coords[0]]);
+                let s = 0;
+                for (let i = 0; i < ring.length - 1; i++) {
+                    const p1 = ring[i], p2 = ring[i+1];
+                    s += (p2[0]-p1[0])*t * (2 + Math.sin(p1[1]*t) + Math.sin(p2[1]*t));
+                }
+                return Math.abs(s * R * R / 2);
+            }
+            function fmtLen(m) {
+                const metric = m < 1000 ? m.toFixed(1) + ' m' : (m/1000).toFixed(2) + ' km';
+                const mi = m / 1609.344, ft = m * 3.28084;
+                const imp = mi < 0.5 ? ft.toFixed(0) + ' ft' : mi.toFixed(2) + ' mi';
+                return metric + '  /  ' + imp;
+            }
+            function fmtArea(m2) {
+                const km2 = m2/1e6, ha = m2/1e4;
+                const metric = m2 < 1e4 ? m2.toFixed(0) + ' m\\u00B2'
+                    : (km2 < 1 ? ha.toFixed(2) + ' ha' : km2.toFixed(2) + ' km\\u00B2');
+                const ac = m2/4046.8564, mi2 = m2/2.58999e6, ft2 = m2*10.7639;
+                const imp = ac < 1 ? ft2.toFixed(0) + ' ft\\u00B2'
+                    : (mi2 < 1 ? ac.toFixed(2) + ' ac' : mi2.toFixed(2) + ' mi\\u00B2');
+                return metric + '  /  ' + imp;
+            }
+            function updateReadout() {
+                let html = '';
+                if (pts.length >= 2) html += '<div><b>Length:</b> ' + fmtLen(pathLength(pts, finished && pts.length >= 3)) + '</div>';
+                if (finished && pts.length >= 3) html += '<div><b>Area:</b> ' + fmtArea(ringArea(pts)) + '</div>';
+                if (!pts.length) html = 'Click the map to add points.';
+                else if (!finished) html += '<div style="opacity:.65;margin-top:3px;">Double-click to finish \\u00B7 Esc to clear</div>';
+                else html += '<div style="opacity:.65;margin-top:3px;">Click to start a new measurement \\u00B7 Esc to clear</div>';
+                readout.innerHTML = html;
+            }
+            function render() {
+                ensureLayers();
+                const feats = pts.map(p => ({ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: {} }));
+                if (pts.length >= 2) feats.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: pts }, properties: {} });
+                if (finished && pts.length >= 3) feats.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [pts.concat([pts[0]])] }, properties: {} });
+                map.getSource(SRC).setData(fc(feats));
+                updateReadout();
+            }
+            function clearAll() { pts = []; finished = false; if (map.getSource(SRC)) map.getSource(SRC).setData(fc([])); updateReadout(); }
+            function setMode(on) {
+                measuring = on;
+                btn.style.background = on ? '#e0245e' : 'white';
+                btn.style.color = on ? '#fff' : '#000';
+                readout.style.display = on ? 'block' : 'none';
+                map.getCanvas().style.cursor = on ? 'crosshair' : '';
+                if (on) { map.doubleClickZoom.disable(); ensureLayers(); updateReadout(); }
+                else { map.doubleClickZoom.enable(); clearAll(); }
+            }
+            btn.addEventListener('click', () => setMode(!measuring));
+            map.on('click', (e) => { if (!measuring) return; if (finished) { pts = []; finished = false; } pts.push([e.lngLat.lng, e.lngLat.lat]); render(); });
+            map.on('dblclick', (e) => { if (!measuring) return; e.preventDefault(); if (pts.length >= 2) { finished = true; render(); } });
+            document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && measuring) clearAll(); });
+            // Expose for automated verification.
+            window.__mapsplatMeasure = { setMode, addPoint: (lng, lat) => { if (finished) { pts = []; finished = false; } pts.push([lng, lat]); render(); },
+                finish: () => { if (pts.length >= 2) { finished = true; render(); } }, readEl: () => readout,
+                length: () => pathLength(pts, finished && pts.length >= 3), area: () => (finished && pts.length >= 3 ? ringArea(pts) : 0) };
+        })();"""
+        if _measure_on else ""
+    )
+
     # Advanced legend toggle (Python → JS literal)
     _advanced_legend = 'true' if settings.get('advanced_legend') else 'false'
 
@@ -417,7 +532,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             <h4>Layers</h4>
             <div id="layer-toggles"></div>
         </div>
-    </div>{coords_html}{zoom_html}{reset_view_html}{north_reset_html}
+    </div>{coords_html}{zoom_html}{reset_view_html}{north_reset_html}{measure_html}
     </div>
     <script>
         // Register PMTiles protocol
@@ -777,7 +892,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         }});
         map.on('mouseleave', () => {{
             map.getCanvas().style.cursor = '';
-        }});{coords_js}{zoom_js}{reset_view_js}{north_reset_js}{_init_close}
+        }});{coords_js}{zoom_js}{reset_view_js}{north_reset_js}{measure_js}{_init_close}
     </script>
     <!-- <----- END MAPSPLAT <body> section ----- -->
 </body>

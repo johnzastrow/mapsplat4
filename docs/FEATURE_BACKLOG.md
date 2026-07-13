@@ -27,8 +27,8 @@ Unordered list of desired usability improvements. Prioritization and implementat
       (one representative dash, since `line-dasharray` isn't data-driven in MapLibre).
 
 ### Optional viewer tools *(toggle in the Viewer tab; add to the generated viewer JS)*
-- [ ] **Measure tool** — measure area and length on the map (draw a temp line/polygon, show metric +
-      imperial). Consider a small MapLibre draw/measure control.
+- [x] **Measure tool** (v0.28.0) — ruler button; click for geodesic length, double-click to close a
+      polygon for area; metric + imperial. Offline vanilla JS.
 - [ ] **Draw / sketch tool** — draw points, lines, polygons on the map; optionally **export to
       GeoJSON or KML**. (MapLibre GL Draw or a lightweight equivalent, bundled offline.)
 - [ ] **Print / export** — print the current map or export to **JPG or PDF** (canvas capture +

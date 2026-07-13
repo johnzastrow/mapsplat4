@@ -695,6 +695,14 @@ class MapSplatDockWidget(QDockWidget):
         )
         viewer_group_layout.addWidget(self.chk_advanced_legend)
 
+        self.chk_viewer_measure = QCheckBox("Measure tool (distance & area)")
+        self.chk_viewer_measure.setChecked(False)
+        self.chk_viewer_measure.setToolTip(
+            "Adds a ruler button to the map. Click to add points and measure distance;\n"
+            "double-click to close a shape and measure area. Shows metric and imperial units."
+        )
+        viewer_group_layout.addWidget(self.chk_viewer_measure)
+
         # Attribution text
         attribution_row = QHBoxLayout()
         attribution_row.addWidget(QLabel("Attribution:"))
@@ -859,6 +867,7 @@ class MapSplatDockWidget(QDockWidget):
             self.chk_viewer_fullscreen, self.chk_viewer_coords,
             self.chk_viewer_zoom_display, self.chk_viewer_reset_view,
             self.chk_viewer_north_reset, self.chk_advanced_legend,
+            self.chk_viewer_measure,
         ):
             w.toggled.connect(self._save_settings)
         self.combo_export_mode.currentIndexChanged.connect(self._save_settings)
@@ -1212,6 +1221,7 @@ class MapSplatDockWidget(QDockWidget):
         s.setValue("viewer_zoom_display", self.chk_viewer_zoom_display.isChecked())
         s.setValue("viewer_reset_view", self.chk_viewer_reset_view.isChecked())
         s.setValue("viewer_north_reset", self.chk_viewer_north_reset.isChecked())
+        s.setValue("viewer_measure", self.chk_viewer_measure.isChecked())
         s.setValue("viewer_attribution", self.txt_viewer_attribution.text())
         s.setValue("viewer_background_color", self.txt_viewer_background.text())
         s.setValue("basemap_enabled", self.basemap_group.isChecked())
@@ -1255,6 +1265,7 @@ class MapSplatDockWidget(QDockWidget):
                 ("viewer_zoom_display", self.chk_viewer_zoom_display),
                 ("viewer_reset_view", self.chk_viewer_reset_view),
                 ("viewer_north_reset", self.chk_viewer_north_reset),
+                ("viewer_measure", self.chk_viewer_measure),
             ]
             for key, widget in bool_widgets:
                 val = s.value(key, None)
@@ -1642,6 +1653,7 @@ class MapSplatDockWidget(QDockWidget):
             "viewer_zoom_display": self.chk_viewer_zoom_display.isChecked(),
             "viewer_reset_view": self.chk_viewer_reset_view.isChecked(),
             "viewer_north_reset": self.chk_viewer_north_reset.isChecked(),
+            "viewer_measure": self.chk_viewer_measure.isChecked(),
             "bundle_offline": self.chk_bundle_offline.isChecked(),
             "label_placement_mode": (
                 "exact" if self.combo_label_placement.currentIndex() == 0 else "auto"
@@ -1803,6 +1815,7 @@ class MapSplatDockWidget(QDockWidget):
                 "zoom_display": self.chk_viewer_zoom_display.isChecked(),
                 "reset_view": self.chk_viewer_reset_view.isChecked(),
                 "north_reset": self.chk_viewer_north_reset.isChecked(),
+                "measure": self.chk_viewer_measure.isChecked(),
                 "label_placement_mode": (
                     "exact" if self.combo_label_placement.currentIndex() == 0 else "auto"
                 ),
@@ -1974,6 +1987,7 @@ class MapSplatDockWidget(QDockWidget):
             "zoom_display": self.chk_viewer_zoom_display,
             "reset_view": self.chk_viewer_reset_view,
             "north_reset": self.chk_viewer_north_reset,
+            "measure": self.chk_viewer_measure,
         }
         for key, widget in viewer_map.items():
             if key in viewer:
