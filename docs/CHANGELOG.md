@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — vertical legend layout (0.27.2)
+- Per-class legend entries (marker icons / class swatches) now wrap onto their own full-width line
+  **below** the layer row instead of being laid out to the right of it (`display:flex` was putting
+  them in the same row, stretching the legend wide). The legend panel is capped at 280px and scrolls
+  vertically when tall.
+
 ### Fixed — marker legend classes always show (0.27.1)
 - Per-class marker icons now render in the legend even when the **advanced legend** option is off.
   A categorized marker layer's per-class icons are essential to reading the layer, so they're no

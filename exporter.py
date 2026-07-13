@@ -307,6 +307,10 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             font-size: 14px;
             z-index: 1;
             max-width: 280px;
+            max-height: calc(100% - 20px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-sizing: border-box;
         }}
         .info-panel-header {{
             display: flex;
@@ -333,9 +337,17 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         }}
         .layer-item {{
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             margin: 4px 0;
             cursor: pointer;
+        }}
+        /* Per-class entries wrap to their own full-width line UNDER the layer row,
+           so the legend stays vertical instead of growing wide. */
+        .layer-item > .legend-entries,
+        .layer-item > details.legend-entries-collapse {{
+            flex-basis: 100%;
+            width: 100%;
         }}
         .layer-item input {{
             margin-right: 6px;
@@ -362,6 +374,8 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         .layer-item label {{
             cursor: pointer;
             font-size: 12px;
+            flex: 1;
+            min-width: 0;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;

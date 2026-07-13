@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.27.1
+version=0.27.2
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,9 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.27.2 - Vertical legend layout
+    - Per-class legend entries now stack vertically BELOW their layer row instead of floating to the
+      right (which stretched the legend wide). The legend panel is width-capped and scrolls vertically.
     0.27.1 - Marker legend classes always show
     - Per-class marker icons now appear in the legend even when the 'advanced legend' option is off
       (a marker layer's classes are essential to reading it). The advanced-legend toggle still gates
