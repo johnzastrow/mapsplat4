@@ -29,8 +29,8 @@ Unordered list of desired usability improvements. Prioritization and implementat
 ### Optional viewer tools *(toggle in the Viewer tab; add to the generated viewer JS)*
 - [x] **Measure tool** (v0.28.0) — ruler button; click for geodesic length, double-click to close a
       polygon for area; metric + imperial. Offline vanilla JS.
-- [ ] **Draw / sketch tool** — draw points, lines, polygons on the map; optionally **export to
-      GeoJSON or KML**. (MapLibre GL Draw or a lightweight equivalent, bundled offline.)
+- [x] **Draw / sketch tool** (v0.29.0) — draw points/lines/polygons; export to GeoJSON or KML
+      (client-side download). Offline vanilla JS; mutually exclusive with the measure tool.
 - [ ] **Print / export** — print the current map or export to **JPG or PDF** (canvas capture +
       `preserveDrawingBuffer`; PDF via a bundled lib or print stylesheet).
 

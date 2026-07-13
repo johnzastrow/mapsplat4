@@ -299,9 +299,10 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 btn.style.color = on ? '#fff' : '#000';
                 readout.style.display = on ? 'block' : 'none';
                 map.getCanvas().style.cursor = on ? 'crosshair' : '';
-                if (on) { map.doubleClickZoom.disable(); ensureLayers(); updateReadout(); }
+                if (on) { if (window.__mapsplatTools) window.__mapsplatTools.activate('measure'); map.doubleClickZoom.disable(); ensureLayers(); updateReadout(); }
                 else { map.doubleClickZoom.enable(); clearAll(); }
             }
+            if (window.__mapsplatTools) window.__mapsplatTools.deactivators.measure = () => setMode(false);
             btn.addEventListener('click', () => setMode(!measuring));
             map.on('click', (e) => { if (!measuring) return; if (finished) { pts = []; finished = false; } pts.push([e.lngLat.lng, e.lngLat.lat]); render(); });
             map.on('dblclick', (e) => { if (!measuring) return; e.preventDefault(); if (pts.length >= 2) { finished = true; render(); } });
@@ -312,6 +313,161 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 length: () => pathLength(pts, finished && pts.length >= 3), area: () => (finished && pts.length >= 3 ? ringArea(pts) : 0) };
         })();"""
         if _measure_on else ""
+    )
+
+    # ---------- Draw / sketch tool (points, lines, polygons → GeoJSON/KML) ----------
+    _draw_on = settings.get('viewer_draw', False)
+    _draw_top = _tools_top + 37  # directly below the measure button slot
+    # Tools coordinator — emitted once when either interactive tool is on so they stay mutually
+    # exclusive (activating one deactivates the others).
+    tools_common_js = (
+        "\n        window.__mapsplatTools = window.__mapsplatTools || { deactivators: {},"
+        " activate(name) { for (const k in this.deactivators) if (k !== name)"
+        " try { this.deactivators[k](); } catch (e) {} } };"
+        if (_measure_on or _draw_on) else ""
+    )
+    draw_html = (
+        (f'\n    <button id="draw-btn"'
+         f' style="position:absolute;top:{_draw_top}px;right:10px;z-index:1;'
+         'background:white;border:1px solid #ccc;border-radius:4px;'
+         'padding:4px 8px;cursor:pointer;font-size:13px;line-height:1;"'
+         ' title="Draw &amp; export">&#9998;</button>'
+         f'\n    <div id="draw-panel"'
+         f' style="position:absolute;top:{_tools_top}px;right:50px;z-index:2;display:none;'
+         'background:rgba(255,255,255,0.95);border:1px solid #ccc;border-radius:4px;'
+         'padding:6px;font-family:sans-serif;font-size:12px;width:132px;'
+         'box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>')
+        if _draw_on else ""
+    )
+    draw_js = ("""
+        // ----- Draw / sketch tool -----
+        (function () {
+            const btn = document.getElementById('draw-btn');
+            const panel = document.getElementById('draw-panel');
+            const SRC = 'mapsplat-draw';
+            const COLOR = '#1d6fe0';
+            let active = false, mode = 'point';
+            let features = [];   // committed GeoJSON features
+            let pending = [];     // in-progress vertices [lng,lat]
+
+            const fc = (fs) => ({ type: 'FeatureCollection', features: fs });
+            function ensureLayers() {
+                if (map.getSource(SRC)) return;
+                map.addSource(SRC, { type: 'geojson', data: fc([]) });
+                map.addLayer({ id: SRC + '-fill', type: 'fill', source: SRC,
+                    filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': COLOR, 'fill-opacity': 0.15 } });
+                map.addLayer({ id: SRC + '-line', type: 'line', source: SRC,
+                    filter: ['==', '$type', 'LineString'], paint: { 'line-color': COLOR, 'line-width': 2.5 } });
+                map.addLayer({ id: SRC + '-pts', type: 'circle', source: SRC,
+                    filter: ['==', '$type', 'Point'], paint: { 'circle-radius': 5, 'circle-color': COLOR,
+                        'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+            }
+            function render() {
+                ensureLayers();
+                const shown = features.slice();
+                if (pending.length === 1 && mode !== 'point')
+                    shown.push({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: pending[0] } });
+                else if (pending.length >= 2 && (mode === 'line' || mode === 'polygon'))
+                    shown.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pending } });
+                map.getSource(SRC).setData(fc(shown));
+            }
+            function commitPending() {
+                if (mode === 'line' && pending.length >= 2)
+                    features.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pending.slice() } });
+                else if (mode === 'polygon' && pending.length >= 3)
+                    features.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [pending.concat([pending[0]])] } });
+                pending = [];
+                render();
+            }
+            function addVertex(lng, lat) {
+                if (mode === 'point') { features.push({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lng, lat] } }); render(); }
+                else { pending.push([lng, lat]); render(); }
+            }
+            function undo() {
+                if (pending.length) pending.pop();
+                else if (features.length) features.pop();
+                render();
+            }
+            function clearAll() { features = []; pending = []; if (map.getSource(SRC)) map.getSource(SRC).setData(fc([])); }
+
+            function toGeoJSON() { return JSON.stringify(fc(features), null, 2); }
+            function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+            function coordStr(cs) { return cs.map(c => c[0] + ',' + c[1] + ',0').join(' '); }
+            function toKML() {
+                let out = '<?xml version="1.0" encoding="UTF-8"?>\\n<kml xmlns="http://www.opengis.net/kml/2.2">\\n<Document>\\n';
+                out += '<name>MapSplat drawing</name>\\n';
+                features.forEach((f, i) => {
+                    const g = f.geometry;
+                    out += '<Placemark><name>' + esc(g.type + ' ' + (i + 1)) + '</name>';
+                    if (g.type === 'Point') out += '<Point><coordinates>' + g.coordinates[0] + ',' + g.coordinates[1] + ',0</coordinates></Point>';
+                    else if (g.type === 'LineString') out += '<LineString><coordinates>' + coordStr(g.coordinates) + '</coordinates></LineString>';
+                    else if (g.type === 'Polygon') out += '<Polygon><outerBoundaryIs><LinearRing><coordinates>' + coordStr(g.coordinates[0]) + '</coordinates></LinearRing></outerBoundaryIs></Polygon>';
+                    out += '</Placemark>\\n';
+                });
+                out += '</Document>\\n</kml>\\n';
+                return out;
+            }
+            function download(text, filename, mime) {
+                const blob = new Blob([text], { type: mime });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+                document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }
+
+            function mkBtn(label, title) {
+                const b = document.createElement('button');
+                b.textContent = label; if (title) b.title = title;
+                b.style.cssText = 'display:inline-block;margin:2px;padding:3px 6px;border:1px solid #ccc;border-radius:3px;background:#fff;cursor:pointer;font-size:12px;';
+                return b;
+            }
+            function refreshModeButtons() {
+                ['point', 'line', 'polygon'].forEach(m => {
+                    const b = panel.querySelector('[data-mode="' + m + '"]');
+                    if (b) { b.style.background = (m === mode) ? COLOR : '#fff'; b.style.color = (m === mode) ? '#fff' : '#000'; }
+                });
+            }
+            function buildPanel() {
+                if (panel.dataset.built) return;
+                panel.dataset.built = '1';
+                const row1 = document.createElement('div');
+                [['point', 'Point'], ['line', 'Line'], ['polygon', 'Poly']].forEach(([m, lbl]) => {
+                    const b = mkBtn(lbl, m + ' mode'); b.dataset.mode = m;
+                    b.onclick = () => { mode = m; pending = []; render(); refreshModeButtons(); };
+                    row1.appendChild(b);
+                });
+                const row2 = document.createElement('div');
+                const finishB = mkBtn('Finish', 'Finish current line/polygon'); finishB.onclick = commitPending;
+                const undoB = mkBtn('Undo', 'Remove last vertex/feature'); undoB.onclick = undo;
+                const clearB = mkBtn('Clear', 'Remove all'); clearB.onclick = clearAll;
+                row2.append(finishB, undoB, clearB);
+                const row3 = document.createElement('div');
+                row3.style.marginTop = '3px';
+                const gj = mkBtn('\\u2b07 GeoJSON'); gj.onclick = () => download(toGeoJSON(), 'mapsplat-drawing.geojson', 'application/geo+json');
+                const kml = mkBtn('\\u2b07 KML'); kml.onclick = () => download(toKML(), 'mapsplat-drawing.kml', 'application/vnd.google-earth.kml+xml');
+                row3.append(gj, kml);
+                panel.append(row1, row2, row3);
+                refreshModeButtons();
+            }
+            function setActive(on) {
+                active = on;
+                btn.style.background = on ? COLOR : 'white';
+                btn.style.color = on ? '#fff' : '#000';
+                panel.style.display = on ? 'block' : 'none';
+                map.getCanvas().style.cursor = on ? 'crosshair' : '';
+                if (on) { if (window.__mapsplatTools) window.__mapsplatTools.activate('draw'); map.doubleClickZoom.disable(); ensureLayers(); buildPanel(); }
+                else { map.doubleClickZoom.enable(); pending = []; render(); }
+            }
+            if (window.__mapsplatTools) window.__mapsplatTools.deactivators.draw = () => setActive(false);
+            btn.addEventListener('click', () => setActive(!active));
+            map.on('click', (e) => { if (active) addVertex(e.lngLat.lng, e.lngLat.lat); });
+            map.on('dblclick', (e) => { if (active && mode !== 'point') { e.preventDefault(); commitPending(); } });
+            document.addEventListener('keydown', (ev) => { if (!active) return; if (ev.key === 'Escape') { pending = []; render(); } else if (ev.key === 'Enter') commitPending(); });
+            // Expose for automated verification.
+            window.__mapsplatDraw = { setActive, setMode: (m) => { mode = m; pending = []; }, addPoint: addVertex,
+                finish: commitPending, count: () => features.length, toGeoJSON, toKML };
+        })();"""
+        if _draw_on else ""
     )
 
     # Advanced legend toggle (Python → JS literal)
@@ -532,7 +688,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             <h4>Layers</h4>
             <div id="layer-toggles"></div>
         </div>
-    </div>{coords_html}{zoom_html}{reset_view_html}{north_reset_html}{measure_html}
+    </div>{coords_html}{zoom_html}{reset_view_html}{north_reset_html}{measure_html}{draw_html}
     </div>
     <script>
         // Register PMTiles protocol
@@ -892,7 +1048,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         }});
         map.on('mouseleave', () => {{
             map.getCanvas().style.cursor = '';
-        }});{coords_js}{zoom_js}{reset_view_js}{north_reset_js}{measure_js}{_init_close}
+        }});{coords_js}{zoom_js}{reset_view_js}{north_reset_js}{tools_common_js}{measure_js}{draw_js}{_init_close}
     </script>
     <!-- <----- END MAPSPLAT <body> section ----- -->
 </body>

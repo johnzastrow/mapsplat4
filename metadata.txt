@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.28.0
+version=0.29.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,11 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.29.0 - Draw/sketch tool with GeoJSON/KML export (optional)
+    - New optional viewer tool: a pencil button to draw points, lines, and polygons on the map and
+      export them as GeoJSON or KML (client-side download; nothing is uploaded). Point/Line/Polygon
+      modes, Finish/Undo/Clear. Enable via the Viewer tab "Draw/sketch tool" checkbox (off by
+      default). Measure and Draw are mutually exclusive (activating one deactivates the other).
     0.28.0 - Measure tool (optional)
     - New optional viewer tool: a ruler button to measure distance and area on the map. Click to add
       points (live geodesic length), double-click to close a polygon (area). Shows metric + imperial

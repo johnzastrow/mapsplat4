@@ -703,6 +703,14 @@ class MapSplatDockWidget(QDockWidget):
         )
         viewer_group_layout.addWidget(self.chk_viewer_measure)
 
+        self.chk_viewer_draw = QCheckBox("Draw/sketch tool (export GeoJSON/KML)")
+        self.chk_viewer_draw.setChecked(False)
+        self.chk_viewer_draw.setToolTip(
+            "Adds a pencil button to the map. Draw points, lines, and polygons, then export\n"
+            "them as GeoJSON or KML. Drawings stay in the viewer's browser (nothing is uploaded)."
+        )
+        viewer_group_layout.addWidget(self.chk_viewer_draw)
+
         # Attribution text
         attribution_row = QHBoxLayout()
         attribution_row.addWidget(QLabel("Attribution:"))
@@ -867,7 +875,7 @@ class MapSplatDockWidget(QDockWidget):
             self.chk_viewer_fullscreen, self.chk_viewer_coords,
             self.chk_viewer_zoom_display, self.chk_viewer_reset_view,
             self.chk_viewer_north_reset, self.chk_advanced_legend,
-            self.chk_viewer_measure,
+            self.chk_viewer_measure, self.chk_viewer_draw,
         ):
             w.toggled.connect(self._save_settings)
         self.combo_export_mode.currentIndexChanged.connect(self._save_settings)
@@ -1222,6 +1230,7 @@ class MapSplatDockWidget(QDockWidget):
         s.setValue("viewer_reset_view", self.chk_viewer_reset_view.isChecked())
         s.setValue("viewer_north_reset", self.chk_viewer_north_reset.isChecked())
         s.setValue("viewer_measure", self.chk_viewer_measure.isChecked())
+        s.setValue("viewer_draw", self.chk_viewer_draw.isChecked())
         s.setValue("viewer_attribution", self.txt_viewer_attribution.text())
         s.setValue("viewer_background_color", self.txt_viewer_background.text())
         s.setValue("basemap_enabled", self.basemap_group.isChecked())
@@ -1266,6 +1275,7 @@ class MapSplatDockWidget(QDockWidget):
                 ("viewer_reset_view", self.chk_viewer_reset_view),
                 ("viewer_north_reset", self.chk_viewer_north_reset),
                 ("viewer_measure", self.chk_viewer_measure),
+                ("viewer_draw", self.chk_viewer_draw),
             ]
             for key, widget in bool_widgets:
                 val = s.value(key, None)
@@ -1654,6 +1664,7 @@ class MapSplatDockWidget(QDockWidget):
             "viewer_reset_view": self.chk_viewer_reset_view.isChecked(),
             "viewer_north_reset": self.chk_viewer_north_reset.isChecked(),
             "viewer_measure": self.chk_viewer_measure.isChecked(),
+            "viewer_draw": self.chk_viewer_draw.isChecked(),
             "bundle_offline": self.chk_bundle_offline.isChecked(),
             "label_placement_mode": (
                 "exact" if self.combo_label_placement.currentIndex() == 0 else "auto"
@@ -1816,6 +1827,7 @@ class MapSplatDockWidget(QDockWidget):
                 "reset_view": self.chk_viewer_reset_view.isChecked(),
                 "north_reset": self.chk_viewer_north_reset.isChecked(),
                 "measure": self.chk_viewer_measure.isChecked(),
+                "draw": self.chk_viewer_draw.isChecked(),
                 "label_placement_mode": (
                     "exact" if self.combo_label_placement.currentIndex() == 0 else "auto"
                 ),
@@ -1988,6 +2000,7 @@ class MapSplatDockWidget(QDockWidget):
             "reset_view": self.chk_viewer_reset_view,
             "north_reset": self.chk_viewer_north_reset,
             "measure": self.chk_viewer_measure,
+            "draw": self.chk_viewer_draw,
         }
         for key, widget in viewer_map.items():
             if key in viewer:

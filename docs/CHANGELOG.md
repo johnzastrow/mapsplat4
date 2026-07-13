@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — draw/sketch tool with GeoJSON/KML export (0.29.0)
+- **Optional on-map draw tool.** A pencil button (Viewer tab → *Draw/sketch tool*, off by default)
+  lets viewers draw **points, lines, and polygons** (Point/Line/Polygon modes, Finish/Undo/Clear)
+  and export the result as **GeoJSON or KML** via a client-side download — nothing is uploaded.
+  Self-contained offline JS. A small tools coordinator keeps Measure and Draw **mutually exclusive**.
+  Verified headless: drew all three geometry types, produced a valid GeoJSON FeatureCollection
+  (closed polygon ring) and spec-correct KML, and confirmed activating one tool deactivates the other.
+
 ### Added — measure tool (0.28.0)
 - **Optional on-map measure tool.** A ruler button (Viewer tab → *Measure tool*, off by default)
   lets viewers click to add points and read a live **geodesic distance**; double-click closes a
