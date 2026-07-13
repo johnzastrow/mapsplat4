@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.25.0
+version=0.26.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,13 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.26.0 - Dual basemap+business sprites, serve.py startup banner
+    - Basemap + business icons now coexist: when the basemap ships its own sprite, MapSplat
+      combines both via a MapLibre sprite ARRAY (business icons namespaced 'mapsplat:'), so
+      basemap shields/POIs AND your SVG markers render (was: business sprite replaced the basemap's).
+    - serve.py prints a startup banner: the folder it's serving, project name, MapSplat version,
+      layer/data-source summary, and a big warning if the folder is in the Trash (stale export).
+    - The export style now records mapsplat:version / mapsplat:project in metadata.
     0.25.0 - Categorized SVG markers + MapLibre 5 sprite fix
     - Categorized point layers with SVG markers now render each class's real marker (via a
       per-class sprite icon + data-driven icon-image), instead of falling back to plain circles.

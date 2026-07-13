@@ -78,9 +78,15 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
     # rewritten to absolute before the map is created (MapLibre GL JS 5.x REJECTS a relative
     # sprite URL like "./sprites" — it must be absolute).
     _sprite_fixup = (
-        "\n        if (mapStyle.sprite && !/^https?:\\/\\//.test(mapStyle.sprite)) {"
-        "\n            mapStyle.sprite = new URL(mapStyle.sprite, window.location.href).href;"
-        "\n        }"
+        "\n        (function(){"
+        "\n            var abs = function(u){ return /^https?:\\/\\//.test(u) ? u"
+        "                : new URL(u, window.location.href).href; };"
+        "\n            if (Array.isArray(mapStyle.sprite)) {"
+        "\n                mapStyle.sprite.forEach(function(s){ if (s && s.url) s.url = abs(s.url); });"
+        "\n            } else if (mapStyle.sprite) {"
+        "\n                mapStyle.sprite = abs(mapStyle.sprite);"
+        "\n            }"
+        "\n        })();"
     )
     if use_external_style:
         # Fetch style.json at runtime and pass as inline object.
@@ -868,6 +874,11 @@ class MapSplatExporter(QObject):
         # reference can't make MapLibre reject the entire style ("source not found").
         style_json = self._prune_orphan_layers(style_json)
 
+        # Stamp the build so serve.py and the viewer can report which export this is.
+        _meta = style_json.setdefault("metadata", {})
+        _meta["mapsplat:version"] = self._plugin_version()
+        _meta["mapsplat:project"] = self.settings.get("project_name", "")
+
         # Report the final style so the Log tab shows exactly what was written.
         _biz = sorted({ly["source"] for ly in style_json.get("layers", [])
                        if ly.get("source") and ly["source"] != "protomaps"})
@@ -1303,6 +1314,18 @@ class MapSplatExporter(QObject):
 
         return True
 
+    def _plugin_version(self):
+        """Read the plugin version from metadata.txt (best-effort)."""
+        try:
+            meta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metadata.txt")
+            with open(meta, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("version="):
+                        return line.split("=", 1)[1].strip()
+        except Exception:
+            pass
+        return "unknown"
+
     def _prune_orphan_layers(self, style_json):
         """Remove style layers that reference a source not present in `sources`.
 
@@ -1381,29 +1404,55 @@ class MapSplatExporter(QObject):
         biz_patterns = business_style_json.get("metadata", {}).get("mapsplat:patterns")
         if biz_patterns:
             basemap.setdefault("metadata", {})["mapsplat:patterns"] = biz_patterns
-        # Preserve our sprite icon names so the viewer won't clobber them.
-        biz_icons = business_style_json.get("metadata", {}).get("mapsplat:sprite-icons")
-        if biz_icons:
-            basemap.setdefault("metadata", {})["mapsplat:sprite-icons"] = biz_icons
 
         self.log_message.emit(
             f"  Merged {len(overlay_layers)} business layer(s) into basemap style", "info"
         )
 
-        # Handle sprites — always use the local business sprite directly.
-        # Multi-sprite arrays with remote basemap URLs are unreliable when the remote
-        # sprite is slow or unreachable; the local sprite is guaranteed to be present.
-        # Basemap icon-image layers (shields, arrows, POIs) will silently render no icon,
-        # but all fill/line/water/label layers continue to render normally.
+        # Handle sprites. If the basemap already ships a sprite (shields/POI/arrow icons) AND we
+        # have a business sprite, combine them via a MapLibre **sprite array** so both render: the
+        # basemap keeps its icons under the default namespace, and our icons live in the "mapsplat"
+        # namespace (icon-image references and the sprite-icons metadata are prefixed to match).
+        # If the basemap has no sprite, just use ours directly.
         business_sprite = business_style_json.get("sprite")
+        biz_icons = business_style_json.get("metadata", {}).get("mapsplat:sprite-icons", [])
+        basemap_sprite = basemap.get("sprite")
 
-        if business_sprite:
-            basemap["sprite"] = business_sprite
+        if business_sprite and basemap_sprite:
+            default_entries = (basemap_sprite if isinstance(basemap_sprite, list)
+                               else [{"id": "default", "url": basemap_sprite}])
+            basemap["sprite"] = default_entries + [{"id": "mapsplat", "url": business_sprite}]
+            names = set(biz_icons)
+            for layer in overlay_layers:
+                lay = layer.get("layout", {})
+                if layer.get("type") == "symbol" and "icon-image" in lay:
+                    lay["icon-image"] = self._prefix_icon_names(lay["icon-image"], "mapsplat:", names)
+            if biz_icons:
+                basemap.setdefault("metadata", {})["mapsplat:sprite-icons"] = \
+                    ["mapsplat:" + n for n in biz_icons]
             self.log_message.emit(
-                "  Using local business sprite for icons", "info"
+                "  Combined basemap + business sprites (business icons namespaced 'mapsplat:')",
+                "info",
             )
+        elif business_sprite:
+            basemap["sprite"] = business_sprite
+            if biz_icons:
+                basemap.setdefault("metadata", {})["mapsplat:sprite-icons"] = biz_icons
+            self.log_message.emit("  Using local business sprite for icons", "info")
 
         return basemap
+
+    def _prefix_icon_names(self, icon_image, prefix, names):
+        """Recursively prefix known icon names in an ``icon-image`` value (string or expression).
+
+        Only strings that are known business sprite icon names get the prefix, so category
+        *labels* inside a match expression are left untouched.
+        """
+        if isinstance(icon_image, str):
+            return prefix + icon_image if icon_image in names else icon_image
+        if isinstance(icon_image, list):
+            return [self._prefix_icon_names(e, prefix, names) for e in icon_image]
+        return icon_image
 
     def _generate_html_viewer(self, output_dir, style_json, layers, bundle_offline=False):
         """Generate the HTML viewer file.
@@ -1642,6 +1691,7 @@ Press Ctrl+C to stop the server (or close this window).
 
 import argparse
 import http.server
+import json
 import os
 import signal
 import socketserver
@@ -1823,7 +1873,32 @@ if __name__ == "__main__":
         print(f"No free port found in {args.port}-{args.port + 19}. Use --port <N> to pick one.")
         sys.exit(1)
 
-    print(f"Starting server at http://localhost:{PORT}")
+    # Startup banner: announce exactly WHAT is being served, so a stale/wrong folder
+    # (a common gotcha — e.g. a leftover server from a deleted export) is obvious.
+    _dir = os.getcwd()  # serve.py chdir'd to its own folder above → this is the serving root
+    print("=" * 64)
+    print("MapSplat local server")
+    print(f"  serve.py: {os.path.abspath(__file__)}")
+    print(f"  Serving : {_dir}")
+    if "Trash" in _dir or ".local/share/Trash" in _dir or "/.Trash" in _dir:
+        print("  !! WARNING: this folder is in the TRASH — you are probably serving a")
+        print("     DELETED export. cd to your real export folder and restart.")
+    try:
+        with open(os.path.join(_dir, "style.json"), "r", encoding="utf-8") as _f:
+            _style = json.load(_f)
+        _meta = _style.get("metadata", {}) or {}
+        _srcs = sorted({L.get("source") for L in _style.get("layers", [])
+                        if L.get("source") and L.get("source") != "protomaps"})
+        print(f"  Project: {_meta.get('mapsplat:project') or _style.get('name') or '?'}"
+              f"  (MapSplat {_meta.get('mapsplat:version', '?')})")
+        print(f"  Layers : {len(_style.get('layers', []))} total; "
+              f"{len(_srcs)} data source(s): {', '.join(_srcs) if _srcs else '(none)'}")
+    except FileNotFoundError:
+        print("  !! No style.json here — is this a MapSplat export folder?")
+    except Exception as _e:
+        print(f"  (could not read style.json: {_e})")
+    print(f"  URL    : http://localhost:{PORT}")
+    print("=" * 64)
     if HOST != "127.0.0.1":
         print(f"  (listening on {HOST}:{PORT})")
     print("Press Ctrl+C to stop (or close this window)\\n")

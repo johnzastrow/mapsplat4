@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — dual basemap+business sprites & serve.py banner (0.26.0)
+- **Basemap icons and business marker icons now coexist.** When the basemap ships its own sprite
+  (shields, POIs), MapSplat combines it with the business sprite via a MapLibre **sprite array**:
+  the basemap keeps its icons under the `default` namespace and our icons live under `mapsplat:`
+  (icon-image references and the sprite-icons metadata are prefixed to match). Previously the
+  business sprite *replaced* the basemap's, dropping basemap icons. If the basemap has no sprite,
+  ours is used directly as before. (Note: a MapLibre sprite array fails as a whole if one sprite URL
+  is unreachable — normally fine, but a very flaky remote basemap sprite could stall business icons.)
+- **`serve.py` prints a startup banner** — the serve.py path, the folder it's serving, the project
+  name, the **MapSplat version** that built the export, a layer/data-source summary, and a loud
+  **warning when the folder is in the Trash** (the classic "stale zombie server" gotcha). The export
+  style now records `mapsplat:version` / `mapsplat:project` in `metadata` for this.
+
 ### Added / Fixed — categorized SVG markers + MapLibre-5 sprite URL (0.25.0)
 - **Categorized point layers with SVG markers now render their real markers.** A categorized
   marker renderer used to collapse to plain circles; MapSplat now renders **one sprite icon per
