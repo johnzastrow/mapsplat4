@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.30.0
+version=0.30.1
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,11 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.30.1 - Export tool now captures drawings + scale bar
+    - JPG/PDF export composites the map onto a 2D canvas and captures it synchronously within a render
+      frame, so drawn/measured features reliably appear (previously the async capture could miss them).
+    - The exported image now also includes a scale bar (when the on-screen scale bar is enabled). The
+      legend/controls panel is still excluded (it is a separate HTML overlay).
     0.30.0 - Plugin tool framework + export tool + adjustable units/colours
     - Interactive viewer tools (measure, draw, export) are now self-registering plugin objects that
       talk to the map through a small stable interface (MapSplatTools host). They use only long-stable

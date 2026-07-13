@@ -217,6 +217,8 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
     # preserveDrawingBuffer is required to read pixels back from the WebGL canvas (export tool),
     # but has a rendering cost — only enable it when the export tool is on.
     _preserve_buffer = 'true' if _export_on else 'false'
+    # Paint a scale bar into exported images when the on-screen scale bar is enabled (WYSIWYG).
+    _export_scalebar = 'true' if settings.get('viewer_scale_bar', True) else 'false'
     _tools_top = _tr_top + 74  # first tool button sits below the native control stack
 
     _framework_js = """
@@ -370,16 +372,46 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             window.__mapsplatDraw = { setActive, setMode: (m) => { mode = m; pending = []; }, setColor: (c) => { color = c; }, addPoint: addVertex, finish: commitPending, count: () => features.length, toGeoJSON, toKML };
         }});""".replace('__COLOR__', _draw_color)) if _draw_on else ""
 
-    _export_reg = """
+    _export_reg = ("""
         // ----- Print / export plugin -----
         MapSplatTools.register({ id: 'export', setup(map, ctx) {
+            const SCALEBAR = __SCALEBAR__;
             const btn = ctx.addButton({ icon: '&#128247;', title: 'Export map image (JPG / PDF)', onClick: () => { panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none'; } });
             const panel = ctx.makePanel(btn, 'white-space:nowrap;');
             const jpgB = ctx.mkBtn('JPG'); const pdfB = ctx.mkBtn('PDF');
-            const note = document.createElement('div'); note.textContent = 'map image only'; note.style.cssText = 'opacity:.6;font-size:11px;margin-top:2px;';
+            const note = document.createElement('div'); note.textContent = 'map + drawings' + (SCALEBAR ? ' + scale bar' : ''); note.style.cssText = 'opacity:.6;font-size:11px;margin-top:2px;';
             panel.append(jpgB, pdfB, note);
             function stamp() { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()); }
-            function jpegBytes(canvas) { const b64 = canvas.toDataURL('image/jpeg', 0.92).split(',')[1]; const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+            function b64ToBytes(dataUrl) { const b64 = dataUrl.split(',')[1]; const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+            // Nice round number for a scale bar (matches MapLibre's ScaleControl heuristic).
+            function roundNum(num) { const p = Math.pow(10, ('' + Math.floor(num)).length - 1); let d = num / p; d = d >= 10 ? 10 : d >= 5 ? 5 : d >= 3 ? 3 : d >= 2 ? 2 : 1; return p * d; }
+            function drawScaleBar(g, W, H) {
+                if (!SCALEBAR) return;
+                try {
+                    const dpr = (map.getCanvas().width / map.getContainer().clientWidth) || 1;
+                    const maxCss = 100, yy = map.getContainer().clientHeight - 1;
+                    const a = map.unproject([0, yy]), b = map.unproject([maxCss, yy]);
+                    const maxM = a.distanceTo(b); if (!isFinite(maxM) || maxM <= 0) return;
+                    const dist = roundNum(maxM), barW = maxCss * (dist / maxM) * dpr;
+                    const label = dist >= 1000 ? (dist / 1000) + ' km' : dist + ' m';
+                    const x0 = 10 * dpr, baseY = H - 12 * dpr;
+                    g.save();
+                    g.font = Math.round(11 * dpr) + 'px sans-serif'; g.textBaseline = 'bottom';
+                    const tw = g.measureText(label).width;
+                    g.fillStyle = 'rgba(255,255,255,0.75)';
+                    g.fillRect(x0 - 3 * dpr, baseY - 17 * dpr, Math.max(barW, tw) + 8 * dpr, 29 * dpr);
+                    g.strokeStyle = '#333'; g.lineWidth = Math.max(1, 2 * dpr);
+                    g.beginPath(); g.moveTo(x0, baseY - 5 * dpr); g.lineTo(x0, baseY); g.lineTo(x0 + barW, baseY); g.lineTo(x0 + barW, baseY - 5 * dpr); g.stroke();
+                    g.fillStyle = '#333'; g.fillText(label, x0, baseY - 6 * dpr);
+                    g.restore();
+                } catch (e) { /* scale bar is best-effort */ }
+            }
+            // Composite the WebGL map canvas (which already contains the drawn/measured GL layers)
+            // onto a 2D canvas, then paint the scale bar (an HTML control, not part of the GL canvas).
+            function composite(gl) {
+                const out = document.createElement('canvas'); out.width = gl.width; out.height = gl.height;
+                const g = out.getContext('2d'); g.drawImage(gl, 0, 0); drawScaleBar(g, out.width, out.height); return out;
+            }
             function jpegToPdf(jpeg, w, h) {
                 const enc = new TextEncoder(); const parts = [], off = []; let pos = 0;
                 const put = (x) => { const b = (typeof x === 'string') ? enc.encode(x) : x; parts.push(b); pos += b.length; };
@@ -394,10 +426,14 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 put('trailer\\n<< /Size 6 /Root 1 0 R >>\\nstartxref\\n' + xref + '\\n%%EOF');
                 return new Blob(parts, { type: 'application/pdf' });
             }
-            jpgB.onclick = () => { ctx.freshCanvas((c) => c.toBlob((b) => ctx.download(b, 'mapsplat-map-' + stamp() + '.jpg'), 'image/jpeg', 0.92)); panel.style.display = 'none'; };
-            pdfB.onclick = () => { ctx.freshCanvas((c) => ctx.download(jpegToPdf(jpegBytes(c), c.width, c.height), 'mapsplat-map-' + stamp() + '.pdf')); panel.style.display = 'none'; };
-            window.__mapsplatExport = { jpegBytes: () => jpegBytes(map.getCanvas()), pdfBlob: () => { const c = map.getCanvas(); return jpegToPdf(jpegBytes(c), c.width, c.height); } };
-        }});""" if _export_on else ""
+            jpgB.onclick = () => { ctx.freshCanvas((c) => composite(c).toBlob((b) => ctx.download(b, 'mapsplat-map-' + stamp() + '.jpg'), 'image/jpeg', 0.92)); panel.style.display = 'none'; };
+            pdfB.onclick = () => { ctx.freshCanvas((c) => { const o = composite(c); const jb = b64ToBytes(o.toDataURL('image/jpeg', 0.92)); ctx.download(jpegToPdf(jb, o.width, o.height), 'mapsplat-map-' + stamp() + '.pdf'); }); panel.style.display = 'none'; };
+            window.__mapsplatExport = {
+                compositeDataUrl: () => composite(map.getCanvas()).toDataURL('image/jpeg', 0.92),
+                jpegBytes: () => b64ToBytes(composite(map.getCanvas()).toDataURL('image/jpeg', 0.92)),
+                pdfBlob: () => { const o = composite(map.getCanvas()); return jpegToPdf(b64ToBytes(o.toDataURL('image/jpeg', 0.92)), o.width, o.height); }
+            };
+        }});""".replace('__SCALEBAR__', _export_scalebar)) if _export_on else ""
 
     tools_js = (
         (_framework_js + _measure_reg + _draw_reg + _export_reg

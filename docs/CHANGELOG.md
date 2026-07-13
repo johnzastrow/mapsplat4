@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — export now includes drawings + scale bar (0.30.1)
+- **Exported JPG/PDF now reliably show drawn/measured features and a scale bar.** The export tool
+  composites the WebGL map canvas onto a 2D canvas and reads it **synchronously inside a render
+  frame** (instead of an async `toBlob`), so GL overlay layers — the draw and measure features —
+  are always captured. A **scale bar** is painted onto the image (when the on-screen scale bar is
+  on), computed with MapLibre's round-number heuristic. The legend/controls panel remains excluded
+  (it is a separate HTML overlay, not part of the map canvas). Verified headless: the export image
+  contained the drawn polygon and a bottom-left scale bar.
+
 ### Added — plugin tool framework, export tool, adjustable units/colours (0.30.0)
 - **Interactive tools are now plugins.** Measure, Draw, and Export are self-registering objects on a
   small `MapSplatTools` host with a stable ctx (addButton/makePanel/download/activateExclusive/
