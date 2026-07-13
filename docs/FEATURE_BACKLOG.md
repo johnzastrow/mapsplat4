@@ -21,10 +21,10 @@ Unordered list of desired usability improvements. Prioritization and implementat
 ## Web-map viewer tools & styling fidelity *(requested 2026-07-13)*
 
 ### Styling fidelity
-- [x] **Line-dash rendering quality** (v0.27.3) — the `wandering_cat` dashed line renders poorly in the web map
-      (dash pattern/scale off vs QGIS). Review `line-dasharray` conversion (units, normalisation to
-      line width) in `style_converter._line_symbol_layer_to_maplibre` and the categorized/graduated
-      line paths.
+- [x] **Line-dash rendering quality** — the `wandering_cat` dashed line rendered poorly in the web map
+      (dash scale off vs QGIS). Fixed `line-dasharray` normalisation to line width. Single-symbol lines
+      in **v0.27.3** (`_line_symbol_layer_to_maplibre`); categorized/graduated lines in **v0.27.4**
+      (one representative dash, since `line-dasharray` isn't data-driven in MapLibre).
 
 ### Optional viewer tools *(toggle in the Viewer tab; add to the generated viewer JS)*
 - [ ] **Measure tool** — measure area and length on the map (draw a temp line/polygon, show metric +
