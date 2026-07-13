@@ -18,6 +18,30 @@ Unordered list of desired usability improvements. Prioritization and implementat
 
 ---
 
+## Web-map viewer tools & styling fidelity *(requested 2026-07-13)*
+
+### Styling fidelity
+- [ ] **Line-dash rendering quality** — the `wandering_cat` dashed line renders poorly in the web map
+      (dash pattern/scale off vs QGIS). Review `line-dasharray` conversion (units, normalisation to
+      line width) in `style_converter._line_symbol_layer_to_maplibre` and the categorized/graduated
+      line paths.
+
+### Optional viewer tools *(toggle in the Viewer tab; add to the generated viewer JS)*
+- [ ] **Measure tool** — measure area and length on the map (draw a temp line/polygon, show metric +
+      imperial). Consider a small MapLibre draw/measure control.
+- [ ] **Draw / sketch tool** — draw points, lines, polygons on the map; optionally **export to
+      GeoJSON or KML**. (MapLibre GL Draw or a lightweight equivalent, bundled offline.)
+- [ ] **Print / export** — print the current map or export to **JPG or PDF** (canvas capture +
+      `preserveDrawingBuffer`; PDF via a bundled lib or print stylesheet).
+
+### Legend / markers follow-ups
+- [ ] **Graduated (range-based) SVG markers** → per-class icons (categorized-only today; graduated
+      falls back to circles).
+- [ ] **Dual-sprite fragility** — a MapLibre sprite array fails as a whole if one sprite URL is
+      unreachable; fall back to the business-only sprite if the basemap sprite fails to load.
+
+---
+
 ## QGIS4 Compatibility *(Complete before any other work)*
 
 ### Remove Qt5/Qt6 Compatibility Shims *(Phase 0)* ✅ *Done — v0.7.0*

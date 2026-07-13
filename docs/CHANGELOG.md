@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — marker legend classes always show (0.27.1)
+- Per-class marker icons now render in the legend even when the **advanced legend** option is off.
+  A categorized marker layer's per-class icons are essential to reading the layer, so they're no
+  longer gated behind that toggle (which still controls the colour-inferred class breakdowns for
+  fill/line layers). Fixes "categories don't appear for Points of Disinterest — just a single marker".
+
 ### Added — legend: per-class icons, QGIS groups, collapsing (0.27.0)
 - **Per-class marker icons in the legend.** A categorized point layer with SVG markers now shows each
   class's actual icon + label (embedded as data URLs in `metadata["mapsplat:legend-classes"]` on the

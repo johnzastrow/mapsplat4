@@ -642,7 +642,11 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 div.appendChild(makeLayerSwatch(layer));
                 div.appendChild(label);
 
-                if ({_advanced_legend}) {{
+                // Per-class marker icons define the layer, so always show them; the
+                // advanced-legend toggle only gates the colour-inferred class breakdowns.
+                const _hasIconClasses =
+                    (((layer.metadata || {{}})['mapsplat:legend-classes']) || []).length > 0;
+                if ({_advanced_legend} || _hasIconClasses) {{
                     const entries = buildLegendEntries(layer);
                     if (entries.length > 1) {{
                         // Collapse long class lists behind an "N classes" toggle.

@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.27.0
+version=0.27.1
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,10 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.27.1 - Marker legend classes always show
+    - Per-class marker icons now appear in the legend even when the 'advanced legend' option is off
+      (a marker layer's classes are essential to reading it). The advanced-legend toggle still gates
+      the colour-inferred per-class breakdowns for fills/lines.
     0.27.0 - Legend: per-class icons, QGIS groups, collapsing
     - The legend now shows the real per-class SVG marker icon + label for categorized marker
       layers (was: no icon / a plain circle).
