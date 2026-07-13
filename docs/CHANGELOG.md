@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — plugin tool framework, export tool, adjustable units/colours (0.30.0)
+- **Interactive tools are now plugins.** Measure, Draw, and Export are self-registering objects on a
+  small `MapSplatTools` host with a stable ctx (addButton/makePanel/download/activateExclusive/
+  freshCanvas). Each tool uses only long-stable MapLibre APIs, so **upgrading MapLibre doesn't touch
+  the tools** — swap the library and the plugins keep working. Buttons auto-stack (no per-tool pixel
+  math); the host also enforces measure/draw mutual exclusion.
+- **New Export tool** (Viewer tab → *Export tool*, off by default): save the current map image as
+  **JPG or PDF**. Self-contained — the single-image PDF is assembled in-page (JPEG embedded via a
+  `/DCTDecode` image XObject), no bundled PDF library. Enables `preserveDrawingBuffer` only when on.
+- **Adjustable at runtime by the viewer:** the measure readout has a **units toggle**
+  (metric + imperial / metric / imperial) and the draw tool has a **per-feature colour picker**
+  (colour is stored per feature and round-trips to GeoJSON/KML, incl. a KML `<Style>`). Authors can
+  set the starting defaults with `measure_units` / `draw_color`.
+- Verified headless: all three tools register and run under the host; unit switching filters the
+  readout correctly; two draw features exported with distinct colours; JPEG (valid `FF D8`) and PDF
+  (`%PDF-1.4`…`%%EOF`, `/DCTDecode`) both produced from the live canvas.
+
 ### Added — draw/sketch tool with GeoJSON/KML export (0.29.0)
 - **Optional on-map draw tool.** A pencil button (Viewer tab → *Draw/sketch tool*, off by default)
   lets viewers draw **points, lines, and polygons** (Point/Line/Polygon modes, Finish/Undo/Clear)

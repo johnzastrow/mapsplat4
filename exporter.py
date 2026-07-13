@@ -199,275 +199,210 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         if settings.get('viewer_north_reset', True) else ""
     )
 
-    # ---------- Measure tool (distance + area, metric + imperial) ----------
+    # ---------- Interactive map tools (plugin framework) ----------
+    # Tools are self-registering plugin objects that talk to the map through a small, stable
+    # surface (the MapSplatTools ctx). They only use long-stable MapLibre APIs (addSource/addLayer,
+    # getCanvas, on/once, controls), so upgrading the MapLibre library does not touch the tools.
     _measure_on = settings.get('viewer_measure', False)
-    _tools_top = _tr_top + 74  # below the reset-view / north-reset button slots
-    measure_html = (
-        (f'\n    <button id="measure-btn"'
-         f' style="position:absolute;top:{_tools_top}px;right:10px;z-index:1;'
-         'background:white;border:1px solid #ccc;border-radius:4px;'
-         'padding:4px 8px;cursor:pointer;font-size:13px;line-height:1;"'
-         ' title="Measure distance &amp; area">&#128207;</button>'
-         '\n    <div id="measure-readout"'
-         ' style="position:absolute;bottom:40px;right:10px;z-index:2;display:none;'
-         'background:rgba(255,255,255,0.92);border:1px solid #ccc;border-radius:4px;'
-         'padding:6px 9px;font-family:sans-serif;font-size:12px;max-width:250px;'
-         'line-height:1.35;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>')
-        if _measure_on else ""
-    )
-    measure_js = ("""
-        // ----- Measure tool -----
-        (function () {
-            const btn = document.getElementById('measure-btn');
-            const readout = document.getElementById('measure-readout');
-            const SRC = 'mapsplat-measure';
-            const R = 6371008.8;  // mean Earth radius (m)
-            let measuring = false, pts = [], finished = false;
+    _draw_on = settings.get('viewer_draw', False)
+    _export_on = settings.get('viewer_export', False)
+    _tools_any = _measure_on or _draw_on or _export_on
+    # Author-set defaults; the viewer can change both at runtime.
+    _measure_units = settings.get('measure_units', 'both')
+    if _measure_units not in ('both', 'metric', 'imperial'):
+        _measure_units = 'both'
+    _draw_color = settings.get('draw_color', '#1d6fe0')
+    if not (isinstance(_draw_color, str) and _draw_color.startswith('#') and len(_draw_color) == 7):
+        _draw_color = '#1d6fe0'
+    # preserveDrawingBuffer is required to read pixels back from the WebGL canvas (export tool),
+    # but has a rendering cost — only enable it when the export tool is on.
+    _preserve_buffer = 'true' if _export_on else 'false'
+    _tools_top = _tr_top + 74  # first tool button sits below the native control stack
 
-            const fc = (features) => ({ type: 'FeatureCollection', features });
+    _framework_js = """
+        // ===== MapSplat tool host — version-agnostic plugin framework =====
+        window.MapSplatTools = (function () {
+            const tools = [], deactivators = {};
+            let map = null, slot = __TOP__;
+            const container = () => document.getElementById('map-container') || document.body;
+            const ctx = {
+                get map() { return map; },
+                addButton(opts) {
+                    const b = document.createElement('button');
+                    b.innerHTML = opts.icon; b.title = opts.title || '';
+                    b.style.cssText = 'position:absolute;right:10px;z-index:1;background:#fff;border:1px solid #ccc;'
+                        + 'border-radius:4px;padding:4px 8px;cursor:pointer;font-size:13px;line-height:1;top:' + slot + 'px;';
+                    b._top = slot; slot += 37;
+                    container().appendChild(b);
+                    if (opts.onClick) b.addEventListener('click', () => opts.onClick(b));
+                    return b;
+                },
+                makePanel(refBtn, extra) {
+                    const p = document.createElement('div');
+                    p.style.cssText = 'position:absolute;right:50px;z-index:2;display:none;background:rgba(255,255,255,0.96);'
+                        + 'border:1px solid #ccc;border-radius:4px;padding:6px;font-family:sans-serif;font-size:12px;'
+                        + 'box-shadow:0 1px 4px rgba(0,0,0,0.2);top:' + refBtn._top + 'px;' + (extra || '');
+                    container().appendChild(p);
+                    return p;
+                },
+                mkBtn(label, title) {
+                    const b = document.createElement('button');
+                    b.innerHTML = label; if (title) b.title = title;
+                    b.style.cssText = 'display:inline-block;margin:2px;padding:3px 6px;border:1px solid #ccc;'
+                        + 'border-radius:3px;background:#fff;cursor:pointer;font-size:12px;';
+                    return b;
+                },
+                setActive(btn, on, color) { btn.style.background = on ? (color || '#e0245e') : '#fff'; btn.style.color = on ? '#fff' : '#000'; },
+                download(blob, filename) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+                    document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000);
+                },
+                registerDeactivator(name, fn) { deactivators[name] = fn; },
+                activateExclusive(name) { for (const k in deactivators) if (k !== name) try { deactivators[k](); } catch (e) {} },
+                freshCanvas(cb) { map.once('render', () => cb(map.getCanvas())); map.triggerRepaint(); }
+            };
+            return {
+                register(t) { tools.push(t); },
+                install(m) { map = m; tools.forEach(t => { try { t.setup(map, ctx); } catch (e) { console.error('MapSplat tool ' + t.id, e); } }); },
+                _tools: tools, _ctx: ctx
+            };
+        })();""".replace('__TOP__', str(_tools_top))
+
+    _measure_reg = ("""
+        // ----- Measure plugin -----
+        MapSplatTools.register({ id: 'measure', setup(map, ctx) {
+            const R = 6371008.8, SRC = 'mapsplat-measure';
+            let measuring = false, pts = [], finished = false, units = '__UNITS__';
+            const btn = ctx.addButton({ icon: '&#128207;', title: 'Measure distance & area', onClick: () => setMode(!measuring) });
+            const readout = ctx.makePanel(btn, 'top:auto;bottom:40px;right:10px;max-width:250px;line-height:1.35;');
+            const fc = (f) => ({ type: 'FeatureCollection', features: f });
             function ensureLayers() {
                 if (map.getSource(SRC)) return;
                 map.addSource(SRC, { type: 'geojson', data: fc([]) });
-                map.addLayer({ id: SRC + '-fill', type: 'fill', source: SRC,
-                    filter: ['==', '$type', 'Polygon'],
-                    paint: { 'fill-color': '#e0245e', 'fill-opacity': 0.12 } });
-                map.addLayer({ id: SRC + '-line', type: 'line', source: SRC,
-                    filter: ['==', '$type', 'LineString'],
-                    paint: { 'line-color': '#e0245e', 'line-width': 2, 'line-dasharray': [2, 1] } });
-                map.addLayer({ id: SRC + '-pts', type: 'circle', source: SRC,
-                    filter: ['==', '$type', 'Point'],
-                    paint: { 'circle-radius': 4, 'circle-color': '#fff',
-                             'circle-stroke-color': '#e0245e', 'circle-stroke-width': 2 } });
+                map.addLayer({ id: SRC + '-fill', type: 'fill', source: SRC, filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': '#e0245e', 'fill-opacity': 0.12 } });
+                map.addLayer({ id: SRC + '-line', type: 'line', source: SRC, filter: ['==', '$type', 'LineString'], paint: { 'line-color': '#e0245e', 'line-width': 2, 'line-dasharray': [2, 1] } });
+                map.addLayer({ id: SRC + '-pts', type: 'circle', source: SRC, filter: ['==', '$type', 'Point'], paint: { 'circle-radius': 4, 'circle-color': '#fff', 'circle-stroke-color': '#e0245e', 'circle-stroke-width': 2 } });
             }
-            function haversine(a, b) {
-                const t = Math.PI / 180, dLat = (b[1]-a[1])*t, dLon = (b[0]-a[0])*t;
-                const h = Math.sin(dLat/2)**2 + Math.cos(a[1]*t)*Math.cos(b[1]*t)*Math.sin(dLon/2)**2;
-                return 2 * R * Math.asin(Math.sqrt(h));
-            }
-            function pathLength(coords, close) {
-                let d = 0;
-                for (let i = 1; i < coords.length; i++) d += haversine(coords[i-1], coords[i]);
-                if (close && coords.length >= 3) d += haversine(coords[coords.length-1], coords[0]);
-                return d;
-            }
-            function ringArea(coords) {  // spherical excess, m^2 (absolute)
-                if (coords.length < 3) return 0;
-                const t = Math.PI / 180, ring = coords.concat([coords[0]]);
-                let s = 0;
-                for (let i = 0; i < ring.length - 1; i++) {
-                    const p1 = ring[i], p2 = ring[i+1];
-                    s += (p2[0]-p1[0])*t * (2 + Math.sin(p1[1]*t) + Math.sin(p2[1]*t));
-                }
-                return Math.abs(s * R * R / 2);
-            }
-            function fmtLen(m) {
-                const metric = m < 1000 ? m.toFixed(1) + ' m' : (m/1000).toFixed(2) + ' km';
-                const mi = m / 1609.344, ft = m * 3.28084;
-                const imp = mi < 0.5 ? ft.toFixed(0) + ' ft' : mi.toFixed(2) + ' mi';
-                return metric + '  /  ' + imp;
-            }
-            function fmtArea(m2) {
-                const km2 = m2/1e6, ha = m2/1e4;
-                const metric = m2 < 1e4 ? m2.toFixed(0) + ' m\\u00B2'
-                    : (km2 < 1 ? ha.toFixed(2) + ' ha' : km2.toFixed(2) + ' km\\u00B2');
-                const ac = m2/4046.8564, mi2 = m2/2.58999e6, ft2 = m2*10.7639;
-                const imp = ac < 1 ? ft2.toFixed(0) + ' ft\\u00B2'
-                    : (mi2 < 1 ? ac.toFixed(2) + ' ac' : mi2.toFixed(2) + ' mi\\u00B2');
-                return metric + '  /  ' + imp;
-            }
+            function haversine(a, b) { const t = Math.PI / 180, dLat = (b[1]-a[1])*t, dLon = (b[0]-a[0])*t; const h = Math.sin(dLat/2)**2 + Math.cos(a[1]*t)*Math.cos(b[1]*t)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+            function pathLength(c, close) { let d = 0; for (let i = 1; i < c.length; i++) d += haversine(c[i-1], c[i]); if (close && c.length >= 3) d += haversine(c[c.length-1], c[0]); return d; }
+            function ringArea(c) { if (c.length < 3) return 0; const t = Math.PI / 180, r = c.concat([c[0]]); let s = 0; for (let i = 0; i < r.length - 1; i++) { const p1 = r[i], p2 = r[i+1]; s += (p2[0]-p1[0])*t * (2 + Math.sin(p1[1]*t) + Math.sin(p2[1]*t)); } return Math.abs(s*R*R/2); }
+            function fmtLen(m) { const met = m < 1000 ? m.toFixed(1) + ' m' : (m/1000).toFixed(2) + ' km'; const mi = m/1609.344, ft = m*3.28084; const imp = mi < 0.5 ? ft.toFixed(0) + ' ft' : mi.toFixed(2) + ' mi'; return units === 'metric' ? met : units === 'imperial' ? imp : met + '  /  ' + imp; }
+            function fmtArea(m2) { const km2 = m2/1e6, ha = m2/1e4; const met = m2 < 1e4 ? m2.toFixed(0) + ' m\\u00B2' : (km2 < 1 ? ha.toFixed(2) + ' ha' : km2.toFixed(2) + ' km\\u00B2'); const ac = m2/4046.8564, mi2 = m2/2.58999e6, ft2 = m2*10.7639; const imp = ac < 1 ? ft2.toFixed(0) + ' ft\\u00B2' : (mi2 < 1 ? ac.toFixed(2) + ' ac' : mi2.toFixed(2) + ' mi\\u00B2'); return units === 'metric' ? met : units === 'imperial' ? imp : met + '  /  ' + imp; }
+            function unitLabel() { return units === 'both' ? 'metric + imperial' : units; }
+            function cycleUnits() { units = units === 'both' ? 'metric' : units === 'metric' ? 'imperial' : 'both'; updateReadout(); }
             function updateReadout() {
-                let html = '';
+                let html = '<div style="text-align:right;margin-bottom:3px;"><span id="mm-units" style="cursor:pointer;text-decoration:underline;opacity:.7;" title="Click to change units">' + unitLabel() + '</span></div>';
                 if (pts.length >= 2) html += '<div><b>Length:</b> ' + fmtLen(pathLength(pts, finished && pts.length >= 3)) + '</div>';
                 if (finished && pts.length >= 3) html += '<div><b>Area:</b> ' + fmtArea(ringArea(pts)) + '</div>';
-                if (!pts.length) html = 'Click the map to add points.';
+                if (!pts.length) html += '<div>Click the map to add points.</div>';
                 else if (!finished) html += '<div style="opacity:.65;margin-top:3px;">Double-click to finish \\u00B7 Esc to clear</div>';
                 else html += '<div style="opacity:.65;margin-top:3px;">Click to start a new measurement \\u00B7 Esc to clear</div>';
                 readout.innerHTML = html;
+                const u = document.getElementById('mm-units'); if (u) u.onclick = cycleUnits;
             }
-            function render() {
-                ensureLayers();
-                const feats = pts.map(p => ({ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: {} }));
-                if (pts.length >= 2) feats.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: pts }, properties: {} });
-                if (finished && pts.length >= 3) feats.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [pts.concat([pts[0]])] }, properties: {} });
-                map.getSource(SRC).setData(fc(feats));
-                updateReadout();
-            }
+            function render() { ensureLayers(); const f = pts.map(p => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: p } })); if (pts.length >= 2) f.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts } }); if (finished && pts.length >= 3) f.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [pts.concat([pts[0]])] } }); map.getSource(SRC).setData(fc(f)); updateReadout(); }
             function clearAll() { pts = []; finished = false; if (map.getSource(SRC)) map.getSource(SRC).setData(fc([])); updateReadout(); }
-            function setMode(on) {
-                measuring = on;
-                btn.style.background = on ? '#e0245e' : 'white';
-                btn.style.color = on ? '#fff' : '#000';
-                readout.style.display = on ? 'block' : 'none';
-                map.getCanvas().style.cursor = on ? 'crosshair' : '';
-                if (on) { if (window.__mapsplatTools) window.__mapsplatTools.activate('measure'); map.doubleClickZoom.disable(); ensureLayers(); updateReadout(); }
-                else { map.doubleClickZoom.enable(); clearAll(); }
-            }
-            if (window.__mapsplatTools) window.__mapsplatTools.deactivators.measure = () => setMode(false);
-            btn.addEventListener('click', () => setMode(!measuring));
+            function setMode(on) { measuring = on; ctx.setActive(btn, on, '#e0245e'); readout.style.display = on ? 'block' : 'none'; map.getCanvas().style.cursor = on ? 'crosshair' : ''; if (on) { ctx.activateExclusive('measure'); map.doubleClickZoom.disable(); ensureLayers(); updateReadout(); } else { map.doubleClickZoom.enable(); clearAll(); } }
+            ctx.registerDeactivator('measure', () => setMode(false));
             map.on('click', (e) => { if (!measuring) return; if (finished) { pts = []; finished = false; } pts.push([e.lngLat.lng, e.lngLat.lat]); render(); });
             map.on('dblclick', (e) => { if (!measuring) return; e.preventDefault(); if (pts.length >= 2) { finished = true; render(); } });
             document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && measuring) clearAll(); });
-            // Expose for automated verification.
-            window.__mapsplatMeasure = { setMode, addPoint: (lng, lat) => { if (finished) { pts = []; finished = false; } pts.push([lng, lat]); render(); },
-                finish: () => { if (pts.length >= 2) { finished = true; render(); } }, readEl: () => readout,
-                length: () => pathLength(pts, finished && pts.length >= 3), area: () => (finished && pts.length >= 3 ? ringArea(pts) : 0) };
-        })();"""
-        if _measure_on else ""
-    )
+            window.__mapsplatMeasure = { setMode, addPoint: (lng, lat) => { if (finished) { pts = []; finished = false; } pts.push([lng, lat]); render(); }, finish: () => { if (pts.length >= 2) { finished = true; render(); } }, setUnits: (u) => { units = u; updateReadout(); }, readEl: () => readout, length: () => pathLength(pts, finished && pts.length >= 3), area: () => (finished && pts.length >= 3 ? ringArea(pts) : 0) };
+        }});""".replace('__UNITS__', _measure_units)) if _measure_on else ""
 
-    # ---------- Draw / sketch tool (points, lines, polygons → GeoJSON/KML) ----------
-    _draw_on = settings.get('viewer_draw', False)
-    _draw_top = _tools_top + 37  # directly below the measure button slot
-    # Tools coordinator — emitted once when either interactive tool is on so they stay mutually
-    # exclusive (activating one deactivates the others).
-    tools_common_js = (
-        "\n        window.__mapsplatTools = window.__mapsplatTools || { deactivators: {},"
-        " activate(name) { for (const k in this.deactivators) if (k !== name)"
-        " try { this.deactivators[k](); } catch (e) {} } };"
-        if (_measure_on or _draw_on) else ""
-    )
-    draw_html = (
-        (f'\n    <button id="draw-btn"'
-         f' style="position:absolute;top:{_draw_top}px;right:10px;z-index:1;'
-         'background:white;border:1px solid #ccc;border-radius:4px;'
-         'padding:4px 8px;cursor:pointer;font-size:13px;line-height:1;"'
-         ' title="Draw &amp; export">&#9998;</button>'
-         f'\n    <div id="draw-panel"'
-         f' style="position:absolute;top:{_tools_top}px;right:50px;z-index:2;display:none;'
-         'background:rgba(255,255,255,0.95);border:1px solid #ccc;border-radius:4px;'
-         'padding:6px;font-family:sans-serif;font-size:12px;width:132px;'
-         'box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>')
-        if _draw_on else ""
-    )
-    draw_js = ("""
-        // ----- Draw / sketch tool -----
-        (function () {
-            const btn = document.getElementById('draw-btn');
-            const panel = document.getElementById('draw-panel');
-            const SRC = 'mapsplat-draw';
-            const COLOR = '#1d6fe0';
-            let active = false, mode = 'point';
-            let features = [];   // committed GeoJSON features
-            let pending = [];     // in-progress vertices [lng,lat]
-
-            const fc = (fs) => ({ type: 'FeatureCollection', features: fs });
+    _draw_reg = ("""
+        // ----- Draw / sketch plugin -----
+        MapSplatTools.register({ id: 'draw', setup(map, ctx) {
+            const SRC = 'mapsplat-draw', DEFAULT = '__COLOR__';
+            let active = false, mode = 'point', color = DEFAULT, features = [], pending = [];
+            const btn = ctx.addButton({ icon: '&#9998;', title: 'Draw & export', onClick: () => setActive(!active) });
+            const panel = ctx.makePanel(btn, 'width:158px;');
+            const fc = (f) => ({ type: 'FeatureCollection', features: f });
+            const feat = (type, coords) => ({ type: 'Feature', properties: { color: color }, geometry: { type: type, coordinates: coords } });
             function ensureLayers() {
                 if (map.getSource(SRC)) return;
                 map.addSource(SRC, { type: 'geojson', data: fc([]) });
-                map.addLayer({ id: SRC + '-fill', type: 'fill', source: SRC,
-                    filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': COLOR, 'fill-opacity': 0.15 } });
-                map.addLayer({ id: SRC + '-line', type: 'line', source: SRC,
-                    filter: ['==', '$type', 'LineString'], paint: { 'line-color': COLOR, 'line-width': 2.5 } });
-                map.addLayer({ id: SRC + '-pts', type: 'circle', source: SRC,
-                    filter: ['==', '$type', 'Point'], paint: { 'circle-radius': 5, 'circle-color': COLOR,
-                        'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+                const c = ['coalesce', ['get', 'color'], DEFAULT];
+                map.addLayer({ id: SRC + '-fill', type: 'fill', source: SRC, filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': c, 'fill-opacity': 0.15 } });
+                map.addLayer({ id: SRC + '-line', type: 'line', source: SRC, filter: ['==', '$type', 'LineString'], paint: { 'line-color': c, 'line-width': 2.5 } });
+                map.addLayer({ id: SRC + '-pts', type: 'circle', source: SRC, filter: ['==', '$type', 'Point'], paint: { 'circle-color': c, 'circle-radius': 5, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
             }
-            function render() {
-                ensureLayers();
-                const shown = features.slice();
-                if (pending.length === 1 && mode !== 'point')
-                    shown.push({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: pending[0] } });
-                else if (pending.length >= 2 && (mode === 'line' || mode === 'polygon'))
-                    shown.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pending } });
-                map.getSource(SRC).setData(fc(shown));
-            }
-            function commitPending() {
-                if (mode === 'line' && pending.length >= 2)
-                    features.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pending.slice() } });
-                else if (mode === 'polygon' && pending.length >= 3)
-                    features.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [pending.concat([pending[0]])] } });
-                pending = [];
-                render();
-            }
-            function addVertex(lng, lat) {
-                if (mode === 'point') { features.push({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lng, lat] } }); render(); }
-                else { pending.push([lng, lat]); render(); }
-            }
-            function undo() {
-                if (pending.length) pending.pop();
-                else if (features.length) features.pop();
-                render();
-            }
+            function render() { ensureLayers(); const shown = features.slice(); if (pending.length === 1 && mode !== 'point') shown.push({ type: 'Feature', properties: { color: color }, geometry: { type: 'Point', coordinates: pending[0] } }); else if (pending.length >= 2 && (mode === 'line' || mode === 'polygon')) shown.push({ type: 'Feature', properties: { color: color }, geometry: { type: 'LineString', coordinates: pending } }); map.getSource(SRC).setData(fc(shown)); }
+            function commitPending() { if (mode === 'line' && pending.length >= 2) features.push(feat('LineString', pending.slice())); else if (mode === 'polygon' && pending.length >= 3) features.push(feat('Polygon', [pending.concat([pending[0]])])); pending = []; render(); }
+            function addVertex(lng, lat) { if (mode === 'point') { features.push(feat('Point', [lng, lat])); render(); } else { pending.push([lng, lat]); render(); } }
+            function undo() { if (pending.length) pending.pop(); else if (features.length) features.pop(); render(); }
             function clearAll() { features = []; pending = []; if (map.getSource(SRC)) map.getSource(SRC).setData(fc([])); }
-
             function toGeoJSON() { return JSON.stringify(fc(features), null, 2); }
             function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
             function coordStr(cs) { return cs.map(c => c[0] + ',' + c[1] + ',0').join(' '); }
+            function kmlColor(hex) { const h = (hex || DEFAULT).replace('#', ''); return 'ff' + h.slice(4, 6) + h.slice(2, 4) + h.slice(0, 2); }
             function toKML() {
-                let out = '<?xml version="1.0" encoding="UTF-8"?>\\n<kml xmlns="http://www.opengis.net/kml/2.2">\\n<Document>\\n';
-                out += '<name>MapSplat drawing</name>\\n';
+                let out = '<?xml version="1.0" encoding="UTF-8"?>\\n<kml xmlns="http://www.opengis.net/kml/2.2">\\n<Document>\\n<name>MapSplat drawing</name>\\n';
                 features.forEach((f, i) => {
-                    const g = f.geometry;
+                    const g = f.geometry, kc = kmlColor(f.properties && f.properties.color);
                     out += '<Placemark><name>' + esc(g.type + ' ' + (i + 1)) + '</name>';
+                    out += '<Style><LineStyle><color>' + kc + '</color><width>2</width></LineStyle><PolyStyle><color>' + kc.replace('ff', '80') + '</color></PolyStyle></Style>';
                     if (g.type === 'Point') out += '<Point><coordinates>' + g.coordinates[0] + ',' + g.coordinates[1] + ',0</coordinates></Point>';
                     else if (g.type === 'LineString') out += '<LineString><coordinates>' + coordStr(g.coordinates) + '</coordinates></LineString>';
                     else if (g.type === 'Polygon') out += '<Polygon><outerBoundaryIs><LinearRing><coordinates>' + coordStr(g.coordinates[0]) + '</coordinates></LinearRing></outerBoundaryIs></Polygon>';
                     out += '</Placemark>\\n';
                 });
-                out += '</Document>\\n</kml>\\n';
-                return out;
+                return out + '</Document>\\n</kml>\\n';
             }
-            function download(text, filename, mime) {
-                const blob = new Blob([text], { type: mime });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = filename; document.body.appendChild(a); a.click();
-                document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000);
-            }
-
-            function mkBtn(label, title) {
-                const b = document.createElement('button');
-                b.textContent = label; if (title) b.title = title;
-                b.style.cssText = 'display:inline-block;margin:2px;padding:3px 6px;border:1px solid #ccc;border-radius:3px;background:#fff;cursor:pointer;font-size:12px;';
-                return b;
-            }
-            function refreshModeButtons() {
-                ['point', 'line', 'polygon'].forEach(m => {
-                    const b = panel.querySelector('[data-mode="' + m + '"]');
-                    if (b) { b.style.background = (m === mode) ? COLOR : '#fff'; b.style.color = (m === mode) ? '#fff' : '#000'; }
-                });
-            }
+            function refreshModes() { ['point', 'line', 'polygon'].forEach(m => { const b = panel.querySelector('[data-mode="' + m + '"]'); if (b) { b.style.background = (m === mode) ? color : '#fff'; b.style.color = (m === mode) ? '#fff' : '#000'; } }); }
             function buildPanel() {
-                if (panel.dataset.built) return;
-                panel.dataset.built = '1';
-                const row1 = document.createElement('div');
-                [['point', 'Point'], ['line', 'Line'], ['polygon', 'Poly']].forEach(([m, lbl]) => {
-                    const b = mkBtn(lbl, m + ' mode'); b.dataset.mode = m;
-                    b.onclick = () => { mode = m; pending = []; render(); refreshModeButtons(); };
-                    row1.appendChild(b);
-                });
-                const row2 = document.createElement('div');
-                const finishB = mkBtn('Finish', 'Finish current line/polygon'); finishB.onclick = commitPending;
-                const undoB = mkBtn('Undo', 'Remove last vertex/feature'); undoB.onclick = undo;
-                const clearB = mkBtn('Clear', 'Remove all'); clearB.onclick = clearAll;
-                row2.append(finishB, undoB, clearB);
-                const row3 = document.createElement('div');
-                row3.style.marginTop = '3px';
-                const gj = mkBtn('\\u2b07 GeoJSON'); gj.onclick = () => download(toGeoJSON(), 'mapsplat-drawing.geojson', 'application/geo+json');
-                const kml = mkBtn('\\u2b07 KML'); kml.onclick = () => download(toKML(), 'mapsplat-drawing.kml', 'application/vnd.google-earth.kml+xml');
-                row3.append(gj, kml);
-                panel.append(row1, row2, row3);
-                refreshModeButtons();
+                if (panel.dataset.built) return; panel.dataset.built = '1';
+                const r1 = document.createElement('div');
+                [['point', 'Point'], ['line', 'Line'], ['polygon', 'Poly']].forEach(([m, lbl]) => { const b = ctx.mkBtn(lbl, m + ' mode'); b.dataset.mode = m; b.onclick = () => { mode = m; pending = []; render(); refreshModes(); }; r1.appendChild(b); });
+                const rc = document.createElement('div'); rc.style.margin = '3px 2px'; const lab = document.createElement('label'); lab.textContent = 'Colour '; lab.style.fontSize = '12px';
+                const col = document.createElement('input'); col.type = 'color'; col.value = DEFAULT; col.style.verticalAlign = 'middle'; col.oninput = () => { color = col.value; refreshModes(); render(); }; lab.appendChild(col); rc.appendChild(lab);
+                const r2 = document.createElement('div'); const fB = ctx.mkBtn('Finish', 'Finish line/polygon'); fB.onclick = commitPending; const uB = ctx.mkBtn('Undo'); uB.onclick = undo; const cB = ctx.mkBtn('Clear'); cB.onclick = clearAll; r2.append(fB, uB, cB);
+                const r3 = document.createElement('div'); r3.style.marginTop = '3px'; const gj = ctx.mkBtn('\\u2b07 GeoJSON'); gj.onclick = () => ctx.download(new Blob([toGeoJSON()], { type: 'application/geo+json' }), 'mapsplat-drawing.geojson'); const km = ctx.mkBtn('\\u2b07 KML'); km.onclick = () => ctx.download(new Blob([toKML()], { type: 'application/vnd.google-earth.kml+xml' }), 'mapsplat-drawing.kml'); r3.append(gj, km);
+                panel.append(r1, rc, r2, r3); refreshModes();
             }
-            function setActive(on) {
-                active = on;
-                btn.style.background = on ? COLOR : 'white';
-                btn.style.color = on ? '#fff' : '#000';
-                panel.style.display = on ? 'block' : 'none';
-                map.getCanvas().style.cursor = on ? 'crosshair' : '';
-                if (on) { if (window.__mapsplatTools) window.__mapsplatTools.activate('draw'); map.doubleClickZoom.disable(); ensureLayers(); buildPanel(); }
-                else { map.doubleClickZoom.enable(); pending = []; render(); }
-            }
-            if (window.__mapsplatTools) window.__mapsplatTools.deactivators.draw = () => setActive(false);
-            btn.addEventListener('click', () => setActive(!active));
+            function setActive(on) { active = on; ctx.setActive(btn, on, DEFAULT); panel.style.display = on ? 'block' : 'none'; map.getCanvas().style.cursor = on ? 'crosshair' : ''; if (on) { ctx.activateExclusive('draw'); map.doubleClickZoom.disable(); ensureLayers(); buildPanel(); } else { map.doubleClickZoom.enable(); pending = []; render(); } }
+            ctx.registerDeactivator('draw', () => setActive(false));
             map.on('click', (e) => { if (active) addVertex(e.lngLat.lng, e.lngLat.lat); });
             map.on('dblclick', (e) => { if (active && mode !== 'point') { e.preventDefault(); commitPending(); } });
             document.addEventListener('keydown', (ev) => { if (!active) return; if (ev.key === 'Escape') { pending = []; render(); } else if (ev.key === 'Enter') commitPending(); });
-            // Expose for automated verification.
-            window.__mapsplatDraw = { setActive, setMode: (m) => { mode = m; pending = []; }, addPoint: addVertex,
-                finish: commitPending, count: () => features.length, toGeoJSON, toKML };
-        })();"""
-        if _draw_on else ""
+            window.__mapsplatDraw = { setActive, setMode: (m) => { mode = m; pending = []; }, setColor: (c) => { color = c; }, addPoint: addVertex, finish: commitPending, count: () => features.length, toGeoJSON, toKML };
+        }});""".replace('__COLOR__', _draw_color)) if _draw_on else ""
+
+    _export_reg = """
+        // ----- Print / export plugin -----
+        MapSplatTools.register({ id: 'export', setup(map, ctx) {
+            const btn = ctx.addButton({ icon: '&#128247;', title: 'Export map image (JPG / PDF)', onClick: () => { panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none'; } });
+            const panel = ctx.makePanel(btn, 'white-space:nowrap;');
+            const jpgB = ctx.mkBtn('JPG'); const pdfB = ctx.mkBtn('PDF');
+            const note = document.createElement('div'); note.textContent = 'map image only'; note.style.cssText = 'opacity:.6;font-size:11px;margin-top:2px;';
+            panel.append(jpgB, pdfB, note);
+            function stamp() { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()); }
+            function jpegBytes(canvas) { const b64 = canvas.toDataURL('image/jpeg', 0.92).split(',')[1]; const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+            function jpegToPdf(jpeg, w, h) {
+                const enc = new TextEncoder(); const parts = [], off = []; let pos = 0;
+                const put = (x) => { const b = (typeof x === 'string') ? enc.encode(x) : x; parts.push(b); pos += b.length; };
+                put('%PDF-1.4\\n');
+                off[1] = pos; put('1 0 obj\\n<< /Type /Catalog /Pages 2 0 R >>\\nendobj\\n');
+                off[2] = pos; put('2 0 obj\\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\\nendobj\\n');
+                off[3] = pos; put('3 0 obj\\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + w + ' ' + h + '] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\\nendobj\\n');
+                off[4] = pos; put('4 0 obj\\n<< /Type /XObject /Subtype /Image /Width ' + w + ' /Height ' + h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpeg.length + ' >>\\nstream\\n'); put(jpeg); put('\\nendstream\\nendobj\\n');
+                const content = 'q ' + w + ' 0 0 ' + h + ' 0 0 cm /Im0 Do Q';
+                off[5] = pos; put('5 0 obj\\n<< /Length ' + content.length + ' >>\\nstream\\n' + content + '\\nendstream\\nendobj\\n');
+                const xref = pos; let x = 'xref\\n0 6\\n0000000000 65535 f \\n'; for (let i = 1; i <= 5; i++) x += String(off[i]).padStart(10, '0') + ' 00000 n \\n'; put(x);
+                put('trailer\\n<< /Size 6 /Root 1 0 R >>\\nstartxref\\n' + xref + '\\n%%EOF');
+                return new Blob(parts, { type: 'application/pdf' });
+            }
+            jpgB.onclick = () => { ctx.freshCanvas((c) => c.toBlob((b) => ctx.download(b, 'mapsplat-map-' + stamp() + '.jpg'), 'image/jpeg', 0.92)); panel.style.display = 'none'; };
+            pdfB.onclick = () => { ctx.freshCanvas((c) => ctx.download(jpegToPdf(jpegBytes(c), c.width, c.height), 'mapsplat-map-' + stamp() + '.pdf')); panel.style.display = 'none'; };
+            window.__mapsplatExport = { jpegBytes: () => jpegBytes(map.getCanvas()), pdfBlob: () => { const c = map.getCanvas(); return jpegToPdf(jpegBytes(c), c.width, c.height); } };
+        }});""" if _export_on else ""
+
+    tools_js = (
+        (_framework_js + _measure_reg + _draw_reg + _export_reg
+         + "\n        MapSplatTools.install(map);")
+        if _tools_any else ""
     )
 
     # Advanced legend toggle (Python → JS literal)
@@ -688,7 +623,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             <h4>Layers</h4>
             <div id="layer-toggles"></div>
         </div>
-    </div>{coords_html}{zoom_html}{reset_view_html}{north_reset_html}{measure_html}{draw_html}
+    </div>{coords_html}{zoom_html}{reset_view_html}{north_reset_html}
     </div>
     <script>
         // Register PMTiles protocol
@@ -700,7 +635,8 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             container: 'map',
             style: {style_ref},
             center: [{center_lng}, {center_lat}],
-            zoom: 4
+            zoom: 4,
+            preserveDrawingBuffer: {_preserve_buffer}
         }});
 
         // Add navigation controls
@@ -1048,7 +984,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         }});
         map.on('mouseleave', () => {{
             map.getCanvas().style.cursor = '';
-        }});{coords_js}{zoom_js}{reset_view_js}{north_reset_js}{tools_common_js}{measure_js}{draw_js}{_init_close}
+        }});{coords_js}{zoom_js}{reset_view_js}{north_reset_js}{tools_js}{_init_close}
     </script>
     <!-- <----- END MAPSPLAT <body> section ----- -->
 </body>

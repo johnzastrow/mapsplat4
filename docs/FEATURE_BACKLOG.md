@@ -31,8 +31,8 @@ Unordered list of desired usability improvements. Prioritization and implementat
       polygon for area; metric + imperial. Offline vanilla JS.
 - [x] **Draw / sketch tool** (v0.29.0) — draw points/lines/polygons; export to GeoJSON or KML
       (client-side download). Offline vanilla JS; mutually exclusive with the measure tool.
-- [ ] **Print / export** — print the current map or export to **JPG or PDF** (canvas capture +
-      `preserveDrawingBuffer`; PDF via a bundled lib or print stylesheet).
+- [x] **Print / export** (v0.30.0) — save the map image as JPG or PDF (in-page single-image PDF,
+      no bundled lib). Part of the new plugin-tool framework; viewer can adjust measure units + draw colour.
 
 ### Legend / markers follow-ups
 - [ ] **Graduated (range-based) SVG markers** → per-class icons (categorized-only today; graduated

@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.29.0
+version=0.30.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,15 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.30.0 - Plugin tool framework + export tool + adjustable units/colours
+    - Interactive viewer tools (measure, draw, export) are now self-registering plugin objects that
+      talk to the map through a small stable interface (MapSplatTools host). They use only long-stable
+      MapLibre APIs, so upgrading the MapLibre library no longer touches the tools.
+    - New optional Export tool: save the current map image as JPG or PDF (self-contained, no external
+      library; single-image PDF built in-page). Enable via the Viewer tab "Export tool" checkbox.
+    - Viewers can now adjust units and colours at runtime: the measure readout has a units toggle
+      (metric + imperial / metric / imperial) and the draw tool has a per-feature colour picker.
+      Authors can set defaults via measure_units / draw_color in a config.
     0.29.0 - Draw/sketch tool with GeoJSON/KML export (optional)
     - New optional viewer tool: a pencil button to draw points, lines, and polygons on the map and
       export them as GeoJSON or KML (client-side download; nothing is uploaded). Point/Line/Polygon
