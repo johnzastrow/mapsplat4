@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — dashed categorized/graduated lines (0.27.4)
+- **Categorized and graduated line layers now render dashes.** Previously only single-symbol lines
+  got a `line-dasharray`; class-based line layers always rendered solid. `line-dasharray` cannot be
+  data-driven in MapLibre (arrays can't be read from feature properties), so the layer carries one
+  **representative** dash — the most common pattern across the classes (`_pick_dash`), while
+  color/width/opacity stay fully data-driven per class. Reuses the width-correct normalization and
+  Qt-preset handling from 0.27.3.
+
 ### Fixed — dashed line rendering (0.27.3)
 - **Dashed lines render at the correct scale.** MapLibre's `line-dasharray` is specified in units of
   **line width**, but the converter was emitting **absolute pixels** (the code comment even said

@@ -1013,6 +1013,7 @@ class StyleConverter:
 
         elif geom_type == 1:  # Line
             color_pairs, width_pairs, opacity_pairs = [], [], []
+            dash_list = []
             for label, cat in ([(c.value(), c) for c in regular_cats]
                                + ([("__null__", null_cat)] if null_cat is not None else [])):
                 sym = cat.symbol()
@@ -1020,24 +1021,35 @@ class StyleConverter:
                 color_pairs.append((label, col.name()))
                 width_pairs.append((label, self._symbol_line_width(sym)))
                 opacity_pairs.append((label, self._symbol_opacity(sym, col)))
+                d = self._symbol_line_dash(sym)
+                if d:
+                    dash_list.append(tuple(d))
             if catchall_cat is not None:
                 sym = catchall_cat.symbol()
                 col = self._symbol_line_color(sym)
                 color_fb = col.name()
                 width_fb = self._symbol_line_width(sym)
                 opacity_fb = self._symbol_opacity(sym, col)
+                d = self._symbol_line_dash(sym)
+                if d:
+                    dash_list.append(tuple(d))
             else:
                 color_fb, width_fb, opacity_fb = self.DEFAULT_LINE_COLOR, 2, 0.0
+            paint = {
+                "line-color": _build_match(color_pairs, color_fb),
+                "line-width": _build_match(width_pairs, width_fb),
+                "line-opacity": _build_match(opacity_pairs, opacity_fb),
+            }
+            # line-dasharray isn't data-driven — carry one representative dash for the layer.
+            dash = self._pick_dash(dash_list)
+            if dash:
+                paint["line-dasharray"] = dash
             layers.append({
                 "id": source_layer,
                 "type": "line",
                 "source": source_name,
                 "source-layer": source_layer,
-                "paint": {
-                    "line-color": _build_match(color_pairs, color_fb),
-                    "line-width": _build_match(width_pairs, width_fb),
-                    "line-opacity": _build_match(opacity_pairs, opacity_fb),
-                }
+                "paint": paint,
             })
 
         elif geom_type == 0 and source_layer in self._cat_sprite_map:
@@ -1153,12 +1165,16 @@ class StyleConverter:
         elif geom_type == 1:  # Line
             line_expr = ["interpolate", ["linear"], ["get", attr_name]]
             width_expr = ["interpolate", ["linear"], ["get", attr_name]]
+            dash_list = []
 
             for r in ranges:
                 sym = r.symbol()
                 if sym and sym.symbolLayerCount() > 0:
                     line_expr.extend([r.lowerValue(), self._symbol_line_color(sym).name()])
                     width_expr.extend([r.lowerValue(), self._symbol_line_width(sym)])
+                    d = self._symbol_line_dash(sym)
+                    if d:
+                        dash_list.append(tuple(d))
 
             # Capping stop
             if len(ranges) > 0:
@@ -1168,15 +1184,20 @@ class StyleConverter:
                     line_expr.extend([last_r.upperValue(), self._symbol_line_color(last_sym).name()])
                     width_expr.extend([last_r.upperValue(), self._symbol_line_width(last_sym)])
 
+            paint = {
+                "line-color": line_expr,
+                "line-width": width_expr,
+            }
+            # line-dasharray isn't data-driven — carry one representative dash for the layer.
+            dash = self._pick_dash(dash_list)
+            if dash:
+                paint["line-dasharray"] = dash
             layers.append({
                 "id": source_layer,
                 "type": "line",
                 "source": source_name,
                 "source-layer": source_layer,
-                "paint": {
-                    "line-color": line_expr,
-                    "line-width": width_expr
-                }
+                "paint": paint,
             })
 
         elif geom_type == 0:  # Point
@@ -1442,6 +1463,38 @@ class StyleConverter:
                 if w and w > 0:
                     return w
         return 1.0
+
+    def _symbol_line_dash(self, symbol):
+        """MapLibre ``line-dasharray`` for the top-most line layer of a symbol, or None (solid).
+
+        Walks the symbol's layers top-first for a line layer that carries a dash (custom vector or
+        Qt preset pen style) and returns its width-normalized dash via :meth:`_line_dash`.
+        """
+        for i in range(symbol.symbolLayerCount() - 1, -1, -1):
+            sl = symbol.symbolLayer(i)
+            if not (hasattr(sl, "penStyle") or hasattr(sl, "useCustomDashPattern")):
+                continue
+            try:
+                w = self._convert_size(sl.width(), sl.widthUnit()) if hasattr(sl, "width") else None
+            except Exception:
+                w = None
+            dash = self._line_dash(sl, w if (w and w > 0) else self.HAIRLINE_PX)
+            if dash:
+                return dash
+        return None
+
+    def _pick_dash(self, dash_list):
+        """Choose one representative dash for a class-based line layer.
+
+        ``line-dasharray`` is NOT data-driven in MapLibre (arrays can't be read from feature
+        properties), so a categorized/graduated line can only carry a single dash pattern. Pick the
+        most common one across the classes; ties resolve to first-seen.
+        """
+        if not dash_list:
+            return None
+        from collections import Counter
+        # Counter.most_common keeps insertion order on ties (first-seen wins).
+        return list(Counter(dash_list).most_common(1)[0][0])
 
     def _symbol_marker_size(self, symbol):
         """Marker diameter in pixels (fallback 6.0)."""

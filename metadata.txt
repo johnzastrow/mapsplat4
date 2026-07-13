@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.27.3
+version=0.27.4
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,11 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.27.4 - Dashed lines for categorized/graduated layers
+    - Categorized and graduated LINE layers now carry a dash pattern (were always solid). MapLibre's
+      line-dasharray is not data-driven, so the layer carries one representative dash (most common
+      across the classes); per-class color/width stay fully data-driven. Uses the same width-correct
+      normalization as single-symbol lines (0.27.3).
     0.27.3 - Dashed line rendering fix
     - Dashed lines (e.g. wandering_cat) now render at the correct scale. MapLibre's line-dasharray is
       in units of LINE WIDTH, but the converter emitted absolute pixels, so dashes came out ~3-4x too
