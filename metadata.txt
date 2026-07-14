@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.39.4
+version=0.39.5
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,13 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.39.5 - Resilient viewer: one bad layer no longer blanks the whole map
+    - The viewer now adds data layers one at a time and skips (logs) any layer MapLibre rejects, so a
+      single invalid layer can't reject the entire style and leave a blank map.
+    - Duplicate layer ids (which MapLibre rejects outright) are renamed at export; a fetched provider
+      GL style's layer ids are namespaced so generic names (water, landcover, ...) don't collide with
+      the basemap. Fixes a blank map when a Carto vector basemap was added.
+    - The exported page now uses the MapSplat icon as its favicon (also stops the favicon.ico 404).
     0.39.4 - Use a vector tile layer's own GL style (fetch styleUrl)
     - A vector tile (MVT) layer added in QGIS with a Style URL now renders: MapSplat reads the styleUrl
       from the layer source, fetches that Mapbox-GL style at export time, and uses its layers (so e.g.

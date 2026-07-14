@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — resilient viewer + duplicate-id blank map + favicon (0.39.5)
+- **One bad layer no longer blanks the whole map.** MapLibre rejects the ENTIRE style if a single
+  layer is invalid. The viewer now starts with just the background and **adds each data layer
+  individually in try/catch**, skipping (and logging) any layer MapLibre rejects — the rest of the map
+  still works. Verified headless: an injected broken layer was skipped and the map still loaded.
+- **Duplicate layer ids fixed.** A fetched provider GL style (e.g. Carto) has generic layer ids
+  (`water`, `landcover`, …) that collided with the basemap's — a duplicate id makes MapLibre reject
+  the whole style, so the map came up blank. Fetched layer ids are now **namespaced**
+  (`tile_<layer>__<id>`), and a global **dedupe** pass renames any remaining collisions at export.
+- **Favicon.** The exported page now sets the MapSplat blob logo as its `rel="icon"` favicon, which
+  also stops the browser's `favicon.ico` 404.
+
 ### Added — use a vector tile layer's own GL style (0.39.4)
 - **MVT vector tile layers with a Style URL now render.** When a `QgsVectorTileLayer` has no stored
   `mapbox-gl-style` custom property, MapSplat now reads the **`styleUrl=`** from the layer's data
