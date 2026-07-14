@@ -37,14 +37,23 @@ That's the whole happy path. Everything below is optional and has sensible defau
 
 ## 3. The dock, tab by tab
 
-- **Inputs** — Layers, Output, and the Export button. A full run lives here.
-- **Options** — *Export Options* (PMTiles mode, max zoom, tile-count estimate, style.json, export
-  extent) and *Basemap Overlay*. Defaults are fine for most maps.
+- **Inputs** — Layers, Output, and the Export button. A full run lives here. Type tags show each
+  layer's kind (`[Polygon]`, `[Line]`, `[Point]`, `[VectorTile]`, `[Online]`); a **🌐** marks layers
+  that stream live and need internet (see [Hosting](HOSTING.md)).
+- **Options** — *Export Options* (PMTiles mode, max zoom, tile-count estimate, **Include raster
+  layers**, style.json, export extent) and *Basemap Overlay* (Protomaps stream/bundle, or an **XYZ
+  raster** provider). Defaults are fine for most maps.
 - **Viewer** — what the generated web map shows: scale bar, geolocate, fullscreen, coordinate/zoom
-  readouts, reset/north buttons, label placement, legend, attribution, and map dimensions.
+  readouts, reset/north buttons, label placement, legend, attribution, map dimensions, and the
+  optional on-map **tools** — *Measure* (distance/area), *Draw/sketch* (export GeoJSON/KML), and
+  *Export* (save the map as JPG/PDF). Tools are **off by default**; enable the ones you want.
 - **Offline** — bundle MapLibre/PMTiles JS + CSS into the export so the viewer works with no internet.
-- **Log** — progress, messages, and the **version stamp** (bottom-right) so you can confirm which
-  build is loaded.
+- **Log** — progress, messages, the export **summary**, and the **version stamp** (bottom-right).
+
+The **layer order and groups in the web map follow your QGIS layer tree** — arrange your layers (and
+groups like "My Layers") in QGIS and the exported map's list and stacking match. In the viewer, each
+layer and each group has an on/off checkbox; the basemap and vector-tile bases collapse into their own
+sections at the bottom.
 
 ---
 
@@ -54,16 +63,28 @@ That's the whole happy path. Everything below is optional and has sensible defau
   per layer (loaded independently in the viewer).
 - **Max zoom** — higher = more detail but **exponentially** more tiles/time. 6–10 suits most maps;
   14+ can take a long time on large data. The live estimate under it shows the rough tile count/size.
+- **Include raster layers** *(Export Options)* — off by default. Tiles selected local rasters
+  (imagery, scanned maps) to PMTiles; needs GDAL's MBTiles driver. See [Limitations](LIMITATIONS.md).
 - **Export extent** — clip the basemap to a chosen layer's extent or the current map view instead of
   the full data extent.
+- **Verify PMTiles after export** *(Advanced)* — runs `pmtiles verify` on each written file.
+- **Refresh / Clear basemap cache** *(Advanced)* — basemap extracts are cached; force a re-download or
+  free disk space.
 - **Style only** *(Advanced)* — regenerate `style.json` + the viewer without re-tiling the data.
 
 ---
 
-## 5. Adding a Protomaps basemap (optional)
+## 5. Adding a basemap (optional)
 
-A basemap gives your data context (streets, water, terrain). MapSplat uses **Protomaps** — free,
-OpenStreetMap-derived vector basemaps in PMTiles format.
+A basemap gives your data context (streets, water, terrain). You have two options — a **Protomaps**
+PMTiles basemap (below), or an **XYZ raster** provider (OpenStreetMap, Carto, OpenTopoMap, Esri World
+Imagery, or a custom `{z}/{x}/{y}` URL) chosen on **Options ▸ Basemap Overlay ▸ XYZ raster**. The XYZ
+option streams live and needs no `pmtiles` CLI, but the map then needs internet — see
+[Basemaps](BASEMAPS.md) and [Hosting](HOSTING.md).
+
+### Protomaps basemap
+
+MapSplat uses **Protomaps** — free, OpenStreetMap-derived vector basemaps in PMTiles format.
 
 **Where to get the tiles.** Protomaps publishes daily global builds and an area extractor at
 **[build.protomaps.com](https://build.protomaps.com/)**:
