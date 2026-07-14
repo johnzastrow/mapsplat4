@@ -2,7 +2,7 @@
 
 **Export QGIS projects to self-contained static web maps — PMTiles + MapLibre GL JS.**
 
-![MapSplat](docs/images/logo.svg)
+<img src="docs/images/logo.svg" width="150" />
 
 [![QGIS](https://img.shields.io/badge/QGIS-4.0%2B-green.svg)](https://qgis.org)
 [![License](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
