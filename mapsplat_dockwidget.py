@@ -1663,18 +1663,6 @@ class MapSplatDockWidget(QDockWidget):
             except OSError:
                 pass
 
-    def _plugin_version(self):
-        """Read the plugin version from metadata.txt (best-effort)."""
-        try:
-            meta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "metadata.txt")
-            with open(meta, "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.startswith("version="):
-                        return line.split("=", 1)[1].strip()
-        except Exception:
-            pass
-        return "unknown"
-
     def _close_log_file(self):
         """Close the export log file if open."""
         if self._log_file:

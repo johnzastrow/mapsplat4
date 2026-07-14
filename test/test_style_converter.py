@@ -628,11 +628,15 @@ class TestCategorizedMatchExpression(unittest.TestCase):
             c.alphaF.return_value = 1.0
             return c
 
+        def layerType(self):
+            return "SimpleFill"
+
     def _make_symbol(self, sl):
         from unittest.mock import MagicMock
         sym = MagicMock()
         sym.symbolLayerCount.return_value = 1
         sym.symbolLayer.return_value = sl
+        sym.opacity.return_value = 1.0
         return sym
 
     def _make_category(self, value, sl, active=True):
@@ -648,6 +652,7 @@ class TestCategorizedMatchExpression(unittest.TestCase):
         renderer = MagicMock()
         renderer.classAttribute.return_value = attr
         renderer.categories.return_value = categories
+        renderer.orderByEnabled.return_value = False  # exercise the match-expression path
         layer = MagicMock()
         layer.name.return_value = "test_layer"
         layer.geometryType.return_value = 2  # Polygon
@@ -753,12 +758,16 @@ class TestGraduatedInterpolateExpression(unittest.TestCase):
             c.alphaF.return_value = self._alpha
             return c
 
+        def layerType(self):
+            return "SimpleFill"
+
     def _make_range(self, lower, color_hex, upper=None):
         from unittest.mock import MagicMock
         sl = self._FakeFillSL(fill_hex=color_hex)
         sym = MagicMock()
         sym.symbolLayerCount.return_value = 1
         sym.symbolLayer.return_value = sl
+        sym.opacity.return_value = 1.0
         r = MagicMock()
         r.lowerValue.return_value = lower
         r.upperValue.return_value = upper if upper is not None else lower + 100

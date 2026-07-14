@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.39.1
+version=0.39.2
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,10 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.39.2 - Pre-upload hygiene: remove duplicate method, fix stale unit tests, gate clean
+    - Removed a duplicate _plugin_version() in the dock (flake8 F811). Fixed style_converter unit-test
+      mocks that had gone stale since the fill-paint refactor (missing layerType/opacity/orderByEnabled)
+      — the full suite (173) now passes. flake8 clean; Bandit no High/Medium; metadata + packaging valid.
     0.39.1 - Layer ordering + unstyled MVT handling
     - Tile/raster layers (e.g. an XYZ raster) now appear in the map + TOC at their selected-layer
       position instead of always at the bottom of the stack.

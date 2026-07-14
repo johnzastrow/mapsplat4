@@ -107,7 +107,7 @@ class StyleConverter:
         self._svg_sprite_map = {}  # populated by _generate_sprites(); {source_layer: sprite_key}
         self._cat_sprite_map = {}  # {source_layer: {category_value: sprite_key}} for categorized markers
         self._cat_legend = {}      # {source_layer: [(label, icon_data_url), ...]} for the legend
-        self._grad_sprite_map = {} # {source_layer: [(lower_value, sprite_key), ...]} for graduated markers
+        self._grad_sprite_map = {}  # {source_layer: [(lower_value, sprite_key), ...]} graduated markers
         self._grad_legend = {}     # {source_layer: [(label, icon_data_url), ...]} for the legend
         self._patterns = {}        # image_id -> pattern def (angle/spacing/width/colour)
         self._pattern_ids = {}     # dedup signature -> image_id

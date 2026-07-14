@@ -27,3 +27,4 @@ mapsplat.zip
 *.tabs-*
 *.phase1-*
 symbology-style.db
+.ruff_cache/
