@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — TOC entries for every layer (0.39.0)
+- **All layers are now toggleable in the viewer.** The layer list built its entries by filtering to
+  layers with a `source-layer`, which silently excluded every **raster** layer — local raster PMTiles,
+  the **XYZ raster basemap**, and **online XYZ raster** tile layers had no checkbox. The list now also
+  includes `type: "raster"` layers, grouped by their source, with a raster swatch and a friendly label
+  (from a `mapsplat:label` metadata hint, or the cleaned source id). Toggling hides/shows them via
+  `setLayoutProperty('visibility', …)` like any other layer. Verified headless: a map with vector +
+  local-raster + XYZ-basemap + online-raster layers listed every one and toggling worked.
+
 ### Changed — clearer self-hosting scope (0.38.1)
 - **Streaming vs self-hosted, made explicit.** MapSplat's model is static hosting: everything it can
   bundle is written as **PMTiles** that a plain Range-capable server (Caddy, nginx, `serve.py`) serves

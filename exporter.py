@@ -706,8 +706,12 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             // Create layer toggles
             const layerToggles = document.getElementById('layer-toggles');
             const style = map.getStyle();
-            // Reverse so top layers appear first in the list (MapLibre renders bottom-to-top)
-            const layers = style.layers.filter(l => l['source-layer']).reverse();
+            // Reverse so top layers appear first in the list (MapLibre renders bottom-to-top).
+            // Include raster layers (imagery, XYZ basemap, online raster) — they have no
+            // 'source-layer' but still need a TOC entry so users can toggle them off.
+            const layers = style.layers.filter(l => l['source-layer'] || l.type === 'raster').reverse();
+            // Group key: vector layers by source-layer; raster layers by their source (or id).
+            const _groupKey = (l) => l['source-layer'] || l.source || l.id;
 
             // Unwrap the first literal CSS color from a MapLibre paint expression
             function extractColorFromExpression(expr) {{
@@ -763,6 +767,10 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 }} else if (ltype === 'circle') {{
                     swatch.classList.add('circle');
                     swatch.style.backgroundColor = color;
+                }} else if (ltype === 'raster') {{
+                    // Raster / imagery / basemap: a small gradient tile icon.
+                    swatch.style.cssText = 'background:linear-gradient(135deg,#7fa8c9,#cfe3d4);'
+                        + 'border:1px solid #999;width:16px;height:16px;min-width:16px;';
                 }} else if (ltype === 'symbol') {{
                     // Use the pre-rendered icon data URL embedded in layer metadata (single-symbol
                     // marker) or the first per-class icon (categorized markers).
@@ -883,7 +891,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             }}
             const _slOrder = [], _slGroups = {{}};
             layers.forEach(layer => {{
-                const sl = layer['source-layer'];
+                const sl = _groupKey(layer);
                 if (!_slGroups[sl]) {{ _slGroups[sl] = []; _slOrder.push(sl); }}
                 _slGroups[sl].push(layer);
             }});
@@ -905,7 +913,10 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
 
                 const label = document.createElement('label');
                 label.htmlFor = checkbox.id;
-                label.textContent = sourceLayer.replace(/_/g, ' ');
+                // Prefer an explicit label from metadata; else clean up our internal source ids.
+                const _lblMeta = (layer.metadata || {{}})['mapsplat:label'];
+                label.textContent = _lblMeta || sourceLayer
+                    .replace(/^(tile_|raster_)/, '').replace(/(_raster|_layer)$/, '').replace(/_/g, ' ');
                 label.title = sourceLayer;
 
                 checkbox.addEventListener('change', () => {{
@@ -1772,6 +1783,7 @@ class MapSplatExporter(QObject):
                     "type": "raster",
                     "source": src_id,
                     "paint": {"raster-opacity": round(float(layer.opacity()), 3)},
+                    "metadata": {"mapsplat:label": layer.name()},
                 })
             else:
                 self._failed_layers.append((layer.name(), "raster tiling failed"))
@@ -1796,7 +1808,8 @@ class MapSplatExporter(QObject):
         arr = style_json.setdefault("layers", [])
         insert_at = 1 if (arr and arr[0].get("type") == "background") else 0
         arr[insert_at:insert_at] = [
-            {"id": "basemap_xyz_layer", "type": "raster", "source": "basemap_xyz"}
+            {"id": "basemap_xyz_layer", "type": "raster", "source": "basemap_xyz",
+             "metadata": {"mapsplat:label": "Basemap"}}
         ]
         self.log_message.emit(f"  XYZ raster basemap: {url}", "info")
 
@@ -1953,6 +1966,7 @@ class MapSplatExporter(QObject):
                     "type": "raster",
                     "source": src_id,
                     "paint": {"raster-opacity": round(float(layer.opacity()), 3)},
+                    "metadata": {"mapsplat:label": layer.name()},
                 })
                 self.log_message.emit(f"  Referenced online raster '{layer.name()}' (streams live)", "info")
         if below:
