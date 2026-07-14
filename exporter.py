@@ -654,6 +654,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             padding: 2px 0; list-style-position: inside; user-select: none;
         }}
         details.legend-group > summary:hover {{ color: #000; }}
+        details.legend-group > summary .group-toggle {{ margin: 0 5px 0 0; vertical-align: middle; cursor: pointer; }}
         details.legend-group > .layer-item {{ margin-left: 14px; }}
         /* Collapsible per-layer class list ("N classes") */
         details.legend-entries-collapse {{ margin: 2px 0 2px 22px; }}
@@ -982,19 +983,55 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 return div;
             }}
 
-            // QGIS layer-tree groups → collapsible sections (collapsed by default).
-            const legendGroups = (style.metadata || {{}})['mapsplat:legend-groups'] || [];
-            const grouped = new Set();
-            legendGroups.forEach(g => {{
-                if (!g.name) return;
+            // A collapsible group whose summary has a checkbox that shows/hides EVERY layer in it.
+            function makeGroupSection(name) {{
                 const det = document.createElement('details');
                 det.className = 'legend-group';
                 const sum = document.createElement('summary');
-                sum.textContent = g.name;
+                const gcb = document.createElement('input');
+                gcb.type = 'checkbox'; gcb.checked = true; gcb.className = 'group-toggle';
+                gcb.title = 'Show/hide all layers in this group';
+                gcb.addEventListener('click', (e) => e.stopPropagation());  // don't toggle the disclosure
+                gcb.addEventListener('change', () => {{
+                    det.querySelectorAll('.layer-item > input[type="checkbox"]').forEach(cb => {{
+                        if (cb.checked !== gcb.checked) {{ cb.checked = gcb.checked; cb.dispatchEvent(new Event('change')); }}
+                    }});
+                }});
+                sum.appendChild(gcb);
+                const lbl = document.createElement('span');
+                lbl.textContent = name;
+                sum.appendChild(lbl);
                 det.appendChild(sum);
+                // Keep the group checkbox in sync with its children (all / none / mixed).
+                det.addEventListener('change', (e) => {{
+                    if (e.target === gcb) return;
+                    const boxes = [...det.querySelectorAll('.layer-item > input[type="checkbox"]')];
+                    const on = boxes.filter(b => b.checked).length;
+                    gcb.checked = on > 0;
+                    gcb.indeterminate = on > 0 && on < boxes.length;
+                }});
+                return det;
+            }}
+
+            // QGIS layer-tree groups → collapsible sections (collapsed by default). The metadata
+            // lists a group's members by source-layer NAME; match those to the source-aware group
+            // keys (and only to real data layers, never a base/basemap layer of the same name).
+            const legendGroups = (style.metadata || {{}})['mapsplat:legend-groups'] || [];
+            const grouped = new Set();
+            const _isBaseSrc = (s) => (s || '').startsWith('tile_') || (s || '').startsWith('raster_')
+                || s === 'protomaps' || s === 'basemap_xyz';
+            legendGroups.forEach(g => {{
+                if (!g.name) return;
+                const det = makeGroupSection(g.name);
                 (g.layers || []).forEach(sl => {{
-                    const item = renderLayerItem(sl);
-                    if (item) {{ det.appendChild(item); grouped.add(sl); }}
+                    _slOrder.forEach(key => {{
+                        if (grouped.has(key)) return;
+                        const gl = _slGroups[key];
+                        if (gl && gl[0] && !_isBaseSrc(gl[0].source) && key.split('\x1f').pop() === sl) {{
+                            const item = renderLayerItem(key);
+                            if (item) {{ det.appendChild(item); grouped.add(key); }}
+                        }}
+                    }});
                 }});
                 if (det.children.length > 1) layerToggles.appendChild(det);
             }});
@@ -1004,11 +1041,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             // base-at-bottom order. Claim their layers now so the ungrouped pass skips them.
             const _bottomSections = [];
             function _makeSourceGroup(name, sourceMatch) {{
-                const det = document.createElement('details');
-                det.className = 'legend-group';
-                const sum = document.createElement('summary');
-                sum.textContent = name;
-                det.appendChild(sum);
+                const det = makeGroupSection(name);
                 _slOrder.forEach(key => {{
                     if (grouped.has(key)) return;
                     const gl = _slGroups[key];

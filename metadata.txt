@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.41.1
+version=0.42.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,12 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.42.0 - Group on/off toggles + restore the 'My Layers' QGIS group
+    - Each collapsible section in the viewer's layer list (My Layers, Carto, Basemap, ...) now has a
+      checkbox in its header that shows/hides ALL layers in the group at once; it reflects the child
+      state (all / none / mixed).
+    - Fixed a regression where QGIS layer-tree groups (e.g. 'My Layers') stopped appearing after the
+      source-aware TOC grouping change.
     0.41.1 - Fix render order: basemaps below your data
     - Tile/raster layers (XYZ imagery like Google Satellite, vector-tile bases like Carto) now always
       render BELOW your vector data instead of being interleaved or stacked on top. Previously a full

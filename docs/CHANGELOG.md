@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added / Fixed — group toggles + restored QGIS groups (0.42.0)
+- **Group on/off toggle.** Every collapsible section in the layer list (a QGIS group like "My Layers",
+  the Carto vector-tile group, the Basemap group) now has a checkbox in its header that shows/hides
+  **all** the layers in that group at once. The group checkbox reflects its children (checked / empty /
+  indeterminate when mixed).
+- **Restored QGIS layer-tree groups.** A regression from the source-aware TOC grouping (0.40.0) made
+  QGIS groups such as "My Layers" disappear — the group metadata lists members by source-layer name,
+  which stopped matching the new composite group keys. Group members are now matched by source-layer
+  name against real data layers (never a base layer of the same name). Verified: "My Layers" reappears
+  with its members and its group toggle hides/shows them.
+
 ### Fixed — render order: basemaps below the data (0.41.1)
 - **Tile/raster base layers now render below your vector data.** The previous reorder ranked layers by
   *selection* order, which could leave a full vector-tile basemap (Carto) stacked on top of everything
