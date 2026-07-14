@@ -354,23 +354,24 @@ layers. Highest value for lowest effort.
 
 ---
 
-#### Stage 2 — Local MBTiles conversion *(medium effort, offline-capable)*
+#### Stage 2 — Local MBTiles conversion ✅ *Done — v0.38.0*
 
 Applies only to `QgsVectorTileLayer` instances whose provider is `mbtiles` (local file —
 no ToS concern). The file is already on disk; conversion is a single command.
 
-- [ ] Detect `layer.providerType() == "mbtiles"` in the tile layer path
-- [ ] Run `pmtiles convert {source.mbtiles} {output}/data/{layer_name}.pmtiles` using the
-      existing `QProcess` polling pattern
-- [ ] Write a `pmtiles://data/{layer_name}.pmtiles` source URL into `style.json`
-      (same as regular exported layers)
-- [ ] Include the GL style from the source MBTiles `metadata` table if present
-      (`SELECT value FROM metadata WHERE name = 'style'`)
-- [ ] Show conversion progress in the Log tab
+- [x] Detect `sourceType() == "mbtiles"` in the tile layer path
+- [x] Run `pmtiles convert {source.mbtiles} {output}/data/{layer}.pmtiles`
+- [x] Write a `pmtiles://data/{layer}.pmtiles` vector source into `style.json`
+- [x] Include the GL style from the MBTiles `metadata` table (or the layer custom property)
+- [x] Log conversion in the Log tab
 
 ---
 
-#### Stage 3 — Download online tile sources to PMTiles *(large, ToS-gated)*
+#### Stage 3 — Download online tile sources to PMTiles *(large, ToS-gated — DEFERRED)*
+
+> Deferred as a dedicated effort: it needs per-layer opt-in, an explicit ToS acknowledgment dialog,
+> tile-count/size estimate, progress + cancel, and per-provider handling. Online tile layers stream
+> live today (Stage 1); local MBTiles are bundled (Stage 2).
 
 For **online** sources where the user has confirmed they hold a licence permitting bulk
 download and redistribution.

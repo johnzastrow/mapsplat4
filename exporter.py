@@ -1263,7 +1263,7 @@ class MapSplatExporter(QObject):
 
         # Reference any selected tile-service layers (MVT vector tiles / XYZ-WMS rasters) as
         # pass-through sources in the style. No data is copied — the viewer streams them live.
-        self._add_tile_layers(layers.get("tile", []), style_json)
+        self._add_tile_layers(layers.get("tile", []), style_json, output_dir, style_only)
 
         # Tile selected local raster layers to PMTiles (opt-in), below the vector layers.
         if not style_only:
@@ -1821,12 +1821,34 @@ class MapSplatExporter(QObject):
             out.append(lay)
         return out
 
-    def _add_tile_layers(self, tile_layers, style_json):
-        """Stage-1 pass-through for MVT vector-tile and XYZ/WMS raster layers.
+    def _mbtiles_gl_style(self, mbtiles_path):
+        """Read a stored Mapbox-GL style from an MBTiles ``metadata`` table, or None."""
+        import sqlite3
+        try:
+            con = sqlite3.connect(mbtiles_path)
+            try:
+                rows = con.execute(
+                    "SELECT name, value FROM metadata WHERE name IN ('style','json')").fetchall()
+            finally:
+                con.close()
+        except Exception:
+            return None
+        meta = {n: v for n, v in rows}
+        for key in ("style", "json"):
+            v = meta.get(key)
+            if v and '"layers"' in v:
+                return v
+        return None
 
-        Adds their sources (+ layers) to ``style_json`` so the exported map streams them live.
-        No data is downloaded, so there is no provider terms-of-service concern. Tile layers are
-        inserted *below* the exported vector PMTiles layers (just above the background).
+    def _add_tile_layers(self, tile_layers, style_json, output_dir=None, style_only=False):
+        """MVT vector-tile and XYZ/WMS raster layers in the style.
+
+        - XYZ/WMS sources are **pass-through** (referenced live; no data copied, no ToS concern).
+        - Local **MBTiles** vector-tile layers are converted to PMTiles and **bundled** for offline
+          use (Story 18 Stage 2 — local file, no ToS concern), with the GL style from the layer's
+          custom property or the MBTiles metadata table.
+
+        Tile layers are inserted *below* the exported vector PMTiles layers.
         """
         if not tile_layers:
             return
@@ -1838,6 +1860,42 @@ class MapSplatExporter(QObject):
             if QgsVectorTileLayer is not None and isinstance(layer, QgsVectorTileLayer):
                 stype = layer.sourceType() if hasattr(layer, "sourceType") else ""
                 url = layer.sourcePath() if hasattr(layer, "sourcePath") else ""
+
+                if stype == "mbtiles":
+                    # Stage 2: convert the local MBTiles to PMTiles and bundle it.
+                    if style_only or not output_dir:
+                        self.log_message.emit(
+                            f"  Skipped MBTiles vector tile '{layer.name()}' (style-only mode)", "warning")
+                        continue
+                    if not url or not os.path.exists(url):
+                        msg = "MBTiles file not found"
+                        self.log_message.emit(f"  Skipped '{layer.name()}' ({msg})", "warning")
+                        self._failed_layers.append((layer.name(), msg))
+                        continue
+                    pm_out = os.path.join(output_dir, "data", f"{name}.pmtiles")
+                    ok, err = self._run_cmd(["pmtiles", "convert", url, pm_out])
+                    if not ok:
+                        self.log_message.emit(f"  MBTiles→PMTiles failed for '{layer.name()}': {err}", "error")
+                        self._failed_layers.append((layer.name(), f"MBTiles→PMTiles failed: {err}"))
+                        continue
+                    self._maybe_verify(pm_out, layer.name())
+                    sources[src_id] = {"type": "vector", "url": f"pmtiles://data/{name}.pmtiles"}
+                    gl = (layer.customProperty("mapbox-gl-style")
+                          or layer.customProperty("mapboxGLStyle")
+                          or self._mbtiles_gl_style(url))
+                    gl_layers = self._gl_layers_for_source(gl, src_id)
+                    if gl_layers:
+                        below.extend(gl_layers)
+                        self.log_message.emit(
+                            f"  Bundled MBTiles vector tile '{layer.name()}' → PMTiles (offline)", "success")
+                    else:
+                        self.log_message.emit(
+                            f"  Bundled '{layer.name()}' → PMTiles but found no GL style — "
+                            f"add styling for source '{src_id}' in the target page.", "warning")
+                        self._failed_layers.append(
+                            (layer.name(), "MBTiles bundled without a GL style (unstyled)"))
+                    continue
+
                 if stype != "xyz" or not url:
                     msg = f"unsupported vector-tile source type '{stype}'"
                     self.log_message.emit(f"  Skipped vector tile '{layer.name()}' ({msg})", "warning")

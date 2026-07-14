@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — local MBTiles → bundled PMTiles (0.38.0, Story 18 Stage 2)
+- **Local vector-tile MBTiles are packaged offline.** A `QgsVectorTileLayer` whose source is a local
+  `.mbtiles` file is now converted with `pmtiles convert` and **bundled** into the export as a
+  `pmtiles://` vector source (no ToS concern — it's a local file). The Mapbox-GL style is taken from
+  the layer's `mapbox-gl-style` custom property or, failing that, the MBTiles `metadata` table
+  (`style`/`json`). Verified end-to-end: an MBTiles with a GL style converted to PMTiles and the style
+  was read back and its layers re-pointed at the bundled source. (XYZ/MVT **online** sources still
+  stream live per Stage 1; **Stage 3** — downloading online sources for offline use — remains deferred
+  as a ToS-gated, dedicated effort.)
+
 ### Added — XYZ raster basemap (0.37.0, Story 16)
 - **XYZ basemap mode.** Alongside Protomaps PMTiles (stream / download-clip), a new **XYZ raster**
   basemap mode streams an online tile provider as the base layer. Built-in presets: OpenStreetMap,

@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.37.0
+version=0.38.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,12 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.38.0 - Local MBTiles vector tiles -> bundled PMTiles (Story 18 Stage 2)
+    - A vector tile layer backed by a local .mbtiles file is now converted to PMTiles and bundled into
+      the export (offline-capable; no terms-of-service concern since it's a local file). Its Mapbox-GL
+      style is taken from the layer's custom property or the MBTiles metadata table.
+    - Stage 3 (downloading ONLINE tile sources for offline use) remains deferred — it is ToS-gated and
+      needs dedicated acknowledgment/progress UI; online tile layers still stream live (Stage 1).
     0.37.0 - XYZ raster basemap support (Story 16)
     - New basemap mode: "XYZ raster" — use an online XYZ tile provider (OpenStreetMap, Carto,
       OpenTopoMap, Esri World Imagery, or a custom {z}/{x}/{y} URL) as the basemap. It streams live in
