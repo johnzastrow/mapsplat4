@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — use a vector tile layer's own GL style (0.39.4)
+- **MVT vector tile layers with a Style URL now render.** When a `QgsVectorTileLayer` has no stored
+  `mapbox-gl-style` custom property, MapSplat now reads the **`styleUrl=`** from the layer's data
+  source (how QGIS stores it when you add the layer with a style), **fetches** that Mapbox-GL style at
+  export time, and uses its layers (re-pointed at the layer's tiles). So a Carto/MapTiler vector
+  basemap that "came with its own style" now works instead of being skipped. If the style declares
+  `glyphs` and the output has none yet, it's adopted. Verified: fetched a real Carto GL style (v8, 92
+  layers) and re-pointed every layer to the source. Caveat: provider fonts (`glyphs`) and icon sprites
+  aren't bundled, so labels/icons may be partial when a separate basemap supplies the glyphs.
+
 ### Fixed — false PMTiles verify failures (0.39.3)
 - **`Verify PMTiles after export` no longer fails good exports.** GDAL's PMTiles writer always stamps
   `MinZoom=0` in the header, but for a small extent the features only produce tiles at a higher zoom

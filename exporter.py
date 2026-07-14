@@ -1866,6 +1866,34 @@ class MapSplatExporter(QObject):
             return url
         return None
 
+    def _style_url_from_vt(self, layer):
+        """A vector-tile layer's Mapbox-GL style URL, if it was added with one (``styleUrl=``)."""
+        import re
+        import urllib.parse
+        src = ""
+        try:
+            src = layer.dataProvider().dataSourceUri()
+        except Exception:
+            pass
+        src = src or (layer.source() or "")
+        m = re.search(r'(?:^|&)styleUrl=([^&]+)', src)
+        if m:
+            return urllib.parse.unquote(m.group(1))
+        return None
+
+    def _fetch_gl_style(self, url):
+        """Fetch a Mapbox-GL style JSON from a URL at export time (best-effort)."""
+        if not (isinstance(url, str) and url.startswith(("http://", "https://"))):
+            return None
+        try:
+            import urllib.request
+            req = urllib.request.Request(url, headers={"User-Agent": "MapSplat"})
+            with urllib.request.urlopen(req, timeout=20) as resp:  # nosec B310 - user layer's own style URL
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as e:
+            self.log_message.emit(f"  Could not fetch style from {url}: {e}", "warning")
+            return None
+
     def _gl_layers_for_source(self, gl_style, src_id):
         """Return the non-background layers from a stored GL style, re-pointed at ``src_id``."""
         if not gl_style:
@@ -1967,6 +1995,18 @@ class MapSplatExporter(QObject):
                 gl = (layer.customProperty("mapbox-gl-style")
                       or layer.customProperty("mapboxGLStyle"))
                 gl_layers = self._gl_layers_for_source(gl, src_id)
+                style_glyphs = None
+                if not gl_layers:
+                    # No stored style — try the layer's own style URL (Carto, MapTiler, etc.
+                    # store it as styleUrl= when the layer is added with a style).
+                    style_url = self._style_url_from_vt(layer)
+                    if style_url:
+                        self.log_message.emit(
+                            f"  Fetching GL style for '{layer.name()}' from {style_url}", "info")
+                        fetched = self._fetch_gl_style(style_url)
+                        if fetched:
+                            gl_layers = self._gl_layers_for_source(fetched, src_id)
+                            style_glyphs = fetched.get("glyphs")
                 if gl_layers:
                     src = {"type": "vector", "tiles": [url]}
                     try:
@@ -1979,15 +2019,18 @@ class MapSplatExporter(QObject):
                         pass
                     sources[src_id] = src
                     below.extend(gl_layers)
+                    # If the output style has no glyphs yet, adopt the provider's so labels render.
+                    if style_glyphs and not style_json.get("glyphs"):
+                        style_json["glyphs"] = style_glyphs
                     self.log_message.emit(
-                        f"  Referenced vector tile '{layer.name()}' with its stored GL style", "info")
+                        f"  Styled vector tile '{layer.name()}' ({len(gl_layers)} layer(s))", "info")
                 else:
-                    # No GL style: MapLibre needs per-source-layer rules we can't infer, so the
-                    # source would render nothing. Skip it (don't leave a dead source) and explain.
+                    # No GL style anywhere: MapLibre needs per-source-layer rules we can't infer,
+                    # so the source would render nothing. Skip it (don't leave a dead source).
                     self.log_message.emit(
                         f"  Vector tile '{layer.name()}' has no style MapSplat can use — skipped. "
-                        f"Style it in QGIS (or import its Mapbox-GL style) and re-export, or use the "
-                        f"provider's raster (XYZ) tiles instead.", "warning")
+                        f"Add it in QGIS with a Style URL (or style it), or use the provider's raster "
+                        f"(XYZ) tiles instead.", "warning")
                     self._failed_layers.append(
                         (layer.name(), "MVT vector tile has no usable style (skipped — needs a GL style)"))
             elif isinstance(layer, QgsRasterLayer):

@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.39.3
+version=0.39.4
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,11 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.39.4 - Use a vector tile layer's own GL style (fetch styleUrl)
+    - A vector tile (MVT) layer added in QGIS with a Style URL now renders: MapSplat reads the styleUrl
+      from the layer source, fetches that Mapbox-GL style at export time, and uses its layers (so e.g.
+      Carto basemaps 'just work' instead of being skipped). Provider fonts/icons aren't bundled, so
+      labels/icons may be partial when a separate basemap is also used.
     0.39.3 - Fix false PMTiles verify failures (benign zoom-header mismatch)
     - 'Verify PMTiles after export' no longer fails normal exports. GDAL's PMTiles writer stamps
       MinZoom=0 in the header even when small features only tile at a higher zoom, so `pmtiles verify`
