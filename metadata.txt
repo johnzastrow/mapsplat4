@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.43.0
+version=0.43.1
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,10 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.43.1 - Republish for the QGIS plugin repository
+    - Version bump to publish the validated build (Qt6 scoped enums and the lint/security gates
+      cleared). The generated viewer's version stamp now reflects the real plugin version. No
+      behavioural change.
     0.43.0 - Layer order follows the QGIS layer tree
     - The exported map now stacks layers in your QGIS layer-tree order: the top layer in the QGIS
       panel renders on top in the web map (and appears at the top of the layer list). Rearrange your

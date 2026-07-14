@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.1] — 2026-07-14
+
+### Changed — republish for the QGIS plugin repository (0.43.1)
+- Version bump to publish the validated 0.43.0 build to plugins.qgis.org (0.43.0 was already
+  taken). No behavioural change.
+- The generated viewer's HTML version stamp now reflects the real plugin version — it previously
+  read a stale module constant.
+
 ## [0.43.0] — 2026-07-14
 
 ### Fixed — plugin-repository validation (0.43.0)

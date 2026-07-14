@@ -6,7 +6,7 @@
 
 [![QGIS](https://img.shields.io/badge/QGIS-4.0%2B-green.svg)](https://qgis.org)
 [![License](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.43.0-orange.svg)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.43.1-orange.svg)](docs/CHANGELOG.md)
 
 MapSplat is a QGIS plugin that exports your project layers to a self-contained web map you can host
 on any static target — a web server, cloud storage, or your local machine. No tile server, no
