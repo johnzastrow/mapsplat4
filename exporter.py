@@ -1921,28 +1921,56 @@ class MapSplatExporter(QObject):
         self.log_message.emit(f"  XYZ raster basemap: {url}", "info")
 
     def _reorder_business_by_tree(self, style_json):
-        """Place tile/raster (basemap-like) layers BELOW the vector data layers.
+        """Order the (pre-merge) business layers to match the QGIS layer tree.
 
-        Imagery and tile services are bases — they should sit under the vector overlays, not on top
-        of them. The style converter already orders the vector layers correctly; tile/raster layers
-        were appended at various positions, which left an opaque XYZ raster or a full vector-tile
-        basemap (Carto) rendering over the data. This moves every tile/raster layer to the bottom of
-        the (pre-merge) business stack — above the background/basemap, below the vectors — while
-        preserving each partition's internal order (a stable partition, not a sort).
+        The top layer in the QGIS panel renders on top in the web map, exactly as in QGIS — so the
+        user controls layer order directly by arranging their layer tree. Uses the same reliable
+        ``node.children()`` walk as the group capture (top-to-bottom, works for gpkg-stored projects
+        where ``layerOrder()`` is empty). Falls back to putting tile/raster bases at the bottom only
+        if the tree can't be read.
         """
         layers = style_json.get("layers", [])
         if not layers:
             return
+        bg = [ly for ly in layers if ly.get("type") == "background"]
+        rest = [ly for ly in layers if ly.get("type") != "background"]
 
+        order = []  # sanitized layer names, top-to-bottom
+        try:
+            from qgis.core import QgsLayerTreeGroup, QgsLayerTreeLayer
+
+            def walk(node):
+                for child in node.children():
+                    if isinstance(child, QgsLayerTreeGroup):
+                        walk(child)
+                    elif isinstance(child, QgsLayerTreeLayer):
+                        lyr = child.layer()
+                        if lyr is not None:
+                            order.append(self._sanitize_layer_name(lyr.name()))
+
+            walk(self.project.layerTreeRoot())
+        except Exception:
+            order = []
+
+        if order:
+            rank = {}
+            for i, san in enumerate(order):  # i = 0 is the top-most layer in the panel
+                for sid in (san, f"tile_{san}", f"raster_{san}"):
+                    rank.setdefault(sid, i)
+            _BOTTOM = 1 << 30  # sources not in the tree (unexpected) sink to the bottom
+            # MapLibre draws bottom-to-top, so the top-most tree layer (rank 0) must be LAST.
+            rest.sort(key=lambda ly: -rank.get(ly.get("source"), _BOTTOM))
+            style_json["layers"] = bg + rest
+            return
+
+        # Fallback (no tree order): imagery/tile bases at the bottom, vector data on top.
         def _is_base(ly):
             src = ly.get("source") or ""
             return (ly.get("type") == "raster" or src.startswith(("tile_", "raster_"))
                     or src == "basemap_xyz")
 
-        bg = [ly for ly in layers if ly.get("type") == "background"]
-        rest = [ly for ly in layers if ly.get("type") != "background"]
-        base = [ly for ly in rest if _is_base(ly)]     # imagery / tile bases → bottom
-        vectors = [ly for ly in rest if not _is_base(ly)]  # vector data → on top
+        base = [ly for ly in rest if _is_base(ly)]
+        vectors = [ly for ly in rest if not _is_base(ly)]
         style_json["layers"] = bg + base + vectors
 
     def _xyz_url_from_raster(self, layer):

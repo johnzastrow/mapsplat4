@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — layer order follows the QGIS layer tree (0.43.0)
+- **You control layer order from QGIS.** The exported stack now matches your QGIS layer tree — the
+  top layer in the panel renders on top in the web map (and is first in the layer list) — instead of
+  the plugin imposing an order. Uses the same reliable `node.children()` tree walk as the group
+  capture (top-to-bottom; works for gpkg-stored projects where `layerOrder()` returns empty). This
+  supersedes the 0.41.1 "bases at the bottom" heuristic, which is now only a fallback when the tree
+  can't be read; where you place imagery/tile basemaps in QGIS is where they render. The
+  MapSplat-added Protomaps basemap still sits at the very bottom. Verified: for a tree ordered
+  data→…→Google Satellite→Carto, the render stack put the top data layer on top and Carto at the
+  bottom, exactly matching the panel.
+
 ### Added / Fixed — group toggles + restored QGIS groups (0.42.0)
 - **Group on/off toggle.** Every collapsible section in the layer list (a QGIS group like "My Layers",
   the Carto vector-tile group, the Basemap group) now has a checkbox in its header that shows/hides
