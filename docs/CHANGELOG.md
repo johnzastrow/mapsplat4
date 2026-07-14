@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — clearer self-hosting scope (0.38.1)
+- **Streaming vs self-hosted, made explicit.** MapSplat's model is static hosting: everything it can
+  bundle is written as **PMTiles** that a plain Range-capable server (Caddy, nginx, `serve.py`) serves
+  with no tile-server process. Sources that instead **stream live** from a remote server — the XYZ
+  raster basemap, online XYZ/MVT tile layers, and a streamed (remote) Protomaps basemap — now:
+  carry a **🌐** marker in the layer list and basemap radios, a tooltip stating they need internet and
+  aren't served by your own host, and a **note in the export log** listing every live-streaming
+  source. A new README **Hosting & self-hosting scope** section documents what's bundled (PMTiles,
+  offline) vs streamed (🌐, internet-only), and why raw MBTiles / remote tile services can't be
+  served by a plain web server.
+
 ### Added — local MBTiles → bundled PMTiles (0.38.0, Story 18 Stage 2)
 - **Local vector-tile MBTiles are packaged offline.** A `QgsVectorTileLayer` whose source is a local
   `.mbtiles` file is now converted with `pmtiles convert` and **bundled** into the export as a

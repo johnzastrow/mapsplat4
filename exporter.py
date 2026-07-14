@@ -1301,6 +1301,20 @@ class MapSplatExporter(QObject):
             + (", ".join(_biz) if _biz else "(none)"), "info"
         )
 
+        # Flag sources that stream live from a remote server — the map is NOT fully self-hosted
+        # for these (they need internet and aren't served by your own static host / Caddy).
+        _streaming = []
+        for _sid, _src in style_json.get("sources", {}).items():
+            _urls = _src.get("tiles") or ([_src["url"]] if _src.get("url") else [])
+            if any(isinstance(u, str) and u.startswith(("http://", "https://")) for u in _urls):
+                _streaming.append(_sid)
+        if _streaming:
+            self.log_message.emit(
+                f"Note: {len(_streaming)} source(s) stream live and need internet — the exported map "
+                f"is NOT fully self-hosted for these (your own Caddy/static host won't serve them): "
+                + ", ".join(sorted(_streaming)), "warning"
+            )
+
         self.progress.emit(75)
 
         # Write style.json if requested

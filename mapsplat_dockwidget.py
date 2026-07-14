@@ -444,20 +444,21 @@ class MapSplatDockWidget(QDockWidget):
         # Mode: stream from a URL (no install) vs download + clip for offline (needs CLI)
         mode_layout = QHBoxLayout()
         mode_layout.addWidget(QLabel("Mode:"))
-        self.radio_basemap_stream = QRadioButton("Stream from URL")
+        self.radio_basemap_stream = QRadioButton("Stream from URL 🌐")
         self.radio_basemap_stream.setToolTip(
             "No install needed. The published map loads the basemap live from the remote URL\n"
-            "when viewed (the browser fetches only the visible tiles). Needs internet to view."
+            "when viewed. NEEDS INTERNET — not served by your own static host (Caddy)."
         )
         self.radio_basemap_bundle = QRadioButton("Download && clip offline")
         self.radio_basemap_bundle.setToolTip(
             "Clips the basemap to your data extent and embeds it in the export so the map works\n"
             "with no internet. Requires the 'pmtiles' command-line tool on your PATH."
         )
-        self.radio_basemap_xyz = QRadioButton("XYZ raster")
+        self.radio_basemap_xyz = QRadioButton("XYZ raster 🌐")
         self.radio_basemap_xyz.setToolTip(
             "Use an online XYZ raster basemap (OSM, Carto, imagery, ...). Streams live in the\n"
-            "published map (needs internet); no pmtiles CLI required. Attribution is added automatically."
+            "published map — NEEDS INTERNET, not served by your own static host (Caddy). No pmtiles\n"
+            "CLI required. Attribution is added automatically."
         )
         self.radio_basemap_stream.setChecked(True)
         self._basemap_mode_group = QButtonGroup()
@@ -1045,6 +1046,16 @@ class MapSplatDockWidget(QDockWidget):
 
                 item.setText(f"{prefix} {name}")
                 item.setData(_UserRole, layer.id())
+
+                # 🌐 layers stream live from a remote server — the exported map needs internet for
+                # them and they are NOT served by your own static host. Only local data is bundled
+                # as PMTiles (offline / Caddy-servable).
+                if "🌐" in prefix:
+                    item.setToolTip(
+                        "Streams live from a remote tile server — the exported map needs internet\n"
+                        "for this layer, and it is NOT served by your own static host (Caddy).\n"
+                        "Only your local data is bundled as PMTiles for offline hosting."
+                    )
 
                 warning = self._get_symbology_warning(layer)
                 if warning:

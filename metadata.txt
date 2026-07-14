@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.38.0
+version=0.38.1
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,12 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.38.1 - Clearer self-hosting scope: label streaming (internet-only) sources
+    - MapSplat bundles everything it can as PMTiles (Caddy/static-servable, offline). Sources that
+      stream live from a remote server (XYZ basemap, online XYZ/MVT layers, streamed Protomaps) now
+      carry a 🌐 marker in the UI and a tooltip explaining they need internet and aren't served by
+      your own host. The export log flags any live-streaming source. New README 'Hosting & self-hosting
+      scope' section spells out what's bundled vs streamed.
     0.38.0 - Local MBTiles vector tiles -> bundled PMTiles (Story 18 Stage 2)
     - A vector tile layer backed by a local .mbtiles file is now converted to PMTiles and bundled into
       the export (offline-capable; no terms-of-service concern since it's a local file). Its Mapbox-GL
