@@ -28,3 +28,15 @@ mapsplat.zip
 *.phase1-*
 symbology-style.db
 .ruff_cache/
+
+# Secrets / credentials (never commit)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*_rsa
+credentials.json
+secrets.*

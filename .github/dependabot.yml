@@ -1,0 +1,8 @@
+# Keep GitHub Actions pinned versions current (weekly). No pip ecosystem: this plugin
+# uses the Python/GDAL that ship with QGIS and declares no pip dependencies.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
