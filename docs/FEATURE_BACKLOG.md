@@ -49,6 +49,15 @@ tool is active. Off by default; toggle each in the Viewer tab.
   pickers add wiring for little benefit. Defaults remain settable via `measure_units` / `draw_color`
   in a config.
 
+### Vector SVG/PDF export *(requested 2026-07-14)*
+- [ ] **Export the map as SVG/PDF from QGIS** (Route A — recommended). Add a plugin action that renders
+      the current selection via `QgsMapSettings` + `QgsLayoutExporter` to crisp vector SVG/PDF. High
+      fidelity (QGIS draws the same symbology MapSplat reads), no web dependency. Caveat: raster
+      layers and raster basemaps stay pixels — pure-vector SVG suits the vector overlays.
+- [ ] *(Alt, lower priority)* Web-viewer "Export SVG": query `querySourceFeatures` in the current
+      view, project to screen, emit `<path>`/`<circle>`. Re-implements a renderer; labels, sprite
+      markers, patterns, and the raster basemap won't translate cleanly. Current-view only.
+
 ### Legend / markers follow-ups
 - [x] **Graduated (range-based) SVG markers** → per-class icons (v0.32.0) — `step` icon-image over the
       class attribute; per-range icons in the legend. Was categorized-only.
