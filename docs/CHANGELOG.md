@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — MVT / XYZ tile layer pass-through (0.34.0, Story 18 Stage 1)
+- **Tile-service layers now export (pass-through).** `QgsVectorTileLayer` (XYZ/MVT) and online XYZ
+  raster layers (`wms` provider — OSM, imagery, any `{z}/{x}/{y}`) are referenced directly in
+  `style.json` — a `type: "vector"` or `type: "raster"` source with the live URL template. **No data
+  is downloaded**, so there is no provider ToS concern (Stages 2–3 for offline packaging remain).
+  - Vector tile layers are now **selectable** in the layer list (previously disabled `[Other]`);
+    online layers are tagged **🌐** so it's clear the exported map needs internet for them.
+  - XYZ raster layers were previously selectable but **silently dropped** by the exporter — fixed.
+  - A vector tile layer with a stored Mapbox-GL style (`mapbox-gl-style` custom property) is rendered
+    with that style; without one, the source is referenced and flagged in the export summary (it needs
+    styling in the target page — MapLibre can't infer per-source-layer layers).
+  - Tile sources are inserted **below** the exported vector PMTiles layers. Verified headless: the
+    generated raster+vector tile style loads in MapLibre with no validation errors and correct order.
+
 ### Added — export summary + PMTiles verify (0.33.0)
 - **Partial-failure summary (Story 3).** In per-layer export mode, a layer that fails to tile is
   skipped (as before) but now recorded; at the end the exporter reports `N of M layer(s) OK` and the

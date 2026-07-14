@@ -321,29 +321,23 @@ For `QgsRasterLayer` (XYZ/WMS):
 
 ---
 
-#### Stage 1 — Pass-through: reference source URLs in style.json *(implement first)*
+#### Stage 1 — Pass-through: reference source URLs in style.json ✅ *Done — v0.34.0*
 
 No data is downloaded or converted. The exported map requires internet access for these
 layers. Highest value for lowest effort.
 
 **Layer list changes:**
-- [ ] Import `QgsVectorTileLayer` from `qgis.core`; detect it in `refresh_layer_list`
-- [ ] Show detected layers as `[VectorTile]` in the list (enabled for selection)
+- [x] Import `QgsVectorTileLayer`; detect it in `refresh_layer_list` (v0.34.0)
+- [x] Show detected layers as `[VectorTile]` in the list (enabled for selection)
 - [ ] Detect `QgsRasterLayer` with XYZ or WMS/WMTS provider; show as `[XYZ Raster]` or
       `[WMS]` (currently shown as `[Raster]` but dropped by exporter — fix the exporter path)
-- [ ] Add `🌐` suffix or `[Online]` tag on items whose source requires internet, so users
-      know the exported map will not work offline for those layers
+- [x] Add `🌐` tag on items whose source requires internet
 
 **Exporter changes (`exporter.py`):**
-- [ ] Add `"tile"` key alongside `"vector"` and `"raster"` in `_get_selected_layers()`
-  return dict; populate with `QgsVectorTileLayer` and XYZ raster instances
-- [ ] For each `QgsVectorTileLayer`: write a `"type": "vector"` source into `style.json`
-      using `layer.providerType()` / `dataProvider().dataSourceUri()` to extract the URL
-      template; include `minzoom`/`maxzoom` from the layer source metadata if available
-- [ ] For each XYZ `QgsRasterLayer`: write a `"type": "raster"` source + raster paint layer
-      into `style.json`; read opacity from `layer.opacity()`
-- [ ] Layer ordering: tile sources below exported PMTiles vector layers in `style.json`
-      (consistent with how basemap overlay is ordered)
+- [x] Add `"tile"` key in `_get_selected_layers()`; populate with vector-tile + XYZ raster layers
+- [x] For each `QgsVectorTileLayer`: write a `"type": "vector"` source (URL template + min/max zoom)
+- [x] For each XYZ `QgsRasterLayer`: write a `"type": "raster"` source + raster paint layer (opacity)
+- [x] Layer ordering: tile sources below exported PMTiles vector layers
 
 **Style / GL JSON capture:**
 - [ ] For `QgsVectorTileLayer`: attempt to retrieve stored GL style from layer custom

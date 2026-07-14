@@ -64,6 +64,11 @@ from qgis.core import (
     QgsSettings,
 )
 
+try:
+    from qgis.core import QgsVectorTileLayer
+except ImportError:  # older QGIS without vector tile layers
+    QgsVectorTileLayer = None
+
 from .exporter import MapSplatExporter
 
 _ItemIsEnabled = Qt.ItemFlag.ItemIsEnabled
@@ -958,12 +963,16 @@ class MapSplatDockWidget(QDockWidget):
                 name = layer.name()
                 item = QListWidgetItem()
 
-                # Layer type prefix (geometryType() is an enum on QGIS 4, int on QGIS 3)
-                if isinstance(layer, QgsVectorLayer):
+                # Layer type prefix (geometryType() is an enum on QGIS 4, int on QGIS 3).
+                # 🌐 marks layers whose exported map streams live and needs internet.
+                if QgsVectorTileLayer is not None and isinstance(layer, QgsVectorTileLayer):
+                    prefix = "[VectorTile] 🌐"
+                elif isinstance(layer, QgsVectorLayer):
                     geom_type = int(layer.geometryType())
                     prefix = {0: "[Point]", 1: "[Line]", 2: "[Polygon]"}.get(geom_type, "[Vector]")
                 elif isinstance(layer, QgsRasterLayer):
-                    prefix = "[Raster]"
+                    prov = layer.dataProvider().name() if layer.dataProvider() else ""
+                    prefix = "[Online] 🌐" if prov == "wms" else "[Raster]"
                 else:
                     prefix = "[Other]"
                     item.setFlags(item.flags() & ~_ItemIsEnabled)

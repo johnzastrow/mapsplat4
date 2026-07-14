@@ -43,6 +43,11 @@ from qgis.core import (
 )
 
 try:
+    from qgis.core import QgsVectorTileLayer
+except ImportError:  # older QGIS without vector tile layers
+    QgsVectorTileLayer = None
+
+try:
     from .style_converter import StyleConverter
 except ImportError:
     from style_converter import StyleConverter  # test environment (no package)
@@ -1253,6 +1258,10 @@ class MapSplatExporter(QObject):
             output_dir=output_dir if not style_only else None,
         )
 
+        # Reference any selected tile-service layers (MVT vector tiles / XYZ-WMS rasters) as
+        # pass-through sources in the style. No data is copied — the viewer streams them live.
+        self._add_tile_layers(layers.get("tile", []), style_json)
+
         # Handle style merging
         if use_basemap:
             basemap_style_path = self.settings.get("basemap_style_path", "")
@@ -1336,17 +1345,26 @@ class MapSplatExporter(QObject):
 
         :returns: Dictionary with 'vector' and 'raster' layer lists
         """
-        layers = {"vector": [], "raster": []}
+        layers = {"vector": [], "raster": [], "tile": []}
 
         for layer_id in self.settings["layer_ids"]:
             layer = self.project.mapLayer(layer_id)
             if layer is None:
                 continue
 
-            if isinstance(layer, QgsVectorLayer):
+            if QgsVectorTileLayer is not None and isinstance(layer, QgsVectorTileLayer):
+                # MVT/PBF vector tile service → referenced (pass-through) in style.json
+                layers["tile"].append(layer)
+            elif isinstance(layer, QgsVectorLayer):
                 layers["vector"].append(layer)
             elif isinstance(layer, QgsRasterLayer):
-                layers["raster"].append(layer)
+                # XYZ / WMS / WMTS rasters use the 'wms' provider in QGIS — reference them as
+                # online raster tile sources. Local GDAL rasters go to the raster export path.
+                prov = layer.dataProvider().name() if layer.dataProvider() else ""
+                if prov == "wms":
+                    layers["tile"].append(layer)
+                else:
+                    layers["raster"].append(layer)
 
         return layers
 
@@ -1600,6 +1618,108 @@ class MapSplatExporter(QObject):
         except Exception:
             pass
         return []
+
+    def _xyz_url_from_raster(self, layer):
+        """Extract the ``{z}/{x}/{y}`` URL template from an XYZ/WMS raster layer source.
+
+        QGIS stores XYZ rasters as ``type=xyz&url=<percent-encoded template>&...``.
+        Returns the decoded template, or None if it isn't a usable XYZ template.
+        """
+        import re
+        import urllib.parse
+        src = layer.source() or ""
+        m = re.search(r'(?:^|&)url=([^&]+)', src)
+        if not m:
+            return None
+        url = urllib.parse.unquote(m.group(1))
+        if "{z}" in url and "{x}" in url and "{y}" in url:
+            return url
+        return None
+
+    def _gl_layers_for_source(self, gl_style, src_id):
+        """Return the non-background layers from a stored GL style, re-pointed at ``src_id``."""
+        if not gl_style:
+            return []
+        try:
+            style = json.loads(gl_style) if isinstance(gl_style, str) else gl_style
+        except (ValueError, TypeError):
+            return []
+        out = []
+        for lay in style.get("layers", []):
+            if lay.get("type") == "background":
+                continue
+            lay = dict(lay)
+            if lay.get("source"):
+                lay["source"] = src_id
+            out.append(lay)
+        return out
+
+    def _add_tile_layers(self, tile_layers, style_json):
+        """Stage-1 pass-through for MVT vector-tile and XYZ/WMS raster layers.
+
+        Adds their sources (+ layers) to ``style_json`` so the exported map streams them live.
+        No data is downloaded, so there is no provider terms-of-service concern. Tile layers are
+        inserted *below* the exported vector PMTiles layers (just above the background).
+        """
+        if not tile_layers:
+            return
+        sources = style_json.setdefault("sources", {})
+        below = []  # inserted at the bottom of the layer stack
+        for layer in tile_layers:
+            name = self._sanitize_layer_name(layer.name())
+            src_id = f"tile_{name}"
+            if QgsVectorTileLayer is not None and isinstance(layer, QgsVectorTileLayer):
+                stype = layer.sourceType() if hasattr(layer, "sourceType") else ""
+                url = layer.sourcePath() if hasattr(layer, "sourcePath") else ""
+                if stype != "xyz" or not url:
+                    msg = f"unsupported vector-tile source type '{stype}'"
+                    self.log_message.emit(f"  Skipped vector tile '{layer.name()}' ({msg})", "warning")
+                    self._failed_layers.append((layer.name(), msg))
+                    continue
+                src = {"type": "vector", "tiles": [url]}
+                try:
+                    zmin, zmax = layer.sourceMinZoom(), layer.sourceMaxZoom()
+                    if zmin is not None and zmin >= 0:
+                        src["minzoom"] = int(zmin)
+                    if zmax is not None and zmax > 0:
+                        src["maxzoom"] = int(zmax)
+                except Exception:
+                    pass
+                sources[src_id] = src
+                gl = (layer.customProperty("mapbox-gl-style")
+                      or layer.customProperty("mapboxGLStyle"))
+                gl_layers = self._gl_layers_for_source(gl, src_id)
+                if gl_layers:
+                    below.extend(gl_layers)
+                    self.log_message.emit(
+                        f"  Referenced vector tile '{layer.name()}' with its stored GL style", "info")
+                else:
+                    # Source is present but unstyled — MapLibre needs per-source-layer layers we
+                    # can't infer. Surface it so the user knows to add styling in their page.
+                    self.log_message.emit(
+                        f"  Vector tile '{layer.name()}' referenced but has no stored GL style "
+                        f"— add styling for source '{src_id}' in the target page.", "warning")
+                    self._failed_layers.append(
+                        (layer.name(), "vector tile referenced without a stored GL style (unstyled)"))
+            elif isinstance(layer, QgsRasterLayer):
+                url = self._xyz_url_from_raster(layer)
+                if not url:
+                    msg = "could not read an XYZ {z}/{x}/{y} URL template (WMS/WMTS not supported)"
+                    self.log_message.emit(f"  Skipped online raster '{layer.name()}' ({msg})", "warning")
+                    self._failed_layers.append((layer.name(), msg))
+                    continue
+                sources[src_id] = {"type": "raster", "tiles": [url], "tileSize": 256}
+                below.append({
+                    "id": f"tile_{name}_raster",
+                    "type": "raster",
+                    "source": src_id,
+                    "paint": {"raster-opacity": round(float(layer.opacity()), 3)},
+                })
+                self.log_message.emit(f"  Referenced online raster '{layer.name()}' (streams live)", "info")
+        if below:
+            arr = style_json.setdefault("layers", [])
+            insert_at = 1 if (arr and arr[0].get("type") == "background") else 0
+            arr[insert_at:insert_at] = below
 
     def _verify_pmtiles(self, pmtiles_path):
         """Run ``pmtiles verify`` on an output file (Story 14).

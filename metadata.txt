@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.33.0
+version=0.34.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,13 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.34.0 - MVT / XYZ tile layers: pass-through export (Story 18 Stage 1)
+    - Vector tile layers (QgsVectorTileLayer, XYZ/MVT) and online XYZ raster layers (OSM, imagery,
+      any {z}/{x}/{y}) are now exportable: their source URLs are referenced directly in style.json so
+      the web map streams them live (no data copied — no provider terms-of-service concern).
+    - Vector tile layers are now selectable (were disabled [Other]); online layers are tagged 🌐 in the
+      layer list so you know the exported map needs internet for them.
+    - XYZ raster layers were previously selectable but silently dropped — now they render.
     0.33.0 - Export robustness: partial-failure summary + optional PMTiles verify
     - Per-layer export failures no longer pass silently: the run tracks which layers had problems and
       shows a summary dialog ("N of M layers exported") listing each failure with its reason.
