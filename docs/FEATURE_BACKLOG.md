@@ -33,7 +33,7 @@ Unordered list of desired usability improvements. Prioritization and implementat
       in **v0.27.3** (`_line_symbol_layer_to_maplibre`); categorized/graduated lines in **v0.27.4**
       (one representative dash, since `line-dasharray` isn't data-driven in MapLibre).
 
-### Optional viewer tools ✅ *Done — v0.28.0–v0.31.0*
+### Optional viewer tools *Done — v0.28.0–v0.31.0*
 All three tools ship as self-registering **plugin objects** on a small stable `MapSplatTools` host
 (version-agnostic — upgrading MapLibre doesn't touch the tools). Buttons are native-style 29×29 with
 black line-art icons; right-click finishes a shape; feature-identify popups are suppressed while a
@@ -68,26 +68,26 @@ tool is active. Off by default; toggle each in the Viewer tab.
 
 ## QGIS4 Compatibility *(Complete before any other work)*
 
-### Remove Qt5/Qt6 Compatibility Shims *(Phase 0)* ✅ *Done — v0.7.0*
+### Remove Qt5/Qt6 Compatibility Shims *(Phase 0)* *Done — v0.7.0*
 - [x] Remove Qt5/Qt6 shims from `mapsplat.py` (no longer needed for Qt6-only)
 - [x] Remove `QAction` import location shim
 - [x] Remove `RightDockWidgetArea`, `ItemIsEnabled`, `UserRole` enum scoping shims
 
-### Qgis.MessageLevel Enum Migration *(Phase 0)* ✅ *Not needed — verified v0.32.0*
+### Qgis.MessageLevel Enum Migration *(Phase 0)* *Not needed — verified v0.32.0*
 - [x] N/A — the plugin uses **string-based log levels** (`"info"/"warning"/"error"/"success"`) throughout;
       there are **zero `Qgis.*` enum references** in any file, so there was nothing to migrate.
 
-### Qt Enum Scoping *(Phase 0)* ✅ *Done — v0.7.0*
+### Qt Enum Scoping *(Phase 0)* *Done — v0.7.0*
 - [x] Update `Qt.AlignCenter` → `Qt.AlignmentFlag.AlignCenter`
 - [x] Update `Qt.UserRole` → `Qt.ItemDataRole.UserRole`
 - [x] Update `Qt.red`, `Qt.darkGreen`, `Qt.darkYellow` → `Qt.GlobalColor.red`, etc.
 - [x] Files: `mapsplat_dockwidget.py`
 
-### Recompile Resources for Qt6 *(Phase 0)* ✅ *Done — v0.7.0*
+### Recompile Resources for Qt6 *(Phase 0)* *Done — v0.7.0*
 - [x] Run `pyrcc6 -o resources.py resources.qrc`
 - [x] Update Makefile: `pyrcc5` → `pyrcc6`
 
-### Verify QGIS4 API Compatibility *(Phase 0)* ✅ *Done — in use*
+### Verify QGIS4 API Compatibility *(Phase 0)* *Done — in use*
 - [x] Test `QgsVectorFileWriter` API unchanged
 - [x] Test `QgsProject.instance()` behavior
 - [x] Test `QgsMapLayer` properties and methods
@@ -97,22 +97,22 @@ tool is active. Off by default; toggle each in the Viewer tab.
 
 ## UI Improvements
 
-### Collapsible Advanced Options *(Story 4)* ✅ *Done — v0.7.1; extended v0.10.0*
+### Collapsible Advanced Options *(Story 4)* *Done — v0.7.1; extended v0.10.0*
 - [x] Add collapsible "Advanced Options" section using `QToolButton` with arrow toggle (NOT QGroupBox — QGroupBox enables/disables, not collapses)
 - [x] Target `chk_style_only` and `chk_save_log` specifically — these are the rarely-used controls creating clutter
 - [x] Extended in v0.10.0: Export Options, Basemap Overlay, and Output sections are also collapsible with the same pattern; Basemap is collapsed by default
 
-### Quick Presets for Map Dimensions *(Story 5)* ✅ *Done — v0.7.1*
+### Quick Presets for Map Dimensions *(Story 5)* *Done — v0.7.1*
 - [x] Add dropdown with presets: "Full window (responsive)", "800x600", "800x900", "1024x768", "1920x1080", "Custom"
 - [x] Preset selection updates width/height spinboxes
 - [x] Manual spinbox edit switches combo to "Custom" automatically
 
-### Open Output Folder Button *(Story 1)* ✅ *Done — v0.7.1*
+### Open Output Folder Button *(Story 1)* *Done — v0.7.1*
 - [x] Add "Open Folder" button to the **pinned footer** (alongside Export button) — appears after a successful export, stays visible until the next export starts
 - [x] Do NOT put this in a success dialog — a dismissed dialog is gone; the pinned footer is persistent
 - [x] Use `QDesktopServices.openUrl()` to open in file explorer
 
-### Better Progress Feedback *(Story 1)* ✅ *Done — v0.7.1*
+### Better Progress Feedback *(Story 1)* *Done — v0.7.1*
 - [x] Add status text label showing current operation
 - [x] Display: "Exporting layer 2 of 5: Roads", "Converting to PMTiles", "Generating style.json"
 - [x] Show layer-by-layer progress in separate-file mode
@@ -137,16 +137,16 @@ tool is active. Off by default; toggle each in the Viewer tab.
 
 ## Error Handling
 
-### Validate Basemap URL *(Story 3)* ✅ *Done — v0.13.0*
+### Validate Basemap URL *(Story 3)* *Done — v0.13.0*
 - [x] Validate basemap URL/file on **focus-out** (NOT on text change — text change fires on every keystroke and would issue an HTTP request per character) — URL HEAD request + file existence check on focus-out
 - [x] Show error immediately if URL unreachable or file missing — inline red error label
 - [x] Prevent export from starting with invalid basemap config
 
-### pmtiles CLI Missing Dialog *(Story 3)* ✅ *Done — v0.11.0*
+### pmtiles CLI Missing Dialog *(Story 3)* *Done — v0.11.0*
 - [x] Show QMessageBox with install instructions (not just log)
 - [x] Include link to releases page: https://github.com/protomaps/go-pmtiles/releases
 
-### Export Summary for Partial Failures *(Story 3)* ✅ *Done — v0.33.0*
+### Export Summary for Partial Failures *(Story 3)* *Done — v0.33.0*
 - [x] Track which layers succeeded/failed
 - [x] Show summary dialog: "N of M layers exported successfully"
 - [x] List failed layers with error reasons
@@ -155,12 +155,12 @@ tool is active. Off by default; toggle each in the Viewer tab.
 
 ## Configuration
 
-### Persist All Settings *(Story 6)* ✅ *Done — v0.11.0*
+### Persist All Settings *(Story 6)* *Done — v0.11.0*
 - [x] Resolve `QSettings` vs `QgsSettings` first — the codebase currently uses `QSettings("MapSplat", "MapSplat")` but should use `QgsSettings` (respects QGIS profile isolation). Migrate `last_output_folder` key before adding new ones.
 - [x] Save/restore: export mode, zoom level, style options, all 7 viewer checkboxes, offline bundling toggle, label placement mode
 - [x] Validate restored settings (e.g., layer still exists in project)
 
-### Config Load Warnings for Missing Layers *(Story 6)* ✅ *Done — v0.13.0*
+### Config Load Warnings for Missing Layers *(Story 6)* *Done — v0.13.0*
 - [x] Show clear warning when loading config with missing layers
 - [x] List which layers were not found in current project
 
@@ -168,7 +168,7 @@ tool is active. Off by default; toggle each in the Viewer tab.
 
 ## Features
 
-### Scale-Dependent Visibility Support *(Story 7)* ✅ *Done — v0.6.15/0.6.16*
+### Scale-Dependent Visibility Support *(Story 7)* *Done — v0.6.15/0.6.16*
 - [x] Read `scaleDependentVisibility`, `minScale`, `maxScale` from QGIS layers
 - [x] Apply as `minzoom`/`maxzoom` in MapLibre layer definitions
 - [x] Zoom constant corrected to `279541132` (= 559082264 ÷ 2) for MapLibre 512px tiles
@@ -185,7 +185,7 @@ tool is active. Off by default; toggle each in the Viewer tab.
 - [ ] Add shortcuts to tooltips
 - [ ] Use `Qt.ShortcutContext.WidgetWithChildrenShortcut` context to ensure shortcuts fire only when the dock has focus
 
-### Inline Help Tooltips *(Story 9)* ✅ *Done — v0.7.1*
+### Inline Help Tooltips *(Story 9)* *Done — v0.7.1*
 - [x] Audit existing tooltips first — `spin_max_zoom` and `chk_style_only` already have tooltips; do not duplicate
 - [x] Add tooltip to `combo_export_mode` (single vs separate files)
 - [x] Add tooltip to `combo_extent_layer` (what bounding box is used for)
@@ -198,7 +198,7 @@ tool is active. Off by default; toggle each in the Viewer tab.
 
 ## High-Value Additions
 
-### Zoom Level Tile Count Estimator *(Story 10)* ✅ *Done — v0.9.0*
+### Zoom Level Tile Count Estimator *(Story 10)* *Done — v0.9.0*
 - [x] Add a live label below `spin_max_zoom`: "~N tiles · est. X MB"
 - [x] Recalculate on zoom change and on layer selection change
 - [x] Compute tile count from combined selected-layer bounding box + zoom: `4^zoom × bbox_fraction_of_world`
@@ -207,13 +207,13 @@ tool is active. Off by default; toggle each in the Viewer tab.
 - [x] All math runs on `QgsRectangle` / `QgsCoordinateTransform` — no external dependencies
 - [x] Tooltip clarifies basemap tiles are excluded from estimate
 
-### Per-Layer Symbology Warnings *(Story 11)* ✅ *Done — v0.9.0*
+### Per-Layer Symbology Warnings *(Story 11)* *Done — v0.9.0*
 - [x] After layer list is populated, inspect each layer's renderer type via `QgsVectorLayer.renderer()`
-- [x] Add ⚠ icon to `QListWidgetItem` for layers using: categorized/graduated SVG markers, font markers, heatmap, point displacement, point cluster
+- [x] Add a warning icon to `QListWidgetItem` for layers using: categorized/graduated SVG markers, font markers, heatmap, point displacement, point cluster
 - [x] Set tooltip on item explaining the specific limitation (e.g. "SVG markers will render as circles")
 - [x] Re-run check when project layers change (fires on every `refresh_layer_list` call)
 
-### Popup Field Customization *(Story 12)* ✅ *Done — v0.13.0*
+### Popup Field Customization *(Story 12)* *Done — v0.13.0*
 - [x] Add "Configure Popup Fields..." button or context menu item on layer list items — right-click context menu on layer list
 - [x] Open dialog showing all fields for the selected layer with checkboxes (default: all checked) — dialog with per-field checkboxes
 - [x] Store visible-field selections per layer in config file (new `[popup]` section) — persisted in `[popup]` config section
@@ -222,21 +222,21 @@ tool is active. Off by default; toggle each in the Viewer tab.
 - [x] Restore selections from config on load
 - [x] **Requires Story 6 first** (config file infrastructure needed for per-layer storage)
 
-### Attribution Field *(Story 13)* ✅ *Done — v0.13.0*
+### Attribution Field *(Story 13)* *Done — v0.13.0*
 - [x] Add "Attribution" text field to Viewer tab
 - [x] Default to any attribution found on exported layers via `QgsMapLayer.attribution()`; join multiple with " | "
 - [x] Pass attribution string to `generate_html_viewer()`
 - [x] Add `maplibregl.AttributionControl({ customAttribution: "..." })` to generated viewer when non-empty
 - [x] Save/restore in config file under `[viewer]` — saved under `[viewer] attribution`
 
-### PMTiles Verify After Export *(Story 14)* ✅ *Done — v0.33.0*
+### PMTiles Verify After Export *(Story 14)* *Done — v0.33.0*
 - [x] After each PMTiles file is written, run `pmtiles verify {output_file}`
 - [x] If verify fails, surface details (folded into the export summary dialog) from stderr
 - [x] Log verification result to export log
 - [x] Add checkbox "Verify PMTiles after export" in Advanced Options (default: **unchecked**)
 - [x] Run verify for each PMTiles file in separate-file mode and aggregate results
 
-### PMTiles Convert (Raster Support) *(Story 15)* ✅ *Done — v0.36.0 (RGB/paletted; DEM later)*
+### PMTiles Convert (Raster Support) *(Story 15)* *Done — v0.36.0 (RGB/paletted; DEM later)*
 - [x] Detect raster layers; opt-in via 'Include raster layers' (skipped-with-notice if off)
 - [x] `gdalwarp -t_srs EPSG:3857` reproject (clipped to export extent)
 - [x] `gdal_translate -of MBTiles` tiling (+ `-expand rgba` retry for paletted)
@@ -249,7 +249,7 @@ tool is active. Off by default; toggle each in the Viewer tab.
 - [x] Error if GDAL MBTiles driver missing (with gdal.org link)
 - [x] Delete intermediate files after conversion
 
-### XYZ Tile Source Support *(Story 16)* ✅ *Streaming done — v0.37.0 (offline bulk-download = Story 18 Stage 3)*
+### XYZ Tile Source Support *(Story 16)* *Streaming done — v0.37.0 (offline bulk-download = Story 18 Stage 3)*
 
 **Scope note:** XYZ URLs work directly as MapLibre sources without any conversion. Implement Mode A first; Mode B (offline bundling) is explicitly deferred — bulk-downloading tiles violates most providers' ToS and is a separate large feature.
 
@@ -266,7 +266,7 @@ tool is active. Off by default; toggle each in the Viewer tab.
 - [ ] Enumerate tiles per zoom level; show download progress with cancel
 - [ ] Verify provider terms of service permit bulk download before implementing presets
 
-### Extract Remote PMTiles to Local *(Story 17)* ✅ *Done — v0.35.0*
+### Extract Remote PMTiles to Local *(Story 17)* *Done — v0.35.0*
 - [x] Allow direct URL input for basemap source (already worked)
 - [ ] Add progress indicator: "Downloading basemap tiles: X%"
 - [x] Fetch tiles in parallel via `--download-threads`
@@ -297,7 +297,7 @@ Both `QgsVectorTileLayer` and XYZ raster sources can be referenced directly in M
 "vector"` or `"type": "raster"` sources. Local MBTiles vector tile sources can be converted
 to PMTiles in a single `pmtiles convert` step (the tool is already on PATH for basemap use).
 
-#### ⚠ Provider terms of service
+#### Provider terms of service
 
 **Bulk-downloading or re-serving third-party tile data is almost always prohibited.**
 Before packaging any tile source for offline use, users must verify their provider's terms:
@@ -330,7 +330,7 @@ For `QgsRasterLayer` (XYZ/WMS):
 
 ---
 
-#### Stage 1 — Pass-through: reference source URLs in style.json ✅ *Done — v0.34.0*
+#### Stage 1 — Pass-through: reference source URLs in style.json *Done — v0.34.0*
 
 No data is downloaded or converted. The exported map requires internet access for these
 layers. Highest value for lowest effort.
@@ -340,7 +340,7 @@ layers. Highest value for lowest effort.
 - [x] Show detected layers as `[VectorTile]` in the list (enabled for selection)
 - [ ] Detect `QgsRasterLayer` with XYZ or WMS/WMTS provider; show as `[XYZ Raster]` or
       `[WMS]` (currently shown as `[Raster]` but dropped by exporter — fix the exporter path)
-- [x] Add `🌐` tag on items whose source requires internet
+- [x] Add an online tag on items whose source requires internet
 
 **Exporter changes (`exporter.py`):**
 - [x] Add `"tile"` key in `_get_selected_layers()`; populate with vector-tile + XYZ raster layers
@@ -363,7 +363,7 @@ layers. Highest value for lowest effort.
 
 ---
 
-#### Stage 2 — Local MBTiles conversion ✅ *Done — v0.38.0*
+#### Stage 2 — Local MBTiles conversion *Done — v0.38.0*
 
 Applies only to `QgsVectorTileLayer` instances whose provider is `mbtiles` (local file —
 no ToS concern). The file is already on disk; conversion is a single command.
@@ -433,11 +433,11 @@ converter = QgsMapBoxGlStyleConverter()
 
 ## Documentation
 
-### Quick Start Guide ✅ *Done — v0.36.1*
+### Quick Start Guide *Done — v0.36.1*
 - [x] Create quick start section in README (5 steps, install → first export)
 - [x] Include troubleshooting for common issues (Troubleshooting table)
 
-### Video Tutorial ✅ *Script done — v0.36.1 (recording is a manual step)*
+### Video Tutorial *Script done — v0.36.1 (recording is a manual step)*
 - [x] Shot-by-shot storyboard/script (`docs/TUTORIAL_SCRIPT.md`)
 - [ ] Record screen capture of full workflow *(manual — from the script)*
 - [ ] Host on YouTube or embed in docs *(manual)*

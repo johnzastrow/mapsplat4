@@ -112,10 +112,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bundle is written as **PMTiles** that a plain Range-capable server (Caddy, nginx, `serve.py`) serves
   with no tile-server process. Sources that instead **stream live** from a remote server — the XYZ
   raster basemap, online XYZ/MVT tile layers, and a streamed (remote) Protomaps basemap — now:
-  carry a **🌐** marker in the layer list and basemap radios, a tooltip stating they need internet and
+  carry an online marker in the layer list and basemap radios, a tooltip stating they need internet and
   aren't served by your own host, and a **note in the export log** listing every live-streaming
   source. A new README **Hosting & self-hosting scope** section documents what's bundled (PMTiles,
-  offline) vs streamed (🌐, internet-only), and why raw MBTiles / remote tile services can't be
+  offline) vs streamed (online, internet-only), and why raw MBTiles / remote tile services can't be
   served by a plain web server.
 
 ### Added — local MBTiles → bundled PMTiles (0.38.0, Story 18 Stage 2)
@@ -165,7 +165,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `style.json` — a `type: "vector"` or `type: "raster"` source with the live URL template. **No data
   is downloaded**, so there is no provider ToS concern (Stages 2–3 for offline packaging remain).
   - Vector tile layers are now **selectable** in the layer list (previously disabled `[Other]`);
-    online layers are tagged **🌐** so it's clear the exported map needs internet for them.
+    online layers are tagged as online so it's clear the exported map needs internet for them.
   - XYZ raster layers were previously selectable but **silently dropped** by the exporter — fixed.
   - A vector tile layer with a stored Mapbox-GL style (`mapbox-gl-style` custom property) is rendered
     with that style; without one, the source is referenced and flagged in the export summary (it needs
@@ -557,7 +557,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## v0.9.0 — 2026-03-23
 
 ### Added
-- **Symbology warnings** (Story 11) — the layer list now shows a ⚠ warning icon on layers whose symbology won't translate well to PMTiles/MapLibre. Warns for: heatmap renderer, point displacement renderer, point cluster renderer, SVG markers, and font markers. Tooltip on each flagged item explains the specific limitation. Warnings refresh whenever the layer list is repopulated.
+- **Symbology warnings** (Story 11) — the layer list now shows a warning icon on layers whose symbology won't translate well to PMTiles/MapLibre. Warns for: heatmap renderer, point displacement renderer, point cluster renderer, SVG markers, and font markers. Tooltip on each flagged item explains the specific limitation. Warnings refresh whenever the layer list is repopulated.
 - **Tile count estimator** (Story 10) — a live label below the Max Zoom slider shows `~N tiles · est. X MB` based on the combined bounding box of all selected layers and the current zoom level. Updates on zoom change or selection change. Shows "Select layers to see tile estimate" when no layers are selected. Tooltip notes that basemap tiles are excluded from the estimate.
 
 ## v0.8.0 — 2026-03-23

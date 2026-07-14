@@ -22,7 +22,7 @@ Current as of **v0.43.0**. See also [Features](FEATURES.md) and [Troubleshooting
 
 - **Single-band / styled rasters (e.g. DEMs)** may not tile yet — RGB/RGBA and paletted rasters are
   supported. (Enable *Include raster layers*; needs GDAL's MBTiles driver.)
-- **Online tile services stream live** — vector-tile (MVT) and XYZ/WMS layers marked **🌐** need
+- **Online tile services stream live** — vector-tile (MVT) and XYZ/WMS layers tagged as online need
   internet in the viewer and aren't served by your own host. Downloading them into the offline PMTiles
   bundle is planned but not yet available. See [Hosting](HOSTING.md).
 - **Unstyled vector tiles** — an MVT layer with no Mapbox-GL style (no Style URL and no stored style)

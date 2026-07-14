@@ -57,7 +57,7 @@ at becomes the web map's starting view."
 
 **Screen actions:**
 1. In the dock's **Inputs** tab, tick the layers to export. Point out the type tags: `[Polygon]`,
-   `[Line]`, `[Point]`, and a `🌐` online tag if present.
+   `[Line]`, `[Point]`, and an online tag if present.
 2. **Export Options:** show *Export separate style.json* and *Include raster layers* (mention it's
    off by default and needs GDAL's MBTiles driver).
 3. Set **max zoom** modestly (13–14) and note the tile-count estimate updating.

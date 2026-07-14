@@ -116,12 +116,12 @@ readiness checklist** are pinned to the bottom so they are visible from any scro
 ```
 ┌ MapSplat · Export Web Map ───────────────────────────┐
 │ Turn selected QGIS layers into a self-contained       │  ← 1-line intro
-│ web map (PMTiles + MapLibre).      [ Help ▾ ] [ ⚙ ▾ ] │  ← help menu + config I/O
+│ web map (PMTiles + MapLibre).      [ Help ▾ ] [ ▾ ] │  ← help menu + config I/O
 ├───────────────────────────────────────────────────────┤
 │ ① Layers to export                        *required*  │
 │   ┌───────────────────────────────┐  [All] [None]     │
-│   │ ☑ roads                        │  3 of 8 selected  │
-│   │ ☑ parcels · ⚠ 12k feat         │                   │
+│   │ roads                        │  3 of 8 selected  │
+│   │ parcels · 12k feat         │                   │
 │   └───────────────────────────────┘                   │
 │                                                        │
 │ ② Output                                  *required*  │
@@ -139,7 +139,7 @@ readiness checklist** are pinned to the bottom so they are visible from any scro
 │   ▸ Map dimensions                                     │
 │                                                        │
 │ ⑤ Offline  (optional)                                 │
-│   ☐ Bundle JS/CSS so the map works with no internet    │
+│   Bundle JS/CSS so the map works with no internet    │
 ├───────────────────────────────────────────────────────┤  ← sticky footer
 │ Ready ✓ layers  ✓ output  ✓ name                      │  ← live checklist
 │ [        Export Web Map        ]  [ Open Folder ]      │
@@ -155,7 +155,7 @@ Why it fixes the complaint:
   short until you opt in.
 - **Export is always reachable** and its **readiness checklist** tells you what's missing *before*
   you click — the modal warnings become a fallback, not the primary feedback.
-- **Config I/O and log** stop being peers of the task: Save/Load Config move into a small `⚙` menu;
+- **Config I/O and log** stop being peers of the task: Save/Load Config move into a small `` menu;
   the log appears inline in the footer during a run (no dedicated tab to babysit).
 
 ### Flow after the change
@@ -216,7 +216,7 @@ essentially A's footer + reordering applied to the existing tabs, so it's a step
 | **Viewer controls** | 7 loose checkboxes + 3 combos in one group | Sub-group: "Buttons" (scale/geolocate/fullscreen/reset/north), "Readouts" (coords/zoom), "Labels & legend", "Branding" (attribution) — same controls, scannable |
 | **Max zoom** | Spinbox 4–18, default 6 | Keep, but add an inline hint band ("6–10 typical; 14+ can take hours") and keep the live tile estimate right beneath it |
 | **Advanced Options** (style-only, save-log) | Collapsible on tab 0 | Move under Step ③ "advanced" with the other advanced items |
-| **Save/Load Config** | Buttons on tab 0 | `⚙` menu in the header |
+| **Save/Load Config** | Buttons on tab 0 | `` menu in the header |
 | **Progress / Log** | Dedicated tab 4; export jumps focus there | Inline in the footer during a run; a `Show full log ▸` expander for the text pane |
 | **Tile estimate** | Small grey label | Keep, but surface as a chip next to Max zoom so cause/effect is adjacent |
 

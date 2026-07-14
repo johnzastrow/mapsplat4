@@ -5,12 +5,12 @@
 ![MapSplat](docs/images/logo.svg)
 
 [![QGIS](https://img.shields.io/badge/QGIS-4.0%2B-green.svg)](https://qgis.org)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-0.43.0-orange.svg)](docs/CHANGELOG.md)
 
-MapSplat is a QGIS plugin that "splats" your project layers into a self-contained web map you can host
-anywhere static — any web server, cloud storage, or locally. **No tile server, no backend, no new
-stack.** Your QGIS styling, labels, and layer order come along for the ride.
+MapSplat is a QGIS plugin that exports your project layers to a self-contained web map you can host
+on any static target — a web server, cloud storage, or your local machine. No tile server, no
+backend, no additional stack. Your QGIS styling, labels, and layer order are preserved.
 
 > This project targets QGIS 4.x and is written almost entirely by AI.
 
@@ -40,17 +40,17 @@ Full walk-through with pictures: **[User Guide](docs/USER_GUIDE.md)** · screens
 
 | Doc | What's in it |
 |---|---|
-| 📖 [User Guide](docs/USER_GUIDE.md) | Step-by-step: prepare → export → view → deploy, with Caddy/nginx config |
-| ✨ [Features](docs/FEATURES.md) | Everything MapSplat does (export, styling, tools, tiles, basemaps) |
-| 🗺️ [Basemaps](docs/BASEMAPS.md) | Protomaps, XYZ providers, and the extract cache |
-| 🌐 [Hosting & self-hosting scope](docs/HOSTING.md) | What's bundled (PMTiles) vs streamed (🌐), and how to serve it |
-| 🧰 [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and fixes |
-| ⚠️ [Limitations](docs/LIMITATIONS.md) | Known gaps and unsupported symbology |
-| 🖼️ [Screenshots](docs/screenshots/README.md) | Annotated tour of the plugin and viewer |
-| 📝 [Changelog](docs/CHANGELOG.md) | Release history |
-| 🎬 [Tutorial script](docs/TUTORIAL_SCRIPT.md) | Storyboard for a demo video |
-| 🧭 [Roadmap / backlog](docs/FEATURE_BACKLOG.md) | What's planned next |
-| 🗃️ [Design archive](docs/design/README.md) | Historical planning & design notes |
+| [User Guide](docs/USER_GUIDE.md) | Step-by-step: prepare → export → view → deploy, with Caddy/nginx config |
+| [Features](docs/FEATURES.md) | Everything MapSplat does (export, styling, tools, tiles, basemaps) |
+|  [Basemaps](docs/BASEMAPS.md) | Protomaps, XYZ providers, and the extract cache |
+| [Hosting & self-hosting scope](docs/HOSTING.md) | What's bundled (PMTiles) vs streamed live, and how to serve it |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and fixes |
+|  [Limitations](docs/LIMITATIONS.md) | Known gaps and unsupported symbology |
+|  [Screenshots](docs/screenshots/README.md) | Annotated tour of the plugin and viewer |
+| [Changelog](docs/CHANGELOG.md) | Release history |
+| [Tutorial script](docs/TUTORIAL_SCRIPT.md) | Storyboard for a demo video |
+| [Roadmap / backlog](docs/FEATURE_BACKLOG.md) | What's planned next |
+|  [Design archive](docs/design/README.md) | Historical planning & design notes |
 
 ---
 
@@ -81,7 +81,7 @@ QGIS-4-only baseline. See the [roadmap](docs/FEATURE_BACKLOG.md) for planned wor
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+GPL-2.0-or-later — see [LICENSE](LICENSE).
 
 ## Credits
 

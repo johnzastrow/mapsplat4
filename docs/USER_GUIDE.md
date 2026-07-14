@@ -2,7 +2,7 @@
 
 **MapSplat turns the layers in your QGIS project into a self-contained web map** — a folder of
 static files (vector tiles in **PMTiles** format + an **HTML viewer** built on **MapLibre GL JS**)
-that you can open in any browser or drop on any static web host. No tile server, no backend.
+that you can open in any browser or deploy to any static web host. No tile server, no backend.
 
 ---
 
@@ -31,14 +31,14 @@ The **readiness line** above the Export button tells you what's still missing; w
 (*"Ready to export"*) the button enables. Click **Export Web Map**, watch the **Log** tab, then
 **Open Folder** to see the result.
 
-That's the whole happy path. Everything below is optional and has sensible defaults.
+That is the complete required workflow. Everything below is optional and has sensible defaults.
 
 ---
 
 ## 3. The dock, tab by tab
 
 - **Inputs** — Layers, Output, and the Export button. A full run lives here. Type tags show each
-  layer's kind (`[Polygon]`, `[Line]`, `[Point]`, `[VectorTile]`, `[Online]`); a **🌐** marks layers
+  layer's kind (`[Polygon]`, `[Line]`, `[Point]`, `[VectorTile]`, `[Online]`); an online tag marks layers
   that stream live and need internet (see [Hosting](HOSTING.md)).
 - **Options** — *Export Options* (PMTiles mode, max zoom, tile-count estimate, **Include raster
   layers**, style.json, export extent) and *Basemap Overlay* (Protomaps stream/bundle, or an **XYZ
@@ -130,7 +130,7 @@ production host you want the same guarantee — otherwise, because MapSplat **ov
 (same `index.html` / `style.json` / `.pmtiles` names each export), a browser can serve a **stale**
 cached copy and a changed or added layer will look "missing" until a hard refresh.
 
-**Caddy** serves HTTP Range requests natively (so PMTiles just work); add cache headers to match:
+**Caddy** serves HTTP Range requests natively (so PMTiles are served correctly); add cache headers to match:
 
 ```caddy
 map.example.com {
@@ -178,7 +178,7 @@ Range requests by default).
 - **Blank map in the browser** — you opened `index.html` from disk; serve it over HTTP (§6).
 - **The dock looks unchanged after an update** — QGIS caches plugin code; **fully restart QGIS**
   (or use *Plugin Reloader*). Confirm via the **version stamp** on the Log tab.
-- **A layer's symbology didn't translate** — a ⚠ icon in the layer list flags renderers/markers
+- **A layer's symbology didn't translate** — a warning icon in the layer list flags renderers/markers
   (heatmap, point cluster, font markers…) that don't map cleanly to MapLibre.
 
 ---
@@ -187,7 +187,7 @@ Range requests by default).
 
 MapSplat reads each layer's QGIS symbology and labels and converts them to a MapLibre style. Most
 everyday styling translates well; a few QGIS features have no MapLibre equivalent. Layers with
-symbology that won't translate cleanly are flagged with a **⚠** icon in the layer list (hover for why).
+symbology that won't translate cleanly are flagged with a warning icon in the layer list (hover for why).
 
 **Translates well**
 - Single-symbol, categorized, graduated, and rule-based renderers.

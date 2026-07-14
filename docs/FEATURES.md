@@ -21,7 +21,7 @@ supported, see [Limitations](LIMITATIONS.md).
   Style JSON. Categorized/graduated polygon fills become data-driven `match`/`step` expressions.
 - **Labels** — text field, font, size, colour, halo, placement, and offsets from QGIS label settings.
 - **Dashed & styled lines** — custom dash patterns and Qt preset dashes, width-correct; marker/hash
-  decorative lines are omitted rather than drawn as a muddy solid.
+  decorative lines are omitted rather than approximated as a solid line.
 - **Hatch / pattern fills** — rendered as real `fill-pattern` tiles where possible.
 - **SVG marker icons** — single-symbol, **categorized**, and **graduated** SVG markers export as
   MapLibre symbol layers backed by a raster sprite sheet, with per-class icons in the legend.
@@ -37,9 +37,9 @@ supported, see [Limitations](LIMITATIONS.md).
 ## Tile-service layers (MVT / XYZ)
 
 - **Pass-through** — `QgsVectorTileLayer` (MVT) and online XYZ/WMS raster layers are referenced live
-  in the style (they stream, marked 🌐 — see [Hosting](HOSTING.md)).
+  in the style (they stream live — see [Hosting](HOSTING.md)).
 - **Use the layer's own style** — a vector-tile layer added with a **Style URL** has that Mapbox-GL
-  style fetched and applied at export time (e.g. Carto/MapTiler basemaps just work).
+  style fetched and applied at export time (e.g. Carto/MapTiler basemaps render without extra setup).
 - **Local MBTiles → bundled PMTiles** — a local `.mbtiles` vector-tile layer is converted to PMTiles
   and bundled for offline use, with its GL style from the layer or the MBTiles metadata.
 

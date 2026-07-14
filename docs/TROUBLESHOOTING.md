@@ -13,7 +13,7 @@ Common issues and fixes. See also [Hosting](HOSTING.md), [Limitations](LIMITATIO
 | **Basemap doesn't appear** | Check the basemap **source URL/file** and that its **style** is set. In offline bundles, a bad sprite can blank icons — MapSplat falls back to your local sprite automatically. |
 | **A vector-tile (Carto/MapTiler) layer is empty** | It needs a Mapbox-GL style. Add the layer in QGIS **with a Style URL** (MapSplat fetches and applies it), or the source is referenced but unstyled. The Log tab shows *"Fetching GL style…"* when it works. |
 | **Raster layer doesn't export** | Enable **Include raster layers** (Export Options) — off by default. It needs GDAL's **MBTiles driver** (`gdal_translate --formats` should list `MBTiles`). Styled single-band rasters (DEMs) aren't supported yet. |
-| **🌐-tagged layers are blank** | Vector-tile and online XYZ/WMS layers **stream live** — the exported map needs internet for them and they aren't served by your own host. See [Hosting](HOSTING.md). |
+| **Online (streaming) layers are blank** | Vector-tile and online XYZ/WMS layers **stream live** — the exported map needs internet for them and they aren't served by your own host. See [Hosting](HOSTING.md). |
 | **PMTiles "verify failed: MinZoom=0 does not match…"** | This is benign — GDAL always stamps `MinZoom=0` even when small features only tile at a higher zoom. MapSplat treats it as a pass with a note; the file is fine. |
 | **Layer order looks wrong** | The map follows your **QGIS layer tree** — rearrange layers there and re-export. The Protomaps basemap always sits at the very bottom. |
 | **The measure/draw/export tools aren't on the map** | They're **off by default**. Enable each in the **Viewer** tab before exporting. |

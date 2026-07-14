@@ -10,11 +10,11 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 
 ## User Stories
 
-### Phase 0: QGIS4 Conversion ✅ *Done — v0.7.0*
+### Phase 0: QGIS4 Conversion *Done — v0.7.0*
 
 ---
 
-#### Story 0: Remove Qt5/Qt6 Compatibility Shims ✅
+#### Story 0: Remove Qt5/Qt6 Compatibility Shims 
 
 **Tasks:**
 - [x] Remove `QAction` import location shim from `mapsplat.py`
@@ -23,14 +23,14 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 
 ---
 
-#### Story 0b: Qgis.MessageLevel Enum Migration ✅
+#### Story 0b: Qgis.MessageLevel Enum Migration 
 
 **Tasks:**
 - [x] Audited `mapsplat_dockwidget.py`, `exporter.py`, `config_manager.py`, `log_utils.py` — no old-style `Qgis.Info`/`Qgis.Warning` calls were present; these APIs were never used directly. Removed unused `Qgis` imports from `mapsplat_dockwidget.py` and `style_converter.py`.
 
 ---
 
-#### Story 0c: Qt Enum Scoping ✅
+#### Story 0c: Qt Enum Scoping 
 
 **Tasks:**
 - [x] `Qt.AlignCenter` — not present in codebase
@@ -46,7 +46,7 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 
 ---
 
-#### Story 0d: Recompile Resources + Finalize ✅ *(partial)*
+#### Story 0d: Recompile Resources + Finalize *(partial)*
 
 **Tasks:**
 - [ ] Run `pyrcc6 -o resources.py resources.qrc` *(must run inside QGIS Python env: `make compile`)*
@@ -197,7 +197,7 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 
 ---
 
-#### Story 7: Scale-Dependent Visibility ✅ *Done — v0.6.15/0.6.16*
+#### Story 7: Scale-Dependent Visibility *Done — v0.6.15/0.6.16*
 
 **As a** user
 **I want** my layer visibility scales preserved in the export
@@ -286,7 +286,7 @@ This plan converts MapSplat to QGIS4 and implements usability improvements in 4 
 
 **Tasks:**
 - [ ] After layer list is populated, inspect each layer's renderer type via `QgsVectorLayer.renderer()`
-- [ ] Add ⚠ icon to `QListWidgetItem` for layers using: categorized/graduated SVG markers, font markers, complex rule-based expressions (AND/OR), heatmap, point displacement
+- [ ] Add a warning icon to `QListWidgetItem` for layers using: categorized/graduated SVG markers, font markers, complex rule-based expressions (AND/OR), heatmap, point displacement
 - [ ] Set tooltip on the item explaining the specific limitation (e.g. "SVG markers will render as circles — categorized renderer not supported for sprites")
 - [ ] Re-run check when project layers change
 - [ ] No warning for fully-supported renderers (single symbol, categorized fill/line/circle, graduated, rule-based with simple filters)
@@ -434,7 +434,7 @@ Story 3  (Error Handling)             → Standalone
 Story 4  (Collapsible Options)        → Standalone
 Story 5  (Dimension Presets)          → Standalone
 Story 6  (Persist Settings)           → Resolve QSettings/QgsSettings before starting
-Story 7  (Scale Visibility)            → Done ✅
+Story 7  (Scale Visibility)            → Done 
 Story 8  (Shortcuts)                  → Standalone
 Story 9  (Tooltips)                   → Audit existing tooltips before starting
 Story 10 (Zoom Estimator)              → Standalone

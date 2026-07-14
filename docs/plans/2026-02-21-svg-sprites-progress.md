@@ -10,13 +10,13 @@
 
 | # | Task | Status | Commit |
 |---|------|--------|--------|
-| 1 | Add `_compute_sprite_layout()` with tests | ✅ COMPLETE | 8250b6d |
-| 2 | Add `_build_symbol_layer_for_sprite()` + SVG branch | ✅ COMPLETE | ca99ce7 |
-| 3 | QGIS sprite generation methods | ✅ COMPLETE | 7db54cf + bec76ff |
-| 4 | Update `convert()` for `output_dir` | ✅ COMPLETE | 02665c3 |
-| 5 | Update `exporter.py` + multi-sprite basemap tests | ✅ COMPLETE | a4f9a41 + 0ac1985 |
-| 6 | Version bump 0.3.0 → 0.4.0 + changelog | ✅ COMPLETE | d2e7535 |
-| — | Final fixes (svgAsImage, getattr, icon-image, test ver) | ✅ COMPLETE | 4bd0108 |
+| 1 | Add `_compute_sprite_layout()` with tests | COMPLETE | 8250b6d |
+| 2 | Add `_build_symbol_layer_for_sprite()` + SVG branch | COMPLETE | ca99ce7 |
+| 3 | QGIS sprite generation methods | COMPLETE | 7db54cf + bec76ff |
+| 4 | Update `convert()` for `output_dir` | COMPLETE | 02665c3 |
+| 5 | Update `exporter.py` + multi-sprite basemap tests | COMPLETE | a4f9a41 + 0ac1985 |
+| 6 | Version bump 0.3.0 → 0.4.0 + changelog | COMPLETE | d2e7535 |
+| — | Final fixes (svgAsImage, getattr, icon-image, test ver) | COMPLETE | 4bd0108 |
 
 ---
 

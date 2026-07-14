@@ -16,7 +16,7 @@ For Caddy/nginx configuration examples, see the [User Guide](USER_GUIDE.md).
 | Local **MBTiles** vector tiles | `pmtiles convert` (bundled) — raw MBTiles is SQLite and needs a tile server, so we convert it |
 | Protomaps basemap (download & clip) | clipped **PMTiles** |
 
-## Streams live — needs internet, NOT served by your host (marked 🌐 in the UI)
+## Streams live — needs internet, NOT served by your host (shown with an online tag in the UI)
 
 | Source | Why it can't be static-served |
 |---|---|
@@ -27,7 +27,7 @@ For Caddy/nginx configuration examples, see the [User Guide](USER_GUIDE.md).
 
 > **Rule of thumb:** a raw MBTiles or any remote tile service can't be served by a plain web server.
 > MapSplat converts local files to PMTiles so a static host can serve them; remote services are kept
-> as live-streaming references (🌐) and clearly flagged — the export log notes any source that needs
+> as live-streaming references and clearly flagged — the export log notes any source that needs
 > internet. Pulling remote services *into* the offline PMTiles bundle is a planned, terms-of-service-
 > gated feature.
 

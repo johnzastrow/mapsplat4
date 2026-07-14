@@ -154,9 +154,9 @@ pattern.
 Users discover renderer limitations only after export — or after opening the web
 map and noticing circles where they expected stars. `StyleConverter` already knows
 which renderers it supports. That knowledge should flow back to the layer list UI
-as a `⚠` icon on the list item, with a tooltip explaining the specific limitation:
+as a `` icon on the list item, with a tooltip explaining the specific limitation:
 
-> `⚠ SVG markers will render as circles (categorized renderer not supported for sprites)`
+> `SVG markers will render as circles (categorized renderer not supported for sprites)`
 
 Surfaces the constraint before export. No new logic required — the converter's
 renderer-type checks are already there.

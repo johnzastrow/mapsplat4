@@ -20,7 +20,7 @@ are carried through to the web map.
 ![The MapSplat dock, Inputs tab, with layers selected](tab1.png)
 
 Tick the layers to export. Type tags show what each layer is (`[Polygon]`, `[Line]`, `[Point]`,
-`[VectorTile]`, `[Online]`); a **🌐** marks layers that stream live and need internet. Set the project
+`[VectorTile]`, `[Online]`); an online tag marks layers that stream live and need internet. Set the project
 name and output folder, then **Export Web Map**. Save/Load Config lets you iterate on settings.
 
 ## 3. Options tab — export & basemap

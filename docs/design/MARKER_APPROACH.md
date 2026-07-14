@@ -33,16 +33,16 @@ MapLibre's `circle` layer type is more capable than it might appear.
 
 | Property | MapLibre support | Currently extracted |
 |---|---|---|
-| `circle-color` | Full data expressions (`match`, `step`, `interpolate`) | ✅ |
-| `circle-opacity` | Data expressions | ✅ |
-| `circle-radius` | Data expressions | ✅ |
-| `circle-stroke-color` | Data expressions | ✅ |
-| `circle-stroke-width` | Data expressions | ✅ |
-| `circle-stroke-opacity` | Data expressions | ✅ |
-| `circle-blur` | 0 = sharp edge, 1 = fully feathered glow | ❌ not extracted |
-| `circle-translate` | Pixel offset from point geometry | ❌ not extracted |
-| `circle-pitch-scale` | `map` or `viewport` | ❌ not extracted |
-| `circle-sort-key` | Controls per-feature draw order | ❌ not extracted |
+| `circle-color` | Full data expressions (`match`, `step`, `interpolate`) | |
+| `circle-opacity` | Data expressions | |
+| `circle-radius` | Data expressions | |
+| `circle-stroke-color` | Data expressions | |
+| `circle-stroke-width` | Data expressions | |
+| `circle-stroke-opacity` | Data expressions | |
+| `circle-blur` | 0 = sharp edge, 1 = fully feathered glow | not extracted |
+| `circle-translate` | Pixel offset from point geometry | not extracted |
+| `circle-pitch-scale` | `map` or `viewport` | not extracted |
+| `circle-sort-key` | Controls per-feature draw order | not extracted |
 
 ### Visual effects achievable
 
@@ -200,12 +200,12 @@ The scoped approach (D) has the best risk/reward profile:
 
 ### What this achieves
 
-- SVG icons for single-symbol point layers: ✅ exact fidelity
-- Color-correct circles for all other point layers: ✅ already working
-- Data-driven colors for categorized/graduated layers: ✅ preserved
-- No sprite sheet generated when no SVG single-symbol layers present: ✅ no overhead
-- Style-only export continues to work: ✅ (re-renders only single-sprite per layer)
-- Basemap overlay: ✅ via multi-sprite array
+- SVG icons for single-symbol point layers: exact fidelity
+- Color-correct circles for all other point layers: already working
+- Data-driven colors for categorized/graduated layers: preserved
+- No sprite sheet generated when no SVG single-symbol layers present: no overhead
+- Style-only export continues to work: (re-renders only single-sprite per layer)
+- Basemap overlay: via multi-sprite array
 
 ---
 
