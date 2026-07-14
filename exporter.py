@@ -1119,6 +1119,10 @@ class MapSplatExporter(QObject):
 
     def _do_export(self):
         """Internal export implementation."""
+        # Per-layer outcome tracking for the end-of-run summary (Story 3) and PMTiles
+        # verification (Story 14). _failed_layers holds (layer_name, reason) tuples.
+        self._failed_layers = []
+        self._export_summary = None
         output_base = self.settings["output_folder"]
         project_name = self.settings["project_name"]
         output_dir = os.path.join(output_base, f"{project_name}_webmap")
@@ -1161,6 +1165,7 @@ class MapSplatExporter(QObject):
             if not success:
                 self.finished.emit(False, "")
                 return
+            self._maybe_verify(os.path.join(output_dir, "data", "basemap.pmtiles"), "basemap")
         elif use_basemap and not style_only:
             self.log_message.emit("Basemap: streaming live from the remote URL (no extraction).", "info")
             self.progress.emit(30)
@@ -1186,6 +1191,7 @@ class MapSplatExporter(QObject):
             if not success:
                 self.finished.emit(False, "")
                 return
+            self._maybe_verify(pmtiles_path, "layers.pmtiles")
             self.progress.emit(60)
 
             # Clean up intermediate GeoPackage
@@ -1216,7 +1222,12 @@ class MapSplatExporter(QObject):
                     self.log_message.emit(f"Failed to convert {layer_name}", "error")
                     # Continue with other layers instead of aborting. Do NOT add it to
                     # exported_vector, so no dangling style layer/source is emitted for it.
+                    self._failed_layers.append((layer.name(), "PMTiles conversion failed"))
                     continue
+
+                # Optional integrity check (Story 14). A verify failure records the layer
+                # but keeps it in the map — the tiles were written, just flagged as suspect.
+                self._maybe_verify(pmtiles_path, layer.name())
 
                 exported_vector.append(layer)
 
@@ -1289,6 +1300,27 @@ class MapSplatExporter(QObject):
         self._write_readme(output_dir)
         self._write_serve_script(output_dir)
         self.progress.emit(100)
+
+        # Export summary (Story 3) — total selected vs. those with issues. Exposed on the
+        # instance so the dock can show a summary dialog on partial failure.
+        total_selected = (len(layers.get("vector", [])) + len(layers.get("raster", []))
+                          + len(layers.get("tile", [])))
+        failed_names = {name for name, _ in self._failed_layers}
+        succeeded = max(0, total_selected - len(failed_names))
+        self._export_summary = {
+            "total": total_selected,
+            "succeeded": succeeded,
+            "failed": list(self._failed_layers),
+        }
+        if self._failed_layers:
+            self.log_message.emit(
+                f"Export finished with issues: {succeeded} of {total_selected} layer(s) OK; "
+                f"{len(failed_names)} had problems.", "warning"
+            )
+            for name, reason in self._failed_layers:
+                self.log_message.emit(f"  ✗ {name}: {reason}", "warning")
+        else:
+            self.log_message.emit(f"All {total_selected} selected layer(s) exported.", "success")
 
         self.log_message.emit("Export complete!", "success")
         self.finished.emit(True, output_dir)
@@ -1568,6 +1600,48 @@ class MapSplatExporter(QObject):
         except Exception:
             pass
         return []
+
+    def _verify_pmtiles(self, pmtiles_path):
+        """Run ``pmtiles verify`` on an output file (Story 14).
+
+        :returns: (ok: bool, detail: str) — detail carries stderr on failure.
+        """
+        if not os.path.exists(pmtiles_path):
+            return False, "file not found"
+        try:
+            result = subprocess.run(
+                ["pmtiles", "verify", pmtiles_path],
+                capture_output=True,
+                text=True,
+                timeout=600,
+                startupinfo=STARTUPINFO,
+                creationflags=CREATIONFLAGS,
+            )
+        except FileNotFoundError:
+            return False, "pmtiles CLI not found"
+        except subprocess.TimeoutExpired:
+            return False, "verify timed out"
+        except Exception as e:  # pragma: no cover - defensive
+            return False, str(e)
+        if result.returncode == 0:
+            return True, ""
+        return False, (result.stderr.strip() or result.stdout.strip()
+                       or f"exit code {result.returncode}")
+
+    def _maybe_verify(self, pmtiles_path, label):
+        """Verify a written PMTiles file when the user enabled it; record failures.
+
+        :returns: True if verification passed or was skipped, False on failure.
+        """
+        if not self.settings.get("verify_pmtiles"):
+            return True
+        ok, detail = self._verify_pmtiles(pmtiles_path)
+        if ok:
+            self.log_message.emit(f"  Verified {label}", "success")
+        else:
+            self.log_message.emit(f"  PMTiles verify FAILED for {label}: {detail}", "error")
+            self._failed_layers.append((label, f"PMTiles verify failed: {detail}"))
+        return ok
 
     def _merge_imported_style(self, style_json):
         """Merge imported style with generated style.

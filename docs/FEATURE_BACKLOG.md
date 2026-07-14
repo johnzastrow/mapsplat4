@@ -137,10 +137,10 @@ tool is active. Off by default; toggle each in the Viewer tab.
 - [x] Show QMessageBox with install instructions (not just log)
 - [x] Include link to releases page: https://github.com/protomaps/go-pmtiles/releases
 
-### Export Summary for Partial Failures *(Story 3)*
-- [ ] Track which layers succeeded/failed
-- [ ] Show summary dialog: "3 of 5 layers exported successfully"
-- [ ] List failed layers with error reasons
+### Export Summary for Partial Failures *(Story 3)* ✅ *Done — v0.33.0*
+- [x] Track which layers succeeded/failed
+- [x] Show summary dialog: "N of M layers exported successfully"
+- [x] List failed layers with error reasons
 
 ---
 
@@ -220,12 +220,12 @@ tool is active. Off by default; toggle each in the Viewer tab.
 - [x] Add `maplibregl.AttributionControl({ customAttribution: "..." })` to generated viewer when non-empty
 - [x] Save/restore in config file under `[viewer]` — saved under `[viewer] attribution`
 
-### PMTiles Verify After Export *(Story 14)*
-- [ ] After each PMTiles file is written (ogr2ogr produces PMTiles directly — no separate convert step), run `pmtiles verify {output_file}`
-- [ ] If verify fails, show error dialog with details from stderr
-- [ ] Log verification result to export log
-- [ ] Add checkbox "Verify PMTiles after export" in Advanced Options (default: **unchecked** — verify does a full tile read and adds noticeable time on large exports)
-- [ ] Run verify for each PMTiles file in separate-file mode and aggregate results
+### PMTiles Verify After Export *(Story 14)* ✅ *Done — v0.33.0*
+- [x] After each PMTiles file is written, run `pmtiles verify {output_file}`
+- [x] If verify fails, surface details (folded into the export summary dialog) from stderr
+- [x] Log verification result to export log
+- [x] Add checkbox "Verify PMTiles after export" in Advanced Options (default: **unchecked**)
+- [x] Run verify for each PMTiles file in separate-file mode and aggregate results
 
 ### PMTiles Convert (Raster Support) *(Story 15)*
 - [ ] Detect raster layers in selection and prompt: "Convert raster layers to PMTiles?"

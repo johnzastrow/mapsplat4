@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — export summary + PMTiles verify (0.33.0)
+- **Partial-failure summary (Story 3).** In per-layer export mode, a layer that fails to tile is
+  skipped (as before) but now recorded; at the end the exporter reports `N of M layer(s) OK` and the
+  dock shows a summary dialog listing each failed layer with its reason, instead of the failure only
+  appearing as a log line.
+- **PMTiles verify after export (Story 14).** New *Verify PMTiles after export* checkbox in Advanced
+  Options (off by default — it does a full tile read). When on, `pmtiles verify` runs on each written
+  tile file (per-layer, single-file, and the basemap); failures are logged and folded into the export
+  summary. Persisted in QgsSettings and TOML config.
+
 ### Added — graduated marker icons + dual-sprite fallback (0.32.0)
 - **Graduated (range-based) SVG markers → per-class icons.** A graduated point renderer whose ranges
   are SVG markers now renders each range as its real sprite icon via a `step` `icon-image` over the

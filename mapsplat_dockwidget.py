@@ -560,6 +560,14 @@ class MapSplatDockWidget(QDockWidget):
         self.chk_save_log.setToolTip("Write the full export log to export.log in the output folder for later review.")
         adv_layout.addWidget(self.chk_save_log)
 
+        self.chk_verify_pmtiles = QCheckBox("Verify PMTiles after export")
+        self.chk_verify_pmtiles.setChecked(False)
+        self.chk_verify_pmtiles.setToolTip(
+            "Run `pmtiles verify` on each written tile file to confirm integrity.\n"
+            "Off by default — verification does a full tile read and adds time on large exports."
+        )
+        adv_layout.addWidget(self.chk_verify_pmtiles)
+
         inputs_layout.addWidget(adv_container)
 
         self._adv_toggle.toggled.connect(lambda checked: (
@@ -879,7 +887,7 @@ class MapSplatDockWidget(QDockWidget):
 
         # Connect all persistent-settings signals (all tabs — placed here after all widgets exist)
         for w in (
-            self.chk_export_style, self.chk_save_log, self.chk_bundle_offline,
+            self.chk_export_style, self.chk_save_log, self.chk_verify_pmtiles, self.chk_bundle_offline,
             self.chk_viewer_scale_bar, self.chk_viewer_geolocate,
             self.chk_viewer_fullscreen, self.chk_viewer_coords,
             self.chk_viewer_zoom_display, self.chk_viewer_reset_view,
@@ -1226,6 +1234,7 @@ class MapSplatDockWidget(QDockWidget):
         s.setValue("max_zoom", self.spin_max_zoom.value())
         s.setValue("export_style_json", self.chk_export_style.isChecked())
         s.setValue("save_log", self.chk_save_log.isChecked())
+        s.setValue("verify_pmtiles", self.chk_verify_pmtiles.isChecked())
         s.setValue("bundle_offline", self.chk_bundle_offline.isChecked())
         s.setValue("label_placement", self.combo_label_placement.currentIndex())
         s.setValue("advanced_legend", self.chk_advanced_legend.isChecked())
@@ -1275,6 +1284,7 @@ class MapSplatDockWidget(QDockWidget):
             bool_widgets = [
                 ("export_style_json", self.chk_export_style),
                 ("save_log", self.chk_save_log),
+                ("verify_pmtiles", self.chk_verify_pmtiles),
                 ("bundle_offline", self.chk_bundle_offline),
                 ("advanced_legend", self.chk_advanced_legend),
                 ("viewer_scale_bar", self.chk_viewer_scale_bar),
@@ -1660,6 +1670,7 @@ class MapSplatDockWidget(QDockWidget):
             "single_file": self.combo_export_mode.currentIndex() == 0,
             "style_only": self.chk_style_only.isChecked(),
             "export_style_json": self.chk_export_style.isChecked(),
+            "verify_pmtiles": self.chk_verify_pmtiles.isChecked(),
             "imported_style_path": self.imported_style_path,
             "max_zoom": self.spin_max_zoom.value(),
             "use_basemap": self.basemap_group.isChecked(),
@@ -1754,11 +1765,25 @@ class MapSplatDockWidget(QDockWidget):
             self.btn_open_folder.setVisible(True)
             self._log(f"Export complete: {output_path}", "success")
             self._close_log_file()
-            QMessageBox.information(
-                self,
-                "Export Complete",
-                f"Web map exported successfully to:\n{output_path}"
-            )
+            summary = getattr(self._exporter, "_export_summary", None) or {}
+            failed = summary.get("failed", [])
+            if failed:
+                # Partial success — show which layers had problems (Story 3).
+                detail = "\n".join(f"• {name}: {reason}" for name, reason in failed)
+                QMessageBox.warning(
+                    self,
+                    "Export completed with issues",
+                    f"{summary.get('succeeded', 0)} of {summary.get('total', 0)} "
+                    f"layer(s) exported successfully.\n\n"
+                    f"{len(failed)} layer(s) had problems:\n{detail}\n\n"
+                    f"Output: {output_path}"
+                )
+            else:
+                QMessageBox.information(
+                    self,
+                    "Export Complete",
+                    f"Web map exported successfully to:\n{output_path}"
+                )
         else:
             self._log("Export failed.", "error")
             self._close_log_file()
@@ -1816,6 +1841,7 @@ class MapSplatDockWidget(QDockWidget):
                 "style_only": self.chk_style_only.isChecked(),
                 "imported_style_path": self.imported_style_path or "",
                 "write_log": self.chk_save_log.isChecked(),
+                "verify_pmtiles": self.chk_verify_pmtiles.isChecked(),
                 "bundle_offline": self.chk_bundle_offline.isChecked(),
                 "extent_layer_name": (
                     self.combo_extent_layer.currentText()
@@ -1952,6 +1978,8 @@ class MapSplatDockWidget(QDockWidget):
 
         if "write_log" in export:
             self.chk_save_log.setChecked(bool(export["write_log"]))
+        if "verify_pmtiles" in export:
+            self.chk_verify_pmtiles.setChecked(bool(export["verify_pmtiles"]))
             applied += 1
 
         if "bundle_offline" in export:

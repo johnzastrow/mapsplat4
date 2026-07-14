@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.32.0
+version=0.33.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,11 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.33.0 - Export robustness: partial-failure summary + optional PMTiles verify
+    - Per-layer export failures no longer pass silently: the run tracks which layers had problems and
+      shows a summary dialog ("N of M layers exported") listing each failure with its reason.
+    - New "Verify PMTiles after export" checkbox (Advanced Options, off by default) runs `pmtiles
+      verify` on each written tile file; failures are logged and surfaced in the summary.
     0.32.0 - Graduated marker icons + dual-sprite fallback + embed-note accuracy
     - Graduated (range-based) SVG-marker point layers now render as per-range sprite icons (a `step`
       icon-image over the class attribute), matching the categorized behaviour; they no longer fall
