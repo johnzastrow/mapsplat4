@@ -1888,36 +1888,29 @@ class MapSplatExporter(QObject):
         self.log_message.emit(f"  XYZ raster basemap: {url}", "info")
 
     def _reorder_business_by_tree(self, style_json):
-        """Order the (pre-merge) business layers to match the selected-layer order.
+        """Place tile/raster (basemap-like) layers BELOW the vector data layers.
 
-        Vector layers come out of the style converter in ``layer_ids`` order (reversed to MapLibre
-        bottom-to-top), but tile/raster layers are appended at the bottom — so a tile/raster base
-        layer that sits mid-list ends up misplaced. This re-sorts every non-background layer by its
-        source's rank in ``layer_ids`` (the same basis the style converter uses, so vectors don't
-        move) — placing tile/raster where they belong. Sources not among the selected layers (e.g.
-        the basemap, added later) sink to the bottom.
+        Imagery and tile services are bases — they should sit under the vector overlays, not on top
+        of them. The style converter already orders the vector layers correctly; tile/raster layers
+        were appended at various positions, which left an opaque XYZ raster or a full vector-tile
+        basemap (Carto) rendering over the data. This moves every tile/raster layer to the bottom of
+        the (pre-merge) business stack — above the background/basemap, below the vectors — while
+        preserving each partition's internal order (a stable partition, not a sort).
         """
-        order = self.settings.get("layer_ids", [])
-        if not order:
-            return
-        rank = {}
-        for i, lid in enumerate(order):
-            lyr = self.project.mapLayer(lid)
-            if lyr is None:
-                continue
-            san = self._sanitize_layer_name(lyr.name())
-            for sid in (san, f"tile_{san}", f"raster_{san}"):
-                rank.setdefault(sid, i)
         layers = style_json.get("layers", [])
         if not layers:
             return
+
+        def _is_base(ly):
+            src = ly.get("source") or ""
+            return (ly.get("type") == "raster" or src.startswith(("tile_", "raster_"))
+                    or src == "basemap_xyz")
+
         bg = [ly for ly in layers if ly.get("type") == "background"]
         rest = [ly for ly in layers if ly.get("type") != "background"]
-        _BOTTOM = 1 << 30  # unknown sources sink to the bottom of the stack
-        # Stable sort: MapLibre draws bottom-to-top, so the top-most QGIS layer (rank 0) must be
-        # LAST in the array. Negating the rank puts rank 0 last and unknown sources first (bottom).
-        rest.sort(key=lambda ly: -rank.get(ly.get("source"), _BOTTOM))
-        style_json["layers"] = bg + rest
+        base = [ly for ly in rest if _is_base(ly)]     # imagery / tile bases → bottom
+        vectors = [ly for ly in rest if not _is_base(ly)]  # vector data → on top
+        style_json["layers"] = bg + base + vectors
 
     def _xyz_url_from_raster(self, layer):
         """Extract the ``{z}/{x}/{y}`` URL template from an XYZ/WMS raster layer source.

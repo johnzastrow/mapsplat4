@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.41.0
+version=0.41.1
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,11 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.41.1 - Fix render order: basemaps below your data
+    - Tile/raster layers (XYZ imagery like Google Satellite, vector-tile bases like Carto) now always
+      render BELOW your vector data instead of being interleaved or stacked on top. Previously a full
+      vector-tile basemap could sit on top and cover everything, and an opaque XYZ raster could hide
+      the data layers beneath it.
     0.41.0 - Basemap layers under a collapsible 'Basemap' section; base layers at the bottom
     - The basemap's many sub-layers (roads, water, landuse, ...) now collapse under a 'Basemap' section
       in the viewer's layer list instead of sitting at the top level. The base sections (styled vector

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — render order: basemaps below the data (0.41.1)
+- **Tile/raster base layers now render below your vector data.** The previous reorder ranked layers by
+  *selection* order, which could leave a full vector-tile basemap (Carto) stacked on top of everything
+  and an opaque XYZ raster (Google Satellite) wedged in the middle of the data — so some data layers
+  were hidden. The reorder now partitions the business layers: **tile/raster (imagery/tile bases) sink
+  to the bottom, vector data stays on top**, each preserving its internal order. Verified: for a map
+  with Google Satellite + Carto + vectors, the base layers dropped below the data and every vector
+  layer rendered on top.
+
 ### Changed — Basemap collapsible section + base layers at the bottom (0.41.0)
 - **The basemap's sub-layers group under a collapsible "Basemap" section.** Previously the ~9+ basemap
   layers (roads, water, landuse, …) sat at the top level of the layer list. The exporter now records
