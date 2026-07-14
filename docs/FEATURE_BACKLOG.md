@@ -15,6 +15,13 @@ Unordered list of desired usability improvements. Prioritization and implementat
 | v0.12.0 | UI tab reorganization (Inputs/Options/Log) | — |
 | v0.12.1 | Geometry distortion fix (ogr2ogr -s_srs) | — |
 | v0.13.0 | Config load warning, attribution field, basemap URL validation, popup field customization | Story 6, 12, 13, Story 3 |
+| v0.27.3–0.27.5 | Dashed-line fidelity (width-normalised, presets, categorized/graduated); no solid stand-in for marker/hash lines | — |
+| v0.27.6 | MapSplat version recorded in export log | — |
+| v0.28.0 | Measure tool (geodesic distance + area, metric + imperial) | — |
+| v0.29.0 | Draw/sketch tool with GeoJSON/KML export | — |
+| v0.30.0 | Plugin tool framework + Export tool (JPG/PDF) + adjustable units/colours | — |
+| v0.30.1 | Export captures drawings + scale bar | — |
+| v0.31.0 | Native-style 29×29 tool buttons; right-click to finish; identify suppressed during tools | — |
 
 ---
 
@@ -26,13 +33,17 @@ Unordered list of desired usability improvements. Prioritization and implementat
       in **v0.27.3** (`_line_symbol_layer_to_maplibre`); categorized/graduated lines in **v0.27.4**
       (one representative dash, since `line-dasharray` isn't data-driven in MapLibre).
 
-### Optional viewer tools *(toggle in the Viewer tab; add to the generated viewer JS)*
-- [x] **Measure tool** (v0.28.0) — ruler button; click for geodesic length, double-click to close a
-      polygon for area; metric + imperial. Offline vanilla JS.
-- [x] **Draw / sketch tool** (v0.29.0) — draw points/lines/polygons; export to GeoJSON or KML
-      (client-side download). Offline vanilla JS; mutually exclusive with the measure tool.
-- [x] **Print / export** (v0.30.0) — save the map image as JPG or PDF (in-page single-image PDF,
-      no bundled lib). Part of the new plugin-tool framework; viewer can adjust measure units + draw colour.
+### Optional viewer tools ✅ *Done — v0.28.0–v0.31.0*
+All three tools ship as self-registering **plugin objects** on a small stable `MapSplatTools` host
+(version-agnostic — upgrading MapLibre doesn't touch the tools). Buttons are native-style 29×29 with
+black line-art icons; right-click finishes a shape; feature-identify popups are suppressed while a
+tool is active. Off by default; toggle each in the Viewer tab.
+- [x] **Measure tool** (v0.28.0) — ruler button; click for geodesic length, right-click to close a
+      polygon for area; runtime **units toggle** (metric + imperial / metric / imperial). Offline JS.
+- [x] **Draw / sketch tool** (v0.29.0) — draw points/lines/polygons; per-feature **colour picker**;
+      export to GeoJSON or KML (client-side download). Mutually exclusive with the measure tool.
+- [x] **Print / export** (v0.30.0, v0.30.1) — save the map image as JPG or PDF (in-page single-image
+      PDF, no bundled lib). Capture includes the drawn/measured features and a scale bar.
 
 ### Legend / markers follow-ups
 - [ ] **Graduated (range-based) SVG markers** → per-class icons (categorized-only today; graduated
