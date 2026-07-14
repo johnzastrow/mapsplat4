@@ -81,6 +81,23 @@ class MapSplatDockWidget(QDockWidget):
 
     closingPlugin = pyqtSignal()
 
+    # XYZ raster basemap providers: name -> (url template, attribution). Streaming a personal map
+    # is generally fine with attribution; heavy/bulk use may violate a provider's tile-usage policy.
+    _XYZ_PRESETS = {
+        "OpenStreetMap": ("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                          "© OpenStreetMap contributors"),
+        "Carto Positron (light)": ("https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+                                   "© OpenStreetMap contributors © CARTO"),
+        "Carto Dark Matter": ("https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+                              "© OpenStreetMap contributors © CARTO"),
+        "OpenTopoMap": ("https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+                        "© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)"),
+        "Esri World Imagery": (
+            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            "© Esri, Maxar, Earthstar Geographics, and the GIS User Community"),
+        "Custom…": ("", ""),
+    }
+
     # (label, width, height) — width=0/height=0 means responsive
     _DIMENSION_PRESETS = [
         ("Full window (responsive)", 0, 0),
@@ -437,14 +454,39 @@ class MapSplatDockWidget(QDockWidget):
             "Clips the basemap to your data extent and embeds it in the export so the map works\n"
             "with no internet. Requires the 'pmtiles' command-line tool on your PATH."
         )
+        self.radio_basemap_xyz = QRadioButton("XYZ raster")
+        self.radio_basemap_xyz.setToolTip(
+            "Use an online XYZ raster basemap (OSM, Carto, imagery, ...). Streams live in the\n"
+            "published map (needs internet); no pmtiles CLI required. Attribution is added automatically."
+        )
         self.radio_basemap_stream.setChecked(True)
         self._basemap_mode_group = QButtonGroup()
         self._basemap_mode_group.addButton(self.radio_basemap_stream)
         self._basemap_mode_group.addButton(self.radio_basemap_bundle)
+        self._basemap_mode_group.addButton(self.radio_basemap_xyz)
         mode_layout.addWidget(self.radio_basemap_stream)
         mode_layout.addWidget(self.radio_basemap_bundle)
+        mode_layout.addWidget(self.radio_basemap_xyz)
         mode_layout.addStretch()
         basemap_layout.addLayout(mode_layout)
+
+        # XYZ provider preset (visible only in XYZ mode) — fills the source URL + attribution.
+        self._basemap_xyz_widget = QWidget()
+        xyz_layout = QHBoxLayout(self._basemap_xyz_widget)
+        xyz_layout.setContentsMargins(0, 0, 0, 0)
+        xyz_layout.addWidget(QLabel("Provider:"))
+        self.combo_xyz_preset = QComboBox()
+        for _name in self._XYZ_PRESETS:
+            self.combo_xyz_preset.addItem(_name)
+        self.combo_xyz_preset.setToolTip(
+            "Pick an XYZ tile provider — its URL and attribution fill in below.\n"
+            "Choose Custom… to enter your own {z}/{x}/{y} template."
+        )
+        self.combo_xyz_preset.currentTextChanged.connect(self._on_xyz_preset_changed)
+        xyz_layout.addWidget(self.combo_xyz_preset, 1)
+        self._basemap_xyz_widget.setVisible(False)
+        basemap_layout.addWidget(self._basemap_xyz_widget)
+        self._xyz_attribution = self._XYZ_PRESETS["OpenStreetMap"][1]
 
         # Source type (bundle mode only): URL vs local file
         self._basemap_srctype_widget = QWidget()
@@ -531,6 +573,7 @@ class MapSplatDockWidget(QDockWidget):
         self.radio_basemap_file.toggled.connect(self._on_basemap_source_type_changed)
         self.radio_basemap_stream.toggled.connect(self._on_basemap_mode_changed)
         self.radio_basemap_bundle.toggled.connect(self._on_basemap_mode_changed)
+        self.radio_basemap_xyz.toggled.connect(self._on_basemap_mode_changed)
         self.basemap_group.toggled.connect(self._update_tile_estimate)
 
         # (Output — project name + folder — now lives on the Inputs tab, beside
@@ -1287,7 +1330,8 @@ class MapSplatDockWidget(QDockWidget):
         s.setValue("viewer_attribution", self.txt_viewer_attribution.text())
         s.setValue("viewer_background_color", self.txt_viewer_background.text())
         s.setValue("basemap_enabled", self.basemap_group.isChecked())
-        s.setValue("basemap_mode", "stream" if self.radio_basemap_stream.isChecked() else "bundle")
+        s.setValue("basemap_mode", self._basemap_mode())
+        s.setValue("basemap_xyz_preset", self.combo_xyz_preset.currentText())
         s.setValue("basemap_source_type", "file" if self.radio_basemap_file.isChecked() else "url")
         s.setValue("basemap_source", self.txt_basemap_source.text().strip())
         s.setValue("basemap_style_path", self.txt_basemap_style.text().strip())
@@ -1364,9 +1408,14 @@ class MapSplatDockWidget(QDockWidget):
             elif src_type == "url":
                 self.radio_basemap_url.setChecked(True)
 
+            preset = s.value("basemap_xyz_preset", None)
+            if preset and preset in self._XYZ_PRESETS:
+                self.combo_xyz_preset.setCurrentText(preset)
             basemap_mode = s.value("basemap_mode", None)
             if basemap_mode == "bundle":
                 self.radio_basemap_bundle.setChecked(True)
+            elif basemap_mode == "xyz":
+                self.radio_basemap_xyz.setChecked(True)
             else:
                 self.radio_basemap_stream.setChecked(True)
             self._on_basemap_mode_changed()
@@ -1494,14 +1543,41 @@ class MapSplatDockWidget(QDockWidget):
                 "https://build.protomaps.com/20260401.pmtiles"
             )
 
+    def _basemap_mode(self):
+        """Current basemap mode string: 'stream' | 'bundle' | 'xyz'."""
+        if self.radio_basemap_xyz.isChecked():
+            return "xyz"
+        if self.radio_basemap_bundle.isChecked():
+            return "bundle"
+        return "stream"
+
+    def _on_xyz_preset_changed(self, name):
+        """Fill the source URL + attribution from the chosen XYZ preset."""
+        preset = self._XYZ_PRESETS.get(name)
+        if preset is None:
+            return
+        url, attribution = preset
+        self._xyz_attribution = attribution
+        if url:  # 'Custom…' has an empty URL — leave whatever the user typed
+            self.txt_basemap_source.setText(url)
+        if not self._restoring:
+            self._save_settings()
+
     def _on_basemap_mode_changed(self):
-        """Stream mode is URL-only (no CLI); bundle mode exposes the URL/file choice."""
+        """Stream = URL only; bundle = URL/file choice; XYZ = raster provider preset."""
         if not hasattr(self, "_basemap_srctype_widget"):
             return
         stream = self.radio_basemap_stream.isChecked()
-        self._basemap_srctype_widget.setVisible(not stream)
-        if stream:
-            self.radio_basemap_url.setChecked(True)  # streaming always reads a URL
+        xyz = self.radio_basemap_xyz.isChecked()
+        self._basemap_xyz_widget.setVisible(xyz)
+        self._basemap_srctype_widget.setVisible((not stream) and (not xyz))
+        if xyz:
+            self.txt_basemap_source.setPlaceholderText("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+            self._on_xyz_preset_changed(self.combo_xyz_preset.currentText())
+        else:
+            self.txt_basemap_source.setPlaceholderText("https://build.protomaps.com/20260217.pmtiles")
+            if stream:
+                self.radio_basemap_url.setChecked(True)  # streaming always reads a URL
         self._on_basemap_source_type_changed()
         if not self._restoring:
             self._save_settings()
@@ -1712,7 +1788,8 @@ class MapSplatDockWidget(QDockWidget):
             "imported_style_path": self.imported_style_path,
             "max_zoom": self.spin_max_zoom.value(),
             "use_basemap": self.basemap_group.isChecked(),
-            "basemap_mode": "stream" if self.radio_basemap_stream.isChecked() else "bundle",
+            "basemap_mode": self._basemap_mode(),
+            "basemap_attribution": self._xyz_attribution,
             "basemap_source_type": "file" if self.radio_basemap_file.isChecked() else "url",
             "basemap_source": self.txt_basemap_source.text().strip(),
             "basemap_style_path": self.txt_basemap_style.text().strip(),
@@ -1909,7 +1986,7 @@ class MapSplatDockWidget(QDockWidget):
             },
             "basemap": {
                 "enabled": self.basemap_group.isChecked(),
-                "mode": "stream" if self.radio_basemap_stream.isChecked() else "bundle",
+                "mode": self._basemap_mode(),
                 "source_type": "file" if self.radio_basemap_file.isChecked() else "url",
                 "source": self.txt_basemap_source.text().strip(),
                 "style_path": self.txt_basemap_style.text().strip(),
@@ -2075,6 +2152,8 @@ class MapSplatDockWidget(QDockWidget):
         if "mode" in basemap:
             if basemap["mode"] == "bundle":
                 self.radio_basemap_bundle.setChecked(True)
+            elif basemap["mode"] == "xyz":
+                self.radio_basemap_xyz.setChecked(True)
             else:
                 self.radio_basemap_stream.setChecked(True)
             self._on_basemap_mode_changed()

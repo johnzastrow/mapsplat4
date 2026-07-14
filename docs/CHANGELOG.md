@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — XYZ raster basemap (0.37.0, Story 16)
+- **XYZ basemap mode.** Alongside Protomaps PMTiles (stream / download-clip), a new **XYZ raster**
+  basemap mode streams an online tile provider as the base layer. Built-in presets: OpenStreetMap,
+  Carto Positron/Dark Matter, OpenTopoMap, Esri World Imagery, plus **Custom…** for any
+  `{z}/{x}/{y}` URL. Picking a preset fills the URL and **attribution** (added to the map's
+  attribution control, as most providers require). No `pmtiles` CLI needed — it streams live in the
+  viewer (needs internet). The raster source is placed below your data layers. Persisted in
+  QgsSettings + TOML config. Verified headless with OpenStreetMap: the basemap layer loads and fetches
+  live tiles with attribution set.
+
 ### Added — raster layer support (0.36.0, Story 15)
 - **Raster layers tile into the map.** Enable *Include raster layers* (Export Options, off by default)
   and selected local rasters are tiled to PMTiles and shown below the vector layers. Pipeline:

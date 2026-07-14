@@ -240,17 +240,17 @@ tool is active. Off by default; toggle each in the Viewer tab.
 - [x] Error if GDAL MBTiles driver missing (with gdal.org link)
 - [x] Delete intermediate files after conversion
 
-### XYZ Tile Source Support *(Story 16)*
+### XYZ Tile Source Support *(Story 16)* ✅ *Streaming done — v0.37.0 (offline bulk-download = Story 18 Stage 3)*
 
 **Scope note:** XYZ URLs work directly as MapLibre sources without any conversion. Implement Mode A first; Mode B (offline bundling) is explicitly deferred — bulk-downloading tiles violates most providers' ToS and is a separate large feature.
 
 **Mode A — Direct XYZ passthrough (implement first):**
-- [ ] Add "XYZ Tiles" option to basemap UI (radio/tab: "Protomaps PMTiles" vs "XYZ Tiles")
-- [ ] Accept standard XYZ tile URLs: `https://tile.openstreetmap.org/{z}/{x}/{y}.png`
+- [x] Add "XYZ raster" basemap mode radio (v0.37.0)
+- [x] Accept standard XYZ tile URLs (`{z}/{x}/{y}`)
 - [ ] Support URL placeholders: `{z}`, `{x}`, `{y}`, `{r}` (retina)
-- [ ] Add provider presets: OSM, MapTiler, Stadia, ESRI World Imagery (with custom URL option)
+- [x] Provider presets: OSM, Carto (light/dark), OpenTopoMap, Esri World Imagery, + Custom
 - [ ] Handle providers requiring API keys (prompt user for key; store in config — **requires Story 6**)
-- [ ] Write MapLibre `{"type": "raster", "tiles": [...], "tileSize": 256}` source into style.json
+- [x] Write a MapLibre `type: raster` source (tiles + tileSize + attribution) into style.json
 
 **Mode B — Convert XYZ to PMTiles for offline (deferred):**
 - [ ] Use `pmtiles convert --no-deduplication` to batch-convert tiles within data bounding box
@@ -389,8 +389,7 @@ download and redistribution.
       download into MBTiles, then `pmtiles convert`; merge source GL style if obtainable
 - [ ] Show download progress: "Downloading tile layer X: Z%"; support cancel
 - [ ] On failure: fall back to pass-through URL (Mode A) with a warning in the log
-- [ ] Attribution: always include provider attribution string in the MapLibre
-      `AttributionControl` (required by virtually all tile provider licences)
+- [x] Provider attribution added to the raster source (shown in the attribution control)
 
 ---
 

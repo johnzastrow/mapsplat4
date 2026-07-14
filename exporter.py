@@ -1171,6 +1171,9 @@ class MapSplatExporter(QObject):
                 self.finished.emit(False, "")
                 return
             self._maybe_verify(os.path.join(output_dir, "data", "basemap.pmtiles"), "basemap")
+        elif use_basemap and not style_only and basemap_mode == "xyz":
+            self.log_message.emit("Basemap: XYZ raster tiles (streams live; no extraction).", "info")
+            self.progress.emit(30)
         elif use_basemap and not style_only:
             self.log_message.emit("Basemap: streaming live from the remote URL (no extraction).", "info")
             self.progress.emit(30)
@@ -1267,7 +1270,13 @@ class MapSplatExporter(QObject):
             self._export_raster_layers(layers.get("raster", []), output_dir, style_json, base_bounds)
 
         # Handle style merging
-        if use_basemap:
+        if use_basemap and basemap_mode == "xyz":
+            self._add_xyz_basemap(
+                style_json,
+                self.settings.get("basemap_source", "").strip(),
+                self.settings.get("basemap_attribution", ""),
+            )
+        elif use_basemap:
             basemap_style_path = self.settings.get("basemap_style_path", "")
             self.log_message.emit("Merging business layers into basemap style...", "info")
             style_json = self._merge_business_into_basemap(basemap_style_path, style_json)
@@ -1756,6 +1765,26 @@ class MapSplatExporter(QObject):
             arr = style_json.setdefault("layers", [])
             insert_at = 1 if (arr and arr[0].get("type") == "background") else 0
             arr[insert_at:insert_at] = below
+
+    def _add_xyz_basemap(self, style_json, url, attribution):
+        """Add an online XYZ raster basemap as the bottom layer of the style (Story 16).
+
+        Streams live in the viewer — no data is downloaded. Attribution rides on the source so
+        MapLibre's attribution control shows it (most providers require attribution).
+        """
+        if not url:
+            self.log_message.emit("  XYZ basemap URL is empty; skipping basemap", "warning")
+            return
+        src = {"type": "raster", "tiles": [url], "tileSize": 256}
+        if attribution:
+            src["attribution"] = attribution
+        style_json.setdefault("sources", {})["basemap_xyz"] = src
+        arr = style_json.setdefault("layers", [])
+        insert_at = 1 if (arr and arr[0].get("type") == "background") else 0
+        arr[insert_at:insert_at] = [
+            {"id": "basemap_xyz_layer", "type": "raster", "source": "basemap_xyz"}
+        ]
+        self.log_message.emit(f"  XYZ raster basemap: {url}", "info")
 
     def _xyz_url_from_raster(self, layer):
         """Extract the ``{z}/{x}/{y}`` URL template from an XYZ/WMS raster layer source.
