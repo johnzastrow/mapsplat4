@@ -50,10 +50,10 @@ tool is active. Off by default; toggle each in the Viewer tab.
   in a config.
 
 ### Legend / markers follow-ups
-- [ ] **Graduated (range-based) SVG markers** → per-class icons (categorized-only today; graduated
-      falls back to circles).
-- [ ] **Dual-sprite fragility** — a MapLibre sprite array fails as a whole if one sprite URL is
-      unreachable; fall back to the business-only sprite if the basemap sprite fails to load.
+- [x] **Graduated (range-based) SVG markers** → per-class icons (v0.32.0) — `step` icon-image over the
+      class attribute; per-range icons in the legend. Was categorized-only.
+- [x] **Dual-sprite fragility** (v0.32.0) — viewer catches a sprite load error and falls back to the
+      local business sprite (via `setSprite`) so markers still render when the basemap sprite is offline.
 
 ---
 
@@ -64,9 +64,9 @@ tool is active. Off by default; toggle each in the Viewer tab.
 - [x] Remove `QAction` import location shim
 - [x] Remove `RightDockWidgetArea`, `ItemIsEnabled`, `UserRole` enum scoping shims
 
-### Qgis.MessageLevel Enum Migration *(Phase 0)*
-- [ ] Update all `Qgis.Info`, `Qgis.Warning`, `Qgis.Critical`, `Qgis.Success` to `Qgis.MessageLevel.Info`, etc.
-- [ ] Files: `mapsplat_dockwidget.py`, `exporter.py`, `config_manager.py`, `log_utils.py`
+### Qgis.MessageLevel Enum Migration *(Phase 0)* ✅ *Not needed — verified v0.32.0*
+- [x] N/A — the plugin uses **string-based log levels** (`"info"/"warning"/"error"/"success"`) throughout;
+      there are **zero `Qgis.*` enum references** in any file, so there was nothing to migrate.
 
 ### Qt Enum Scoping *(Phase 0)* ✅ *Done — v0.7.0*
 - [x] Update `Qt.AlignCenter` → `Qt.AlignmentFlag.AlignCenter`

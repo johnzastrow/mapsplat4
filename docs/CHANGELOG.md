@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — graduated marker icons + dual-sprite fallback (0.32.0)
+- **Graduated (range-based) SVG markers → per-class icons.** A graduated point renderer whose ranges
+  are SVG markers now renders each range as its real sprite icon via a `step` `icon-image` over the
+  class attribute (mirrors the categorized path), instead of falling back to circles. Per-range icons
+  also populate the legend. Verified: the `step` expression maps values to the correct range icon at
+  every boundary, and MapLibre renders a `step` `icon-image` with real sprites headlessly.
+- **Dual-sprite fallback.** When a basemap + business sprite **array** is used and one URL is
+  unreachable (typically the remote basemap sprite offline), the whole array previously failed and
+  blanked our local business markers too. The viewer now catches the sprite load error and falls back
+  to the local `mapsplat` sprite (via `setSprite`) so markers still render. Verified headless by
+  breaking the basemap sprite URL: the business icon went unavailable→available after fallback and
+  markers painted.
+- **Copy-embed note accuracy.** The `<body>` block's NOTE now states the entire MAPSPLAT `<head>`
+  block (MapLibre + PMTiles assets **and** the `<style>` rules; inline when bundled offline) must be
+  present — the previous wording mentioned only the CDN tags. The BEGIN/END head+body demarcations
+  were confirmed to bracket exactly the copyable content (no page-specific `<title>`/`<meta>` leak).
+- **QGIS-4:** confirmed the `Qgis.MessageLevel` enum migration is a no-op — the plugin uses
+  string-based log levels throughout and has zero `Qgis.*` enum references.
+
 ### Changed — toolbar polish + drawing interactions (0.31.0)
 - **Consistent native-style tool buttons.** The custom map buttons (reset view, reset north, measure,
   draw, export) are now **29×29** with **black line-art SVG icons** (stroke `currentColor`, so they

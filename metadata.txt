@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.31.0
+version=0.32.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,15 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.32.0 - Graduated marker icons + dual-sprite fallback + embed-note accuracy
+    - Graduated (range-based) SVG-marker point layers now render as per-range sprite icons (a `step`
+      icon-image over the class attribute), matching the categorized behaviour; they no longer fall
+      back to plain circles. Per-range icons also appear in the legend.
+    - Dual-sprite resilience: if a combined basemap+business sprite array fails to load (e.g. the
+      remote basemap sprite is offline), the viewer now falls back to the local business sprite so
+      your markers still render, instead of the whole array failing.
+    - Copy-embed accuracy: the <body> block's NOTE now says the whole MAPSPLAT <head> block (assets
+      AND styles, inline when bundled) is required — not just the CDN tags.
     0.31.0 - Toolbar polish + drawing interaction fixes
     - Map tool buttons (reset, north, measure, draw, export) are now 29x29 with black line-art SVG
       icons, matching MapLibre's native control buttons (e.g. the geolocate button) instead of the

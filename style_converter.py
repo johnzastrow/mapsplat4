@@ -107,6 +107,8 @@ class StyleConverter:
         self._svg_sprite_map = {}  # populated by _generate_sprites(); {source_layer: sprite_key}
         self._cat_sprite_map = {}  # {source_layer: {category_value: sprite_key}} for categorized markers
         self._cat_legend = {}      # {source_layer: [(label, icon_data_url), ...]} for the legend
+        self._grad_sprite_map = {} # {source_layer: [(lower_value, sprite_key), ...]} for graduated markers
+        self._grad_legend = {}     # {source_layer: [(label, icon_data_url), ...]} for the legend
         self._patterns = {}        # image_id -> pattern def (angle/spacing/width/colour)
         self._pattern_ids = {}     # dedup signature -> image_id
 
@@ -130,6 +132,8 @@ class StyleConverter:
         self._svg_sprite_map = {}  # reset for each convert() call
         self._cat_sprite_map = {}
         self._cat_legend = {}
+        self._grad_sprite_map = {}
+        self._grad_legend = {}
         self._patterns = {}
         self._pattern_ids = {}
 
@@ -180,6 +184,7 @@ class StyleConverter:
             # clobbers them with an empty placeholder while the sprite is still loading.
             icons = {entry[0] for entry in self._svg_sprite_map.values() if entry}
             icons |= {key for cmap in self._cat_sprite_map.values() for key in cmap.values()}
+            icons |= {key for stops in self._grad_sprite_map.values() for _, key in stops}
             if icons:
                 style.setdefault("metadata", {})["mapsplat:sprite-icons"] = sorted(icons)
 
@@ -1210,6 +1215,37 @@ class StyleConverter:
                 "paint": paint,
             })
 
+        elif geom_type == 0 and source_layer in self._grad_sprite_map:
+            # Per-range sprite icons were rendered — emit a symbol layer with a data-driven
+            # icon-image (a `step` over the class attribute) so each range shows its real marker.
+            stops = self._grad_sprite_map[source_layer]
+            if len(stops) == 1:
+                icon_expr = stops[0][1]  # single range → constant icon (step needs ≥1 stop)
+            else:
+                icon_expr = ["step", ["get", attr_name], stops[0][1]]
+                for lower, key in stops[1:]:
+                    icon_expr.extend([lower, key])
+            symbol_layer = {
+                "id": source_layer,
+                "type": "symbol",
+                "source": source_name,
+                "source-layer": source_layer,
+                "layout": {
+                    "icon-image": icon_expr,
+                    "icon-size": 1.0,
+                    "icon-allow-overlap": True,
+                    "icon-ignore-placement": True,
+                },
+            }
+            legend = self._grad_legend.get(source_layer)
+            if legend:
+                symbol_layer["metadata"] = {
+                    "mapsplat:legend-classes": [
+                        {"label": str(lbl), "icon": url} for lbl, url in legend
+                    ]
+                }
+            layers.append(symbol_layer)
+
         elif geom_type == 0:  # Point
             color_expr = ["interpolate", ["linear"], ["get", attr_name]]
             radius_expr = ["interpolate", ["linear"], ["get", attr_name]]
@@ -2026,6 +2062,45 @@ class StyleConverter:
             else:
                 # Roll back any icons added for this layer; it uses the circle fallback.
                 for key in cat_map.values():
+                    images.pop(key, None)
+                    images_2x.pop(key, None)
+
+        # Graduated (range-based) marker renderers → one sprite icon per range, mirroring the
+        # categorized path above. Only sprited when EVERY range is an SVG marker; otherwise the
+        # layer keeps the graduated circle path (size/colour by class).
+        for layer in self.layers:
+            if layer.geometryType() != 0:
+                continue
+            renderer = layer.renderer()
+            if not isinstance(renderer, QgsGraduatedSymbolRenderer):
+                continue
+            # clone() — range .symbol() returns a temporary-owned pointer (use-after-free otherwise).
+            rngs = [(r.lowerValue(), r.label(), r.symbol().clone())
+                    for r in renderer.ranges() if r.symbol()]
+            if not rngs:
+                continue
+
+            source_layer = self._sanitize_name(layer.name())
+            stops = []
+            legend = []
+            all_svg = True
+            for i, (lower, label, sym) in enumerate(rngs):
+                img, img2 = self._svg_marker_icon(sym)
+                if not img or img.isNull():
+                    all_svg = False
+                    break
+                key = f"{source_layer}__r_{i}"
+                images[key] = img
+                if img2 and not img2.isNull():
+                    images_2x[key] = img2
+                stops.append((lower, key))
+                legend.append((label, self._qimage_to_data_url(img, size_px=20)))
+            if all_svg and stops:
+                self._grad_sprite_map[source_layer] = stops
+                self._grad_legend[source_layer] = legend
+                self._log(f"Rendered {len(stops)} SVG range icon(s) for '{layer.name()}'")
+            else:
+                for _, key in stops:
                     images.pop(key, None)
                     images_2x.pop(key, None)
 

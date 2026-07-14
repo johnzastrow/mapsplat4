@@ -657,8 +657,9 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
 </head>
 <body>
     <!-- <----- BEGIN MAPSPLAT: copy the lines below into your page <body> ----- -->
-    <!-- NOTE: the CDN <link> and <script> tags from the <head> section above  -->
-    <!-- must also be present in your target page for the map to function.      -->
+    <!-- NOTE: the entire MAPSPLAT <head> block above must also be present in    -->
+    <!-- your target page — the MapLibre + PMTiles assets AND the <style> rules  -->
+    <!-- (inline when bundled for offline use, else loaded from a CDN).          -->
     <div id="map-container" style="{container_style}">
     <div id="map" style="width:100%;height:100%;"></div>
     <div class="info-panel">
@@ -997,6 +998,36 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             // so the symbol render queue doesn't stall.
             const empty = new ImageData(new Uint8ClampedArray(4), 1, 1);
             map.addImage(e.id, empty);
+        }});
+
+        // Dual-sprite fallback. When basemap + business sprites are combined into a MapLibre
+        // sprite ARRAY, a single unreachable URL (e.g. the remote basemap sprite offline) makes
+        // the whole array fail to load — which would blank our local business markers too. On a
+        // sprite load error, drop the failing entries and keep the local 'mapsplat' sprite so our
+        // markers still render (basemap shield/POI icons are sacrificed, but they were missing
+        // anyway). Runs at most once.
+        let _mapsplatSpriteFallback = false;
+        map.on('error', (e) => {{
+            if (_mapsplatSpriteFallback) return;
+            const err = e && e.error;
+            const url = (err && (err.url || (err.request && err.request.url))) || '';
+            const msg = (err && err.message) || '';
+            if (!/sprite/i.test(url) && !/sprite/i.test(msg)) return;
+            const st = map.getStyle();
+            const sprite = st && st.sprite;
+            if (!Array.isArray(sprite)) return;
+            const mine = sprite.filter((s) => s && s.id === 'mapsplat');
+            if (!mine.length || mine.length === sprite.length) return;
+            _mapsplatSpriteFallback = true;
+            console.warn('MapSplat: a sprite failed to load; falling back to the local business sprite so markers still render.');
+            try {{
+                if (typeof map.setSprite === 'function') {{
+                    map.setSprite(mine);
+                }} else {{
+                    st.sprite = mine;
+                    map.setStyle(st, {{ diff: false }});
+                }}
+            }} catch (err2) {{ console.error('MapSplat sprite fallback failed', err2); }}
         }});
 
         // Popup field visibility config: source-layer name → allowed field names (null = all)
