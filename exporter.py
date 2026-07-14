@@ -15,7 +15,7 @@ import sys
 import json
 import base64
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import datetime
 from pathlib import Path
 
@@ -1532,9 +1532,9 @@ class MapSplatExporter(QObject):
 
             # Set action mode (create or append)
             if i == 0:
-                options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteFile
+                options.actionOnExistingFile = QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteFile
             else:
-                options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
+                options.actionOnExistingFile = QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteLayer
 
             # Transform to Web Mercator. Reproject from ANY valid source CRS; a layer
             # with an invalid/unset CRS can't be placed on a web map, so warn and skip
@@ -1564,7 +1564,7 @@ class MapSplatExporter(QObject):
                 options
             )
 
-            if error != QgsVectorFileWriter.NoError:
+            if error != QgsVectorFileWriter.WriterError.NoError:
                 self.log_message.emit(f"  Warning: {error_message}", "warning")
 
     def _convert_to_pmtiles(self, gpkg_path, pmtiles_path):
@@ -1700,7 +1700,7 @@ class MapSplatExporter(QObject):
         :returns: Version string or None
         """
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 B607
                 ["ogr2ogr", "--version"],
                 capture_output=True,
                 text=True,
@@ -1711,7 +1711,7 @@ class MapSplatExporter(QObject):
             if result.returncode == 0:
                 # Parse "GDAL 3.8.0, released 2023/..."
                 return result.stdout.split(",")[0].strip()
-        except Exception:
+        except Exception:  # nosec B110
             pass
         return None
 
@@ -1721,7 +1721,7 @@ class MapSplatExporter(QObject):
         :returns: True if available
         """
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 B607
                 ["ogr2ogr", "--formats"],
                 capture_output=True,
                 text=True,
@@ -1740,7 +1740,7 @@ class MapSplatExporter(QObject):
         :returns: List of layer names or empty list
         """
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 B607
                 ["ogrinfo", "-so", "-q", gpkg_path],
                 capture_output=True,
                 text=True,
@@ -1759,14 +1759,14 @@ class MapSplatExporter(QObject):
                             layer_name = parts[1].split(" (")[0]
                             layers.append(layer_name)
                 return layers
-        except Exception:
+        except Exception:  # nosec B110
             pass
         return []
 
     def _run_cmd(self, args, timeout=1800):
         """Run a blocking external command. Returns (ok: bool, error: str)."""
         try:
-            r = subprocess.run(
+            r = subprocess.run(  # nosec B603
                 args, capture_output=True, text=True, timeout=timeout,
                 startupinfo=STARTUPINFO, creationflags=CREATIONFLAGS,
             )
@@ -1783,7 +1783,7 @@ class MapSplatExporter(QObject):
     def _check_gdal_mbtiles(self):
         """True if GDAL's MBTiles raster driver is available (needed to tile rasters)."""
         try:
-            r = subprocess.run(
+            r = subprocess.run(  # nosec B603 B607
                 ["gdal_translate", "--formats"], capture_output=True, text=True, timeout=15,
                 startupinfo=STARTUPINFO, creationflags=CREATIONFLAGS,
             )
@@ -1997,7 +1997,7 @@ class MapSplatExporter(QObject):
         src = ""
         try:
             src = layer.dataProvider().dataSourceUri()
-        except Exception:
+        except Exception:  # nosec B110
             pass
         src = src or (layer.source() or "")
         m = re.search(r'(?:^|&)styleUrl=([^&]+)', src)
@@ -2143,7 +2143,7 @@ class MapSplatExporter(QObject):
                             src["minzoom"] = int(zmin)
                         if zmax is not None and zmax > 0:
                             src["maxzoom"] = int(zmax)
-                    except Exception:
+                    except Exception:  # nosec B110
                         pass
                     sources[src_id] = src
                     below.extend(gl_layers)
@@ -2191,7 +2191,7 @@ class MapSplatExporter(QObject):
         if not os.path.exists(pmtiles_path):
             return False, "file not found"
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 B607
                 ["pmtiles", "verify", pmtiles_path],
                 capture_output=True,
                 text=True,
@@ -2253,7 +2253,7 @@ class MapSplatExporter(QObject):
             imported["sources"] = style_json.get("sources", {})
 
             # Merge layers from imported style (imported takes precedence)
-            imported_layer_ids = {l["id"] for l in imported.get("layers", [])}
+            imported_layer_ids = {lyr["id"] for lyr in imported.get("layers", [])}
             for layer in style_json.get("layers", []):
                 if layer["id"] not in imported_layer_ids:
                     imported.setdefault("layers", []).append(layer)
@@ -2425,7 +2425,7 @@ class MapSplatExporter(QObject):
                 for line in f:
                     if line.startswith("version="):
                         return line.split("=", 1)[1].strip()
-        except Exception:
+        except Exception:  # nosec B110
             pass
         return "unknown"
 

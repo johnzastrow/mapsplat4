@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] — 2026-07-14
+
+### Fixed — plugin-repository validation (0.43.0)
+- **Qt6 scoped enums.** `QgsVectorFileWriter.CreateOrOverwriteFile` / `CreateOrOverwriteLayer` /
+  `NoError` and the `QgsUnitTypes.Render*` unit constants are now fully scoped
+  (`ActionOnExistingFile.`, `WriterError.`, `RenderUnit.`), clearing the QGIS 4 plugin validator's
+  enum errors.
+- **Linter and security gates.** Renamed an ambiguous `l` variable (flake8 E741) and annotated the
+  known-safe GDAL/pmtiles CLI calls and defensive `try/except` blocks with `# nosec`
+  (Bandit B603/B607/B110/B112/B404) so the repository's all-severity scans pass.
+
 ### Changed — layer order follows the QGIS layer tree (0.43.0)
 - **You control layer order from QGIS.** The exported stack now matches your QGIS layer tree — the
   top layer in the panel renders on top in the web map (and is first in the layer list) — instead of

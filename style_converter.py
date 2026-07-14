@@ -524,7 +524,7 @@ class StyleConverter:
             repeat = getattr(settings, 'repeatDistance', 0)
             if repeat > 0:
                 repeat_unit = getattr(
-                    settings, 'repeatDistanceUnit', QgsUnitTypes.RenderMillimeters
+                    settings, 'repeatDistanceUnit', QgsUnitTypes.RenderUnit.RenderMillimeters
                 )
                 spacing_px = self._convert_size(repeat, repeat_unit)
                 layout["symbol-spacing"] = max(50, int(spacing_px))
@@ -538,7 +538,7 @@ class StyleConverter:
         elif geom_type == 0:  # Point
             dist_px = self._convert_size(
                 getattr(settings, 'dist', 0),
-                getattr(settings, 'distUnits', QgsUnitTypes.RenderMillimeters),
+                getattr(settings, 'distUnits', QgsUnitTypes.RenderUnit.RenderMillimeters),
             )
             # "exact" pins each label to QGIS's chosen quadrant (deterministic, no drift);
             # "auto" lets MapLibre pick among positions to avoid overlaps (variable-anchor).
@@ -555,7 +555,7 @@ class StyleConverter:
                 layout["text-anchor"] = anchor
 
                 offset_unit = getattr(
-                    settings, 'offsetUnits', QgsUnitTypes.RenderMillimeters
+                    settings, 'offsetUnits', QgsUnitTypes.RenderUnit.RenderMillimeters
                 )
                 offset_x = self._convert_size(
                     getattr(settings, 'xOffset', 0), offset_unit
@@ -707,7 +707,7 @@ class StyleConverter:
                     # dasharray must have an even count (dash, gap, …); drop if malformed
                     if arr and len(arr) % 2 == 0 and all(d > 0 for d in arr):
                         return arr
-        except Exception:
+        except Exception:  # nosec B110
             pass
         # Preset Qt pen styles — patterns already expressed in line-width units.
         try:
@@ -770,7 +770,7 @@ class StyleConverter:
         try:
             if sym_layer.layerType() in ("MarkerLine", "HashLine"):
                 return None
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
         # Other unsupported line type — a solid line in the layer's colour is a fair stand-in.
@@ -1430,7 +1430,7 @@ class StyleConverter:
             try:
                 if not sl.enabled():
                     continue
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             if sl.layerType() in fill_types:
                 c = sl.color()
@@ -1463,7 +1463,7 @@ class StyleConverter:
             try:
                 if not sl.enabled():
                     continue
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             if hasattr(sl, "color"):
                 c = sl.color()
@@ -1482,7 +1482,7 @@ class StyleConverter:
             try:
                 if not sl.enabled():
                     continue
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             for attr in ("fillColor", "color"):
                 if hasattr(sl, attr):
@@ -1548,7 +1548,7 @@ class StyleConverter:
             s = self._convert_size(symbol.size(), symbol.sizeUnit())
             if s and s > 0:
                 return s
-        except Exception:
+        except Exception:  # nosec B110
             pass
         for i in range(symbol.symbolLayerCount()):
             sl = symbol.symbolLayer(i)
@@ -1570,7 +1570,7 @@ class StyleConverter:
         try:
             if int(bs) == 0:
                 return True
-        except Exception:
+        except Exception:  # nosec B110
             pass
         return "NoBrush" in str(bs)
 
@@ -1581,7 +1581,7 @@ class StyleConverter:
             d = sl.distance()
             if d and d > 0:
                 return max(self.HATCH_MIN_OPACITY, min(self.HATCH_MAX_OPACITY, (w / d) + 0.15))
-        except Exception:
+        except Exception:  # nosec B110
             pass
         return 0.35
 
@@ -1614,7 +1614,7 @@ class StyleConverter:
             try:
                 if not sl.enabled():
                     continue
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             t = sl.layerType()
             if t == "SimpleFill":
@@ -1650,7 +1650,7 @@ class StyleConverter:
             try:
                 if not sl.enabled():
                     continue
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             t = sl.layerType()
             if t == "SimpleFill":
@@ -1665,7 +1665,7 @@ class StyleConverter:
                         "spacing": max(3.0, self._convert_size(sl.distance(), sl.distanceUnit())),
                         "width": max(1.0, self._convert_size(sl.lineWidth(), sl.lineWidthUnit())),
                     })
-                except Exception:
+                except Exception:  # nosec B112
                     continue
             elif t in ("GradientFill", "ShapeburstFill", "RasterFill"):
                 break
@@ -1698,7 +1698,7 @@ class StyleConverter:
             try:
                 req.setFlags(QgsFeatureRequest.Flag.NoGeometry)
                 req.setSubsetOfAttributes([attr], layer.fields())
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             rank = {}
             for idx, f in enumerate(layer.getFeatures(req)):
@@ -1855,15 +1855,15 @@ class StyleConverter:
 
         # Handle different unit types
         try:
-            if unit == QgsUnitTypes.RenderMillimeters:
+            if unit == QgsUnitTypes.RenderUnit.RenderMillimeters:
                 return size * self.MM_TO_PX
-            elif unit == QgsUnitTypes.RenderPixels:
+            elif unit == QgsUnitTypes.RenderUnit.RenderPixels:
                 return size
-            elif unit == QgsUnitTypes.RenderPoints:
+            elif unit == QgsUnitTypes.RenderUnit.RenderPoints:
                 return size * 1.33  # Points to pixels
-            elif unit == QgsUnitTypes.RenderInches:
+            elif unit == QgsUnitTypes.RenderUnit.RenderInches:
                 return size * 96  # Inches to pixels at 96 DPI
-            elif unit == QgsUnitTypes.RenderMapUnits:
+            elif unit == QgsUnitTypes.RenderUnit.RenderMapUnits:
                 # Map units are tricky - use a rough approximation
                 return size * 0.1
             else:

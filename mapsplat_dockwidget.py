@@ -167,7 +167,7 @@ class MapSplatDockWidget(QDockWidget):
                 for line in fh:
                     if line.startswith("version="):
                         return line.split("=", 1)[1].strip()
-        except Exception:
+        except Exception:  # nosec B110
             pass
         return __version__
 
@@ -1228,7 +1228,7 @@ class MapSplatDockWidget(QDockWidget):
             try:
                 xform = QgsCoordinateTransform(layer.crs(), crs_4326, project)
                 bbox = xform.transformBoundingBox(layer.extent())
-            except Exception:
+            except Exception:  # nosec B112
                 continue
             if combined_bbox is None:
                 combined_bbox = bbox
