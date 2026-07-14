@@ -44,6 +44,10 @@ tool is active. Off by default; toggle each in the Viewer tab.
       export to GeoJSON or KML (client-side download). Mutually exclusive with the measure tool.
 - [x] **Print / export** (v0.30.0, v0.30.1) — save the map image as JPG or PDF (in-page single-image
       PDF, no bundled lib). Capture includes the drawn/measured features and a scale bar.
+- ~~**Author-side dock defaults for measure units / draw colour**~~ — **Won't do.** Viewers already
+  adjust units (readout toggle) and draw colour (per-feature picker) at runtime; QGIS-dock default
+  pickers add wiring for little benefit. Defaults remain settable via `measure_units` / `draw_color`
+  in a config.
 
 ### Legend / markers follow-ups
 - [ ] **Graduated (range-based) SVG markers** → per-class icons (categorized-only today; graduated
