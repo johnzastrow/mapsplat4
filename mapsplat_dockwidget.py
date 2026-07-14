@@ -573,6 +573,19 @@ class MapSplatDockWidget(QDockWidget):
         )
         adv_layout.addWidget(self.chk_verify_pmtiles)
 
+        self.chk_refresh_basemap_cache = QCheckBox("Refresh basemap cache (re-download)")
+        self.chk_refresh_basemap_cache.setChecked(False)
+        self.chk_refresh_basemap_cache.setToolTip(
+            "Ignore any cached basemap extract and re-download it for this export.\n"
+            "Basemap extracts are cached by source + extent + max zoom to speed up repeat exports."
+        )
+        adv_layout.addWidget(self.chk_refresh_basemap_cache)
+
+        self.btn_clear_basemap_cache = QPushButton("Clear basemap cache")
+        self.btn_clear_basemap_cache.setToolTip("Delete all cached basemap extracts to free disk space.")
+        self.btn_clear_basemap_cache.clicked.connect(self._clear_basemap_cache)
+        adv_layout.addWidget(self.btn_clear_basemap_cache)
+
         inputs_layout.addWidget(adv_container)
 
         self._adv_toggle.toggled.connect(lambda checked: (
@@ -892,7 +905,8 @@ class MapSplatDockWidget(QDockWidget):
 
         # Connect all persistent-settings signals (all tabs — placed here after all widgets exist)
         for w in (
-            self.chk_export_style, self.chk_save_log, self.chk_verify_pmtiles, self.chk_bundle_offline,
+            self.chk_export_style, self.chk_save_log, self.chk_verify_pmtiles,
+            self.chk_refresh_basemap_cache, self.chk_bundle_offline,
             self.chk_viewer_scale_bar, self.chk_viewer_geolocate,
             self.chk_viewer_fullscreen, self.chk_viewer_coords,
             self.chk_viewer_zoom_display, self.chk_viewer_reset_view,
@@ -1244,6 +1258,7 @@ class MapSplatDockWidget(QDockWidget):
         s.setValue("export_style_json", self.chk_export_style.isChecked())
         s.setValue("save_log", self.chk_save_log.isChecked())
         s.setValue("verify_pmtiles", self.chk_verify_pmtiles.isChecked())
+        s.setValue("refresh_basemap_cache", self.chk_refresh_basemap_cache.isChecked())
         s.setValue("bundle_offline", self.chk_bundle_offline.isChecked())
         s.setValue("label_placement", self.combo_label_placement.currentIndex())
         s.setValue("advanced_legend", self.chk_advanced_legend.isChecked())
@@ -1294,6 +1309,7 @@ class MapSplatDockWidget(QDockWidget):
                 ("export_style_json", self.chk_export_style),
                 ("save_log", self.chk_save_log),
                 ("verify_pmtiles", self.chk_verify_pmtiles),
+                ("refresh_basemap_cache", self.chk_refresh_basemap_cache),
                 ("bundle_offline", self.chk_bundle_offline),
                 ("advanced_legend", self.chk_advanced_legend),
                 ("viewer_scale_bar", self.chk_viewer_scale_bar),
@@ -1680,6 +1696,7 @@ class MapSplatDockWidget(QDockWidget):
             "style_only": self.chk_style_only.isChecked(),
             "export_style_json": self.chk_export_style.isChecked(),
             "verify_pmtiles": self.chk_verify_pmtiles.isChecked(),
+            "refresh_basemap_cache": self.chk_refresh_basemap_cache.isChecked(),
             "imported_style_path": self.imported_style_path,
             "max_zoom": self.spin_max_zoom.value(),
             "use_basemap": self.basemap_group.isChecked(),
@@ -1801,6 +1818,26 @@ class MapSplatDockWidget(QDockWidget):
         """Open the last export output folder in the system file manager."""
         if hasattr(self, '_last_output_path') and self._last_output_path:
             QDesktopServices.openUrl(QUrl.fromLocalFile(self._last_output_path))
+
+    def _clear_basemap_cache(self):
+        """Delete all cached basemap extracts (Story 17)."""
+        cache = MapSplatExporter.basemap_cache_dir()
+        if not cache or not os.path.isdir(cache):
+            QMessageBox.information(self, "Basemap cache", "There is no basemap cache to clear.")
+            return
+        removed, freed = 0, 0
+        for name in os.listdir(cache):
+            fp = os.path.join(cache, name)
+            try:
+                freed += os.path.getsize(fp)
+                os.remove(fp)
+                removed += 1
+            except OSError:
+                pass
+        QMessageBox.information(
+            self, "Basemap cache",
+            f"Cleared {removed} cached basemap file(s) ({freed / 1024 / 1024:.1f} MB)."
+        )
 
     def _cancel_export(self):
         """Cancel the running export."""

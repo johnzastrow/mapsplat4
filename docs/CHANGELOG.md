@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — basemap extract caching (0.35.0, Story 17)
+- **Cached basemap extracts.** The clipped basemap is cached by `sha256(source + bbox + maxzoom)`
+  under the active QGIS profile (`.../mapsplat/basemap_cache/`). A cache **hit** copies the previous
+  extract instead of re-downloading — big speedup for repeat exports of the same area. Transient
+  failures **retry 3×**, and `pmtiles extract` now runs with `--download-threads` for parallelism.
+- New Advanced Options: a **Refresh basemap cache (re-download)** checkbox (bypasses a hit and
+  re-caches) and a **Clear basemap cache** button (reports files + MB freed). Cache hits/misses are
+  logged. Verified: the cache key is stable and sensitive to source and max-zoom changes.
+
 ### Added — MVT / XYZ tile layer pass-through (0.34.0, Story 18 Stage 1)
 - **Tile-service layers now export (pass-through).** `QgsVectorTileLayer` (XYZ/MVT) and online XYZ
   raster layers (`wms` provider — OSM, imagery, any `{z}/{x}/{y}`) are referenced directly in

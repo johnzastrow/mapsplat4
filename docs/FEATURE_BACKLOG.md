@@ -257,16 +257,16 @@ tool is active. Off by default; toggle each in the Viewer tab.
 - [ ] Enumerate tiles per zoom level; show download progress with cancel
 - [ ] Verify provider terms of service permit bulk download before implementing presets
 
-### Extract Remote PMTiles to Local *(Story 17)*
-- [ ] Allow direct URL input for basemap source (existing Protomaps URL already works)
+### Extract Remote PMTiles to Local *(Story 17)* ✅ *Done — v0.35.0*
+- [x] Allow direct URL input for basemap source (already worked)
 - [ ] Add progress indicator: "Downloading basemap tiles: X%"
-- [ ] Support fetching tiles in parallel (configurable thread count via `--download-threads`)
-- [ ] Cache downloaded PMTiles locally after first extract
-- [ ] Cache key: `hash(source_url + bounds + maxzoom)` computed **at export time** (not at UI config time — bounds depend on selected layers)
-- [ ] Add "Refresh cached basemap" button to re-download
-- [ ] Handle network errors gracefully (retry 3×, then show error with "Skip basemap" option)
-- [ ] Store cache in plugin settings directory (`~/.local/share/QGIS/QGIS4/profiles/default/python/plugins/mapsplat/cache/`)
-- [ ] Log cache hits/misses for debugging
+- [x] Fetch tiles in parallel via `--download-threads`
+- [x] Cache downloaded PMTiles locally after first extract
+- [x] Cache key: `sha256(source_url + bbox + maxzoom)` computed at export time
+- [x] "Refresh basemap cache" checkbox + "Clear basemap cache" button
+- [x] Handle network errors gracefully (retry 3×, then error)
+- [x] Store cache under the active QGIS profile (`.../mapsplat/basemap_cache/`)
+- [x] Log cache hits/misses
 - [ ] *Note for future:* cache directory grows unboundedly with varying extents; add "Clear cache" button or size management in a follow-up
 
 ### MVT and XYZ Tile Layer Export *(Story 18)*

@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.34.0
+version=0.35.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,12 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.35.0 - Basemap extract caching (Story 17)
+    - Basemap extracts are now cached by source + extent + max zoom, so repeat exports of the same
+      area reuse the previous download instead of re-extracting. Transient network failures retry 3×,
+      and `pmtiles extract` runs with parallel download threads.
+    - New Advanced Options: "Refresh basemap cache (re-download)" checkbox and a "Clear basemap cache"
+      button. Cache lives under the active QGIS profile.
     0.34.0 - MVT / XYZ tile layers: pass-through export (Story 18 Stage 1)
     - Vector tile layers (QgsVectorTileLayer, XYZ/MVT) and online XYZ raster layers (OSM, imagery,
       any {z}/{x}/{y}) are now exportable: their source URLs are referenced directly in style.json so

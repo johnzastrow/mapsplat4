@@ -1802,15 +1802,39 @@ class MapSplatExporter(QObject):
         """
         return shutil.which("pmtiles") is not None
 
+    @staticmethod
+    def basemap_cache_dir():
+        """Directory for cached basemap extracts (under the active QGIS profile)."""
+        try:
+            from qgis.core import QgsApplication
+            base = QgsApplication.qgisSettingsDirPath()
+        except Exception:
+            base = os.path.expanduser("~/.local/share/QGIS")
+        cache = os.path.join(base, "mapsplat", "basemap_cache")
+        try:
+            os.makedirs(cache, exist_ok=True)
+        except OSError:
+            return None
+        return cache
+
+    @staticmethod
+    def _basemap_cache_key(source, bbox_str, max_zoom):
+        """Stable key for a basemap extract: source URL + extent + max zoom."""
+        import hashlib
+        raw = f"{source}|{bbox_str}|z{max_zoom}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
     def _extract_basemap(self, output_dir, bounds):
-        """Run pmtiles extract to clip basemap to data bounding box.
+        """Clip the basemap to the data bounding box via ``pmtiles extract``.
+
+        Caches the result by (source, bbox, maxzoom): a cache hit copies the previous extract
+        instead of re-downloading. Transient failures are retried up to 3×.
 
         :param output_dir: Export output directory
         :param bounds: [west, south, east, north] in EPSG:4326
         :returns: True if successful
         """
-        import time
-        from qgis.PyQt.QtCore import QCoreApplication
+        import shutil
 
         source = self.settings["basemap_source"]
         output_path = os.path.join(output_dir, "data", "basemap.pmtiles")
@@ -1823,37 +1847,81 @@ class MapSplatExporter(QObject):
         self.log_message.emit(f"  Max zoom: {max_zoom}", "info")
         self.log_message.emit(f"  Output: {output_path}", "info")
 
-        args = [
-            "extract",
-            source,
-            output_path,
-            f"--bbox={bbox_str}",
-            f"--maxzoom={max_zoom}",
-        ]
+        cache_dir = self.basemap_cache_dir()
+        cache_path = None
+        if cache_dir:
+            key = self._basemap_cache_key(source, bbox_str, max_zoom)
+            cache_path = os.path.join(cache_dir, f"basemap_{key}.pmtiles")
+            if os.path.exists(cache_path) and not self.settings.get("refresh_basemap_cache"):
+                try:
+                    shutil.copyfile(cache_path, output_path)
+                    size_mb = os.path.getsize(output_path) / (1024 * 1024)
+                    self.log_message.emit(
+                        f"  Basemap cache HIT ({size_mb:.1f} MB) — skipped download", "success")
+                    self.progress.emit(30)
+                    return True
+                except OSError as e:
+                    self.log_message.emit(f"  Cache copy failed ({e}); re-extracting", "warning")
 
+        self.log_message.emit("  Basemap cache miss — extracting", "info")
+        threads = int(self.settings.get("basemap_download_threads", 4) or 4)
+        ok = False
+        for attempt in range(1, 4):
+            if self._cancelled:
+                self.log_message.emit("  Export cancelled by user.", "warning")
+                return False
+            if attempt > 1:
+                self.log_message.emit(f"  Retrying basemap extract ({attempt}/3)...", "warning")
+            ok, err = self._run_extract_once(source, output_path, bbox_str, max_zoom, threads)
+            if ok:
+                break
+            self.log_message.emit(f"  pmtiles error: {err}", "error")
+        if not ok:
+            return False
+
+        if os.path.exists(output_path):
+            size_mb = os.path.getsize(output_path) / (1024 * 1024)
+            self.log_message.emit(f"  Basemap PMTiles size: {size_mb:.1f} MB", "info")
+            if cache_path:
+                try:
+                    shutil.copyfile(output_path, cache_path)
+                    self.log_message.emit("  Cached basemap extract for reuse", "info")
+                except OSError:
+                    pass
+        return True
+
+    def _run_extract_once(self, source, output_path, bbox_str, max_zoom, threads):
+        """One ``pmtiles extract`` attempt. Returns (ok: bool, error: str)."""
+        import time
+        from qgis.PyQt.QtCore import QCoreApplication
+
+        args = ["extract", source, output_path, f"--bbox={bbox_str}", f"--maxzoom={max_zoom}"]
+        if threads and threads > 1:
+            args.append(f"--download-threads={threads}")
         self.log_message.emit(f"  Command: pmtiles {' '.join(args)}", "info")
+
+        # Drop a stale partial file from a previous attempt so size reporting is accurate.
+        if os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+            except OSError:
+                pass
 
         self._qprocess = QProcess()
         self._start_time = time.time()
-
         self._qprocess.start("pmtiles", args)
 
         if not self._qprocess.waitForStarted(10000):
-            self.log_message.emit("  Failed to start pmtiles", "error")
-            return False
+            return False, "failed to start pmtiles"
 
         self.log_message.emit("  pmtiles extract started, waiting...", "info")
-
         last_update = time.time()
         while self._qprocess.state() != QProcess.ProcessState.NotRunning:
             QCoreApplication.processEvents()
-
             if self._cancelled:
                 self._qprocess.kill()
                 self._qprocess.waitForFinished(1000)
-                self.log_message.emit("  Export cancelled by user.", "warning")
-                return False
-
+                return False, "cancelled"
             now = time.time()
             if now - last_update >= 3:
                 last_update = now
@@ -1861,32 +1929,20 @@ class MapSplatExporter(QObject):
                 if os.path.exists(output_path):
                     size_mb = os.path.getsize(output_path) / (1024 * 1024)
                     self.log_message.emit(
-                        f"  Extracting... {elapsed:.0f}s, output: {size_mb:.1f} MB", "info"
-                    )
+                        f"  Extracting... {elapsed:.0f}s, output: {size_mb:.1f} MB", "info")
                 else:
-                    self.log_message.emit(
-                        f"  Extracting... {elapsed:.0f}s", "info"
-                    )
-
+                    self.log_message.emit(f"  Extracting... {elapsed:.0f}s", "info")
             self._qprocess.waitForFinished(100)
 
         elapsed = time.time() - self._start_time
         exit_code = self._qprocess.exitCode()
         stderr = bytes(self._qprocess.readAllStandardError()).decode("utf-8", errors="replace")
         stdout = bytes(self._qprocess.readAllStandardOutput()).decode("utf-8", errors="replace")
-
         self.log_message.emit(f"  pmtiles extract finished in {elapsed:.1f}s", "info")
 
         if exit_code != 0:
-            error_msg = stderr.strip() or stdout.strip() or f"pmtiles exited with code {exit_code}"
-            self.log_message.emit(f"  pmtiles error: {error_msg}", "error")
-            return False
-
-        if os.path.exists(output_path):
-            size_mb = os.path.getsize(output_path) / (1024 * 1024)
-            self.log_message.emit(f"  Basemap PMTiles size: {size_mb:.1f} MB", "info")
-
-        return True
+            return False, (stderr.strip() or stdout.strip() or f"exit code {exit_code}")
+        return True, ""
 
     def _plugin_version(self):
         """Read the plugin version from metadata.txt (best-effort)."""
