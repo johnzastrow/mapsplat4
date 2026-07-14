@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Basemap collapsible section + base layers at the bottom (0.41.0)
+- **The basemap's sub-layers group under a collapsible "Basemap" section.** Previously the ~9+ basemap
+  layers (roads, water, landuse, …) sat at the top level of the layer list. The exporter now records
+  the basemap's source id(s) (`mapsplat:basemap-group`) and the viewer renders them as one collapsible
+  section. Together with the Carto-style tile groups, the **base sections now sit at the bottom** of
+  the TOC, below your own data layers — matching the map's base-at-bottom order. Verified headless:
+  data layers on top; Carto Basic and Basemap collapsed at the bottom (9 basemap sub-layers); toggling
+  a basemap layer works.
+
 ### Changed — vector-tile layers get their own TOC section (0.40.0)
 - **A styled vector tile layer's sub-layers are grouped under a collapsible section.** A provider
   vector basemap (Carto, MapTiler, …) contributes many sub-layers; they now appear under one

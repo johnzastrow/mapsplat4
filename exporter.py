@@ -999,33 +999,45 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 if (det.children.length > 1) layerToggles.appendChild(det);
             }});
 
-            // Styled vector-tile layers (e.g. Carto) → their own collapsible section, so their many
-            // source-layers don't clutter the top level or merge with the basemap's.
-            const tileGroups = (style.metadata || {{}})['mapsplat:tile-groups'] || [];
-            tileGroups.forEach(tg => {{
-                if (!tg.name || !tg.source) return;
+            // Base layers — styled vector tiles (e.g. Carto) and the basemap — go into their own
+            // collapsible sections at the BOTTOM of the list (below your data), matching the map's
+            // base-at-bottom order. Claim their layers now so the ungrouped pass skips them.
+            const _bottomSections = [];
+            function _makeSourceGroup(name, sourceMatch) {{
                 const det = document.createElement('details');
                 det.className = 'legend-group';
                 const sum = document.createElement('summary');
-                sum.textContent = tg.name;
+                sum.textContent = name;
                 det.appendChild(sum);
                 _slOrder.forEach(key => {{
                     if (grouped.has(key)) return;
                     const gl = _slGroups[key];
-                    if (gl && gl[0] && gl[0].source === tg.source) {{
+                    if (gl && gl[0] && sourceMatch(gl[0].source)) {{
                         const item = renderLayerItem(key);
                         if (item) {{ det.appendChild(item); grouped.add(key); }}
                     }}
                 }});
-                if (det.children.length > 1) layerToggles.appendChild(det);
-            }});
+                if (det.children.length > 1) _bottomSections.push(det);
+            }}
 
-            // Ungrouped layers (incl. basemap) at the top level, in render order.
+            ((style.metadata || {{}})['mapsplat:tile-groups'] || []).forEach(tg => {{
+                if (tg.name && tg.source) _makeSourceGroup(tg.name, (s) => s === tg.source);
+            }});
+            const _bmGroup = (style.metadata || {{}})['mapsplat:basemap-group'];
+            if (_bmGroup && Array.isArray(_bmGroup.sources) && _bmGroup.sources.length) {{
+                const _bmSet = new Set(_bmGroup.sources);
+                _makeSourceGroup(_bmGroup.name || 'Basemap', (s) => _bmSet.has(s));
+            }}
+
+            // Your data layers (ungrouped) in the middle, in render order.
             _slOrder.forEach(sourceLayer => {{
                 if (grouped.has(sourceLayer)) return;
                 const item = renderLayerItem(sourceLayer);
                 if (item) layerToggles.appendChild(item);
             }});
+
+            // Base sections at the very bottom.
+            _bottomSections.forEach(det => layerToggles.appendChild(det));
         }});
 
         // When the basemap sprite is replaced by the local business sprite, all
@@ -1186,6 +1198,7 @@ class MapSplatExporter(QObject):
         self._failed_layers = []
         self._export_summary = None
         self._tile_groups = []  # {name, source} per styled vector-tile layer, for the TOC
+        self._basemap_sources = []  # basemap source id(s), grouped under a "Basemap" TOC section
         output_base = self.settings["output_folder"]
         project_name = self.settings["project_name"]
         output_dir = os.path.join(output_base, f"{project_name}_webmap")
@@ -1359,6 +1372,9 @@ class MapSplatExporter(QObject):
         # Styled vector-tile layers (e.g. Carto) → their own collapsible TOC section in the viewer.
         if self._tile_groups:
             _meta["mapsplat:tile-groups"] = self._tile_groups
+        # Basemap layers → a collapsible "Basemap" section (keeps the many basemap sub-layers tidy).
+        if self._basemap_sources:
+            _meta["mapsplat:basemap-group"] = {"name": "Basemap", "sources": self._basemap_sources}
 
         # Report the final style so the Log tab shows exactly what was written.
         _biz = sorted({ly["source"] for ly in style_json.get("layers", [])
@@ -1868,6 +1884,7 @@ class MapSplatExporter(QObject):
             {"id": "basemap_xyz_layer", "type": "raster", "source": "basemap_xyz",
              "metadata": {"mapsplat:label": "Basemap"}}
         ]
+        self._basemap_sources = ["basemap_xyz"]
         self.log_message.emit(f"  XYZ raster basemap: {url}", "info")
 
     def _reorder_business_by_tree(self, style_json):
@@ -2439,6 +2456,10 @@ class MapSplatExporter(QObject):
             for bl in basemap.get("layers", []):
                 if bl.get("type") == "background":
                     bl.setdefault("paint", {})["background-color"] = bg
+
+        # Remember the basemap's own sources (before business sources are merged in) so the viewer
+        # can group all basemap layers under a collapsible "Basemap" section.
+        self._basemap_sources = list(basemap.get("sources", {}).keys())
 
         # Inject business data sources
         basemap.setdefault("sources", {}).update(business_style_json.get("sources", {}))

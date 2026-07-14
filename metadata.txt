@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.40.0
+version=0.41.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,11 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.41.0 - Basemap layers under a collapsible 'Basemap' section; base layers at the bottom
+    - The basemap's many sub-layers (roads, water, landuse, ...) now collapse under a 'Basemap' section
+      in the viewer's layer list instead of sitting at the top level. The base sections (styled vector
+      tiles like Carto, and the Basemap) now appear at the BOTTOM of the list, below your own data
+      layers — matching the map's base-at-bottom rendering order.
     0.40.0 - Group a vector tile layer's sub-layers under their own TOC section
     - A styled vector tile layer (e.g. Carto) adds many sub-layers (water, roads, labels, ...). They
       now appear under their own collapsible section in the viewer's layer list, named after the
