@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.39.2
+version=0.39.3
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,11 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.39.3 - Fix false PMTiles verify failures (benign zoom-header mismatch)
+    - 'Verify PMTiles after export' no longer fails normal exports. GDAL's PMTiles writer stamps
+      MinZoom=0 in the header even when small features only tile at a higher zoom, so `pmtiles verify`
+      reported a header/tile zoom mismatch — a benign metadata quirk, not corruption. That case is now
+      logged as a note and passes; real corruption (bad magic, structure) still fails.
     0.39.2 - Pre-upload hygiene: remove duplicate method, fix stale unit tests, gate clean
     - Removed a duplicate _plugin_version() in the dock (flake8 F811). Fixed style_converter unit-test
       mocks that had gone stale since the fill-paint refactor (missing layerType/opacity/orderByEnabled)

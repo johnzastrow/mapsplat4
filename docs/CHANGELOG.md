@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — false PMTiles verify failures (0.39.3)
+- **`Verify PMTiles after export` no longer fails good exports.** GDAL's PMTiles writer always stamps
+  `MinZoom=0` in the header, but for a small extent the features only produce tiles at a higher zoom
+  (e.g. z6). `pmtiles verify` then reports `header MinZoom=0 does not match min tile z 6` — a benign
+  metadata quirk (the archive reads fine in MapLibre), not corruption. This specific zoom header/tile
+  mismatch is now treated as a pass (logged as a note); genuine corruption (bad magic number, broken
+  structure) still fails. Verified against a real mismatched archive (benign → pass) and a corrupt
+  file (still fails).
+
 ### Fixed — layer ordering + unstyled MVT (0.39.1)
 - **Tile/raster layers keep their position.** Previously every tile/raster layer (XYZ raster, online
   tiles, local raster) was forced to the bottom of the stack, so a base layer that sits mid-list in

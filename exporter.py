@@ -2035,19 +2035,30 @@ class MapSplatExporter(QObject):
             return False, str(e)
         if result.returncode == 0:
             return True, ""
-        return False, (result.stderr.strip() or result.stdout.strip()
-                       or f"exit code {result.returncode}")
+        detail = (result.stderr.strip() or result.stdout.strip()
+                  or f"exit code {result.returncode}")
+        # GDAL's PMTiles writer always stamps MinZoom=0 in the header, but tiny features only
+        # produce tiles at a higher zoom — so `pmtiles verify` reports a zoom header/tile mismatch.
+        # That is a benign metadata quirk (the archive reads fine), not corruption. Treat it as OK
+        # (ok=True) but pass the detail back so it can be logged as a note rather than a failure.
+        if "does not match min tile z" in detail or "does not match max tile z" in detail:
+            return True, detail
+        return False, detail
 
     def _maybe_verify(self, pmtiles_path, label):
         """Verify a written PMTiles file when the user enabled it; record failures.
 
-        :returns: True if verification passed or was skipped, False on failure.
+        :returns: True if verification passed or was skipped, False on real corruption.
         """
         if not self.settings.get("verify_pmtiles"):
             return True
         ok, detail = self._verify_pmtiles(pmtiles_path)
-        if ok:
+        if ok and not detail:
             self.log_message.emit(f"  Verified {label}", "success")
+        elif ok:
+            # Benign zoom-header mismatch (GDAL writes MinZoom=0) — note it, don't fail.
+            self.log_message.emit(
+                f"  Verified {label} (benign header note: {detail.split(': ')[-1]})", "info")
         else:
             self.log_message.emit(f"  PMTiles verify FAILED for {label}: {detail}", "error")
             self._failed_layers.append((label, f"PMTiles verify failed: {detail}"))
