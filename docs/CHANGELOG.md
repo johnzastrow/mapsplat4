@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — vector-tile layers get their own TOC section (0.40.0)
+- **A styled vector tile layer's sub-layers are grouped under a collapsible section.** A provider
+  vector basemap (Carto, MapTiler, …) contributes many sub-layers; they now appear under one
+  collapsible `<details>` named after the layer (e.g. "Carto Basic") in the viewer's layer list,
+  instead of flooding the top level. The exporter emits `mapsplat:tile-groups` for each styled vector
+  tile layer, and the TOC's grouping key is now **source-aware** — a provider's `water`/`landcover`/…
+  no longer merge with the basemap's identically-named source-layers into one toggle. Verified
+  headless: Carto's 13 sub-layers collapse under "Carto Basic" and the basemap's `water` stays
+  separate at the top level.
+
 ### Fixed — resilient viewer + duplicate-id blank map + favicon (0.39.5)
 - **One bad layer no longer blanks the whole map.** MapLibre rejects the ENTIRE style if a single
   layer is invalid. The viewer now starts with just the background and **adds each data layer

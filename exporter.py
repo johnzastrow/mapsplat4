@@ -731,8 +731,9 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             // Include raster layers (imagery, XYZ basemap, online raster) — they have no
             // 'source-layer' but still need a TOC entry so users can toggle them off.
             const layers = style.layers.filter(l => l['source-layer'] || l.type === 'raster').reverse();
-            // Group key: vector layers by source-layer; raster layers by their source (or id).
-            const _groupKey = (l) => l['source-layer'] || l.source || l.id;
+            // Group key: source-aware so identically-named source-layers from different sources
+            // (e.g. a Carto vector tile's 'water' vs the basemap's 'water') stay separate.
+            const _groupKey = (l) => (l.source || '') + '\x1f' + (l['source-layer'] || l.id);
 
             // Unwrap the first literal CSS color from a MapLibre paint expression
             function extractColorFromExpression(expr) {{
@@ -918,6 +919,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             }});
 
             // Build one legend row (checkbox + swatch + label, plus per-class entries).
+            let _tocSeq = 0;
             function renderLayerItem(sourceLayer) {{
                 const groupLayers = _slGroups[sourceLayer];
                 if (!groupLayers) return null;
@@ -929,16 +931,17 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
 
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.id = 'toggle-' + sourceLayer;
+                checkbox.id = 'toggle-' + (_tocSeq++);
                 checkbox.checked = true;
 
                 const label = document.createElement('label');
                 label.htmlFor = checkbox.id;
-                // Prefer an explicit label from metadata; else clean up our internal source ids.
+                // Display the source-layer/id part of the composite key (drop the source prefix).
+                const _slName = sourceLayer.split('\x1f').pop();
                 const _lblMeta = (layer.metadata || {{}})['mapsplat:label'];
-                label.textContent = _lblMeta || sourceLayer
+                label.textContent = _lblMeta || _slName
                     .replace(/^(tile_|raster_)/, '').replace(/(_raster|_layer)$/, '').replace(/_/g, ' ');
-                label.title = sourceLayer;
+                label.title = _slName;
 
                 checkbox.addEventListener('change', () => {{
                     groupLayers.forEach(l => map.setLayoutProperty(l.id, 'visibility',
@@ -995,6 +998,28 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 }});
                 if (det.children.length > 1) layerToggles.appendChild(det);
             }});
+
+            // Styled vector-tile layers (e.g. Carto) → their own collapsible section, so their many
+            // source-layers don't clutter the top level or merge with the basemap's.
+            const tileGroups = (style.metadata || {{}})['mapsplat:tile-groups'] || [];
+            tileGroups.forEach(tg => {{
+                if (!tg.name || !tg.source) return;
+                const det = document.createElement('details');
+                det.className = 'legend-group';
+                const sum = document.createElement('summary');
+                sum.textContent = tg.name;
+                det.appendChild(sum);
+                _slOrder.forEach(key => {{
+                    if (grouped.has(key)) return;
+                    const gl = _slGroups[key];
+                    if (gl && gl[0] && gl[0].source === tg.source) {{
+                        const item = renderLayerItem(key);
+                        if (item) {{ det.appendChild(item); grouped.add(key); }}
+                    }}
+                }});
+                if (det.children.length > 1) layerToggles.appendChild(det);
+            }});
+
             // Ungrouped layers (incl. basemap) at the top level, in render order.
             _slOrder.forEach(sourceLayer => {{
                 if (grouped.has(sourceLayer)) return;
@@ -1160,6 +1185,7 @@ class MapSplatExporter(QObject):
         # verification (Story 14). _failed_layers holds (layer_name, reason) tuples.
         self._failed_layers = []
         self._export_summary = None
+        self._tile_groups = []  # {name, source} per styled vector-tile layer, for the TOC
         output_base = self.settings["output_folder"]
         project_name = self.settings["project_name"]
         output_dir = os.path.join(output_base, f"{project_name}_webmap")
@@ -1330,6 +1356,9 @@ class MapSplatExporter(QObject):
         _meta = style_json.setdefault("metadata", {})
         _meta["mapsplat:version"] = self._plugin_version()
         _meta["mapsplat:project"] = self.settings.get("project_name", "")
+        # Styled vector-tile layers (e.g. Carto) → their own collapsible TOC section in the viewer.
+        if self._tile_groups:
+            _meta["mapsplat:tile-groups"] = self._tile_groups
 
         # Report the final style so the Log tab shows exactly what was written.
         _biz = sorted({ly["source"] for ly in style_json.get("layers", [])
@@ -2004,6 +2033,7 @@ class MapSplatExporter(QObject):
                     gl_layers = self._gl_layers_for_source(gl, src_id)
                     if gl_layers:
                         below.extend(gl_layers)
+                        self._tile_groups.append({"name": layer.name(), "source": src_id})
                         self.log_message.emit(
                             f"  Bundled MBTiles vector tile '{layer.name()}' → PMTiles (offline)", "success")
                     else:
@@ -2046,6 +2076,7 @@ class MapSplatExporter(QObject):
                         pass
                     sources[src_id] = src
                     below.extend(gl_layers)
+                    self._tile_groups.append({"name": layer.name(), "source": src_id})
                     # If the output style has no glyphs yet, adopt the provider's so labels render.
                     if style_glyphs and not style_json.get("glyphs"):
                         style_json["glyphs"] = style_glyphs
