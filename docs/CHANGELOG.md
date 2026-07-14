@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — layer ordering + unstyled MVT (0.39.1)
+- **Tile/raster layers keep their position.** Previously every tile/raster layer (XYZ raster, online
+  tiles, local raster) was forced to the bottom of the stack, so a base layer that sits mid-list in
+  QGIS showed up in the wrong place in the map and TOC. They're now ordered by their selected-layer
+  rank (the same basis the vector layers use), so they land where you put them.
+- **Unstyled MVT vector tiles are skipped cleanly.** An MVT vector-tile layer with no Mapbox-GL style
+  can't be rendered (MapLibre needs per-source-layer rules that can't be inferred). Instead of leaving
+  a dead, non-rendering source in the style, MapSplat now skips it and logs actionable guidance
+  (style it in QGIS / import its GL style, or use the provider's raster tiles).
+
 ### Fixed — TOC entries for every layer (0.39.0)
 - **All layers are now toggleable in the viewer.** The layer list built its entries by filtering to
   layers with a `source-layer`, which silently excluded every **raster** layer — local raster PMTiles,

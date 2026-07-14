@@ -1280,6 +1280,10 @@ class MapSplatExporter(QObject):
         if not style_only:
             self._export_raster_layers(layers.get("raster", []), output_dir, style_json, base_bounds)
 
+        # Order all business layers (vector + tile + raster) to match the QGIS layer tree, so a
+        # tile/raster layer appears where it does in QGIS instead of always at the bottom.
+        self._reorder_business_by_tree(style_json)
+
         # Handle style merging
         if use_basemap and basemap_mode == "xyz":
             self._add_xyz_basemap(
@@ -1813,6 +1817,38 @@ class MapSplatExporter(QObject):
         ]
         self.log_message.emit(f"  XYZ raster basemap: {url}", "info")
 
+    def _reorder_business_by_tree(self, style_json):
+        """Order the (pre-merge) business layers to match the selected-layer order.
+
+        Vector layers come out of the style converter in ``layer_ids`` order (reversed to MapLibre
+        bottom-to-top), but tile/raster layers are appended at the bottom — so a tile/raster base
+        layer that sits mid-list ends up misplaced. This re-sorts every non-background layer by its
+        source's rank in ``layer_ids`` (the same basis the style converter uses, so vectors don't
+        move) — placing tile/raster where they belong. Sources not among the selected layers (e.g.
+        the basemap, added later) sink to the bottom.
+        """
+        order = self.settings.get("layer_ids", [])
+        if not order:
+            return
+        rank = {}
+        for i, lid in enumerate(order):
+            lyr = self.project.mapLayer(lid)
+            if lyr is None:
+                continue
+            san = self._sanitize_layer_name(lyr.name())
+            for sid in (san, f"tile_{san}", f"raster_{san}"):
+                rank.setdefault(sid, i)
+        layers = style_json.get("layers", [])
+        if not layers:
+            return
+        bg = [ly for ly in layers if ly.get("type") == "background"]
+        rest = [ly for ly in layers if ly.get("type") != "background"]
+        _BOTTOM = 1 << 30  # unknown sources sink to the bottom of the stack
+        # Stable sort: MapLibre draws bottom-to-top, so the top-most QGIS layer (rank 0) must be
+        # LAST in the array. Negating the rank puts rank 0 last and unknown sources first (bottom).
+        rest.sort(key=lambda ly: -rank.get(ly.get("source"), _BOTTOM))
+        style_json["layers"] = bg + rest
+
     def _xyz_url_from_raster(self, layer):
         """Extract the ``{z}/{x}/{y}`` URL template from an XYZ/WMS raster layer source.
 
@@ -1928,31 +1964,32 @@ class MapSplatExporter(QObject):
                     self.log_message.emit(f"  Skipped vector tile '{layer.name()}' ({msg})", "warning")
                     self._failed_layers.append((layer.name(), msg))
                     continue
-                src = {"type": "vector", "tiles": [url]}
-                try:
-                    zmin, zmax = layer.sourceMinZoom(), layer.sourceMaxZoom()
-                    if zmin is not None and zmin >= 0:
-                        src["minzoom"] = int(zmin)
-                    if zmax is not None and zmax > 0:
-                        src["maxzoom"] = int(zmax)
-                except Exception:
-                    pass
-                sources[src_id] = src
                 gl = (layer.customProperty("mapbox-gl-style")
                       or layer.customProperty("mapboxGLStyle"))
                 gl_layers = self._gl_layers_for_source(gl, src_id)
                 if gl_layers:
+                    src = {"type": "vector", "tiles": [url]}
+                    try:
+                        zmin, zmax = layer.sourceMinZoom(), layer.sourceMaxZoom()
+                        if zmin is not None and zmin >= 0:
+                            src["minzoom"] = int(zmin)
+                        if zmax is not None and zmax > 0:
+                            src["maxzoom"] = int(zmax)
+                    except Exception:
+                        pass
+                    sources[src_id] = src
                     below.extend(gl_layers)
                     self.log_message.emit(
                         f"  Referenced vector tile '{layer.name()}' with its stored GL style", "info")
                 else:
-                    # Source is present but unstyled — MapLibre needs per-source-layer layers we
-                    # can't infer. Surface it so the user knows to add styling in their page.
+                    # No GL style: MapLibre needs per-source-layer rules we can't infer, so the
+                    # source would render nothing. Skip it (don't leave a dead source) and explain.
                     self.log_message.emit(
-                        f"  Vector tile '{layer.name()}' referenced but has no stored GL style "
-                        f"— add styling for source '{src_id}' in the target page.", "warning")
+                        f"  Vector tile '{layer.name()}' has no style MapSplat can use — skipped. "
+                        f"Style it in QGIS (or import its Mapbox-GL style) and re-export, or use the "
+                        f"provider's raster (XYZ) tiles instead.", "warning")
                     self._failed_layers.append(
-                        (layer.name(), "vector tile referenced without a stored GL style (unstyled)"))
+                        (layer.name(), "MVT vector tile has no usable style (skipped — needs a GL style)"))
             elif isinstance(layer, QgsRasterLayer):
                 url = self._xyz_url_from_raster(layer)
                 if not url:

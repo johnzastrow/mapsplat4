@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.39.0
+version=0.39.1
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,11 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.39.1 - Layer ordering + unstyled MVT handling
+    - Tile/raster layers (e.g. an XYZ raster) now appear in the map + TOC at their selected-layer
+      position instead of always at the bottom of the stack.
+    - A vector tile (MVT) layer with no usable style is now skipped cleanly (no dead source in the
+      output) with actionable guidance, instead of leaving an empty, non-rendering source.
     0.39.0 - TOC entries for every layer (raster, XYZ, online, basemap)
     - The viewer's layer list previously only showed vector layers (those with a source-layer). Raster
       layers, the XYZ raster basemap, online XYZ raster layers, and local raster PMTiles had no toggle.
