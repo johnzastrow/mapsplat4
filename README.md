@@ -52,23 +52,17 @@ MapSplat is a QGIS plugin that exports (splats) your project layers to self-cont
 
 ---
 
-## Quick start:
-1. Install the plugin (yes, downloading the .zip and manually adding it to QGIS works). Download the latest `mapsplat.zip` from [Releases](https://github.com/johnzastrow/mapsplat/releases)
-2. Put the [pmtiles CLI](https://github.com/protomaps/go-pmtiles/releases) on your PATH so QGIS can just use it as you
-3. Style a point layer(s) in your map with a single point style and labels. Circles and "gray" (special QGIS) SVG icons for markers are working now. You can color them with fills and strokes.
-4. *Optional*: Download a big set of background tiles (see below. Get a larger area than you need. Mapsplat will trim to your extents. Also, download some styling (style.json also from below). I like to rename this JSON to be `basemap.json` for clarity.
-5. Make a pretty map and zoom/pan to the starting view you'd like your online map to begin with
-6. Configure Mapsplat by working with the controls in the plugin.
-  - a. Selecting the layers that you want in your output
-  - b. Set up the basemap if you want one (it does not need to be in your QGIS view or project)
-  - c. Adjust the settings throughout Mapsplat
-  - - Keep the number of zoom levels small at first and set the extent to be as small as you can. Your view extent is a good place to start.
-  - d. Save the config file for later use (iterate on the settings until you get it right).
-  - e. Export a map from Mapsplat 
-7. Find the output directory and run the little server script with something like `python serve.py`. It should start your browser and show you the map!
+## Quick start (5 steps to your first web map)
 
+1. **Install** — download the latest `mapsplat.zip` from [Releases](https://github.com/johnzastrow/mapsplat/releases) and add it in QGIS via **Plugins → Manage and Install Plugins → Install from ZIP**. Put the [pmtiles CLI](https://github.com/protomaps/go-pmtiles/releases) on your PATH (or use the basemap's **Stream from URL** mode, which needs no CLI).
+2. **Style your layers in QGIS** as you want them to appear. Zoom/pan to the view your web map should open at.
+3. **Open the MapSplat dock** (toolbar icon), and on the **Inputs** tab **tick the layers** to export.
+4. *(Optional)* On the **Basemap** section, enable a basemap. Keep **max zoom small** (start at ~13) and the extent tight — your current view extent is a good starting point.
+5. **Export.** Click **Export**, then open the output folder and run `python serve.py` — your browser opens the finished map.
 
-The resulting HTML has comments that can help you copy/paste the map into another HTML page for embedding.
+> The generated `index.html` has `<!-- BEGIN/END MAPSPLAT -->` comments marking exactly the `<head>` and `<body>` blocks to copy into another page for embedding.
+
+A more detailed walk-through (with pictures) lives in [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md); a shot-by-shot demo script is in [`docs/TUTORIAL_SCRIPT.md`](docs/TUTORIAL_SCRIPT.md). Hit a snag? See [Troubleshooting](#troubleshooting) below.
 
 
 ## Prep Work
@@ -181,9 +175,26 @@ There is no way to represent these effects in the MapLibre GL Style JSON spec, s
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | QGIS | 4.0+ | This fork targets QGIS 4 only |
-| GDAL | 3.8+ | Required for native PMTiles support via `ogr2ogr` |
+| GDAL | 3.8+ | Required for native PMTiles support via `ogr2ogr`; MBTiles driver needed for raster export |
 | Python | 3.9+ | Bundled with QGIS |
-| pmtiles CLI | Any | Required only for basemap overlay mode |
+| pmtiles CLI | Any | Required for basemap **bundle** mode and raster export (not for **Stream** mode) |
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause & fix |
+|---|---|
+| **"pmtiles CLI not found"** on export | The `pmtiles` binary isn't on QGIS's PATH. Install it from the [go-pmtiles releases](https://github.com/protomaps/go-pmtiles/releases) and restart QGIS — or set the basemap to **Stream from URL** (no CLI needed). |
+| **Map is blank / white** | PMTiles need HTTP **Range** requests, which `file://` doesn't provide. Don't open `index.html` directly — run `python serve.py` in the output folder (it serves with Range support) and use the `http://localhost:…` URL. |
+| **A layer is missing from the map** | Only layers that tiled successfully are included. Check the **export summary dialog** / the Log tab for the failed layer and its reason. If it was there a moment ago, you may be viewing a **stale server** — stop old `serve.py` processes and re-run. |
+| **Markers show as plain circles** | Per-class icons are rendered only for **SVG** markers (single-symbol, categorized, or graduated). Simple-marker (circle/square) symbols map to circles by design. |
+| **Basemap doesn't appear** | Check the basemap **source URL/file** and that its **style** is set. In offline bundles, a bad sprite can blank icons — MapSplat now falls back to your local sprite automatically. |
+| **Raster layer doesn't export** | Enable **Include raster layers** (Export Options) — it's off by default. It needs GDAL's **MBTiles driver** (`gdal_translate --formats` should list `MBTiles`). Styled single-band rasters (DEMs) aren't supported yet. |
+| **🌐-tagged layers are blank** | Vector-tile and online XYZ/WMS layers **stream live** — the exported map needs internet for them. They won't work offline (that's Stage 2/3 offline packaging, coming later). |
+| **The measure/draw/export tools aren't on the map** | They're **off by default**. Enable each in the **Viewer** tab before exporting. |
+| **Slow re-exports of the same area** | Basemap extracts are cached (by source + extent + zoom). Use **Refresh basemap cache** to force a re-download, or **Clear basemap cache** to free disk. |
+| **Embedding into another page shows nothing** | Copy **both** the `<head>` and `<body>` MAPSPLAT blocks, and serve the page over **http with Range support** (see the Caddy/nginx notes in `docs/USER_GUIDE.md`). |
 
 ---
 

@@ -424,11 +424,11 @@ converter = QgsMapBoxGlStyleConverter()
 
 ## Documentation
 
-### Quick Start Guide *(Deferred)*
-- [ ] Create quick start section in README
-- [ ] 5 steps from install to first export
-- [ ] Include troubleshooting for common issues
+### Quick Start Guide ✅ *Done — v0.36.1*
+- [x] Create quick start section in README (5 steps, install → first export)
+- [x] Include troubleshooting for common issues (Troubleshooting table)
 
-### Video Tutorial *(Deferred)*
-- [ ] Record screen capture of full workflow
-- [ ] Host on YouTube or embed in docs
+### Video Tutorial ✅ *Script done — v0.36.1 (recording is a manual step)*
+- [x] Shot-by-shot storyboard/script (`docs/TUTORIAL_SCRIPT.md`)
+- [ ] Record screen capture of full workflow *(manual — from the script)*
+- [ ] Host on YouTube or embed in docs *(manual)*

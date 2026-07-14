@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.36.0
+version=0.36.1
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,10 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.36.1 - Docs: Quick Start refresh, Troubleshooting, tutorial storyboard
+    - README: crisp 5-step Quick Start (install -> first export) plus a Troubleshooting table for the
+      common gotchas (pmtiles CLI, blank map/serve.py, missing layers, rasters, online layers, tools).
+    - New docs/TUTORIAL_SCRIPT.md: shot-by-shot storyboard for a ~6-minute demo video.
     0.36.0 - Raster layer support (Story 15)
     - Selected raster layers can now be tiled into the map: gdalwarp -> EPSG:3857 (clipped to the
       export extent) -> gdal_translate -of MBTiles (with overviews) -> pmtiles convert, added as a
