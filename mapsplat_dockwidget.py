@@ -358,6 +358,15 @@ class MapSplatDockWidget(QDockWidget):
         )
         options_layout.addWidget(self.chk_export_style)
 
+        self.chk_include_rasters = QCheckBox("Include raster layers (tile to PMTiles)")
+        self.chk_include_rasters.setChecked(False)
+        self.chk_include_rasters.setToolTip(
+            "Tile selected raster layers (imagery, scanned maps) to PMTiles and include them in the\n"
+            "map. Off by default — tiling is slow and needs GDAL's MBTiles driver. RGB/paletted\n"
+            "rasters are supported; styled single-band rasters (e.g. DEMs) may not tile."
+        )
+        options_layout.addWidget(self.chk_include_rasters)
+
         # Export extent layer
         extent_layout = QHBoxLayout()
         extent_layout.addWidget(QLabel("Export extent:"))
@@ -905,7 +914,7 @@ class MapSplatDockWidget(QDockWidget):
 
         # Connect all persistent-settings signals (all tabs — placed here after all widgets exist)
         for w in (
-            self.chk_export_style, self.chk_save_log, self.chk_verify_pmtiles,
+            self.chk_export_style, self.chk_include_rasters, self.chk_save_log, self.chk_verify_pmtiles,
             self.chk_refresh_basemap_cache, self.chk_bundle_offline,
             self.chk_viewer_scale_bar, self.chk_viewer_geolocate,
             self.chk_viewer_fullscreen, self.chk_viewer_coords,
@@ -1256,6 +1265,7 @@ class MapSplatDockWidget(QDockWidget):
         s.setValue("export_mode", self.combo_export_mode.currentIndex())
         s.setValue("max_zoom", self.spin_max_zoom.value())
         s.setValue("export_style_json", self.chk_export_style.isChecked())
+        s.setValue("include_rasters", self.chk_include_rasters.isChecked())
         s.setValue("save_log", self.chk_save_log.isChecked())
         s.setValue("verify_pmtiles", self.chk_verify_pmtiles.isChecked())
         s.setValue("refresh_basemap_cache", self.chk_refresh_basemap_cache.isChecked())
@@ -1307,6 +1317,7 @@ class MapSplatDockWidget(QDockWidget):
             # Boolean checkboxes
             bool_widgets = [
                 ("export_style_json", self.chk_export_style),
+                ("include_rasters", self.chk_include_rasters),
                 ("save_log", self.chk_save_log),
                 ("verify_pmtiles", self.chk_verify_pmtiles),
                 ("refresh_basemap_cache", self.chk_refresh_basemap_cache),
@@ -1695,6 +1706,7 @@ class MapSplatDockWidget(QDockWidget):
             "single_file": self.combo_export_mode.currentIndex() == 0,
             "style_only": self.chk_style_only.isChecked(),
             "export_style_json": self.chk_export_style.isChecked(),
+            "include_rasters": self.chk_include_rasters.isChecked(),
             "verify_pmtiles": self.chk_verify_pmtiles.isChecked(),
             "refresh_basemap_cache": self.chk_refresh_basemap_cache.isChecked(),
             "imported_style_path": self.imported_style_path,

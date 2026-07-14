@@ -1262,6 +1262,10 @@ class MapSplatExporter(QObject):
         # pass-through sources in the style. No data is copied — the viewer streams them live.
         self._add_tile_layers(layers.get("tile", []), style_json)
 
+        # Tile selected local raster layers to PMTiles (opt-in), below the vector layers.
+        if not style_only:
+            self._export_raster_layers(layers.get("raster", []), output_dir, style_json, base_bounds)
+
         # Handle style merging
         if use_basemap:
             basemap_style_path = self.settings.get("basemap_style_path", "")
@@ -1618,6 +1622,140 @@ class MapSplatExporter(QObject):
         except Exception:
             pass
         return []
+
+    def _run_cmd(self, args, timeout=1800):
+        """Run a blocking external command. Returns (ok: bool, error: str)."""
+        try:
+            r = subprocess.run(
+                args, capture_output=True, text=True, timeout=timeout,
+                startupinfo=STARTUPINFO, creationflags=CREATIONFLAGS,
+            )
+        except FileNotFoundError:
+            return False, f"{args[0]} not found"
+        except subprocess.TimeoutExpired:
+            return False, "timed out"
+        except Exception as e:  # pragma: no cover - defensive
+            return False, str(e)
+        if r.returncode != 0:
+            return False, (r.stderr.strip() or r.stdout.strip() or f"exit code {r.returncode}")
+        return True, ""
+
+    def _check_gdal_mbtiles(self):
+        """True if GDAL's MBTiles raster driver is available (needed to tile rasters)."""
+        try:
+            r = subprocess.run(
+                ["gdal_translate", "--formats"], capture_output=True, text=True, timeout=15,
+                startupinfo=STARTUPINFO, creationflags=CREATIONFLAGS,
+            )
+            return "MBTiles" in r.stdout
+        except Exception:
+            return False
+
+    def _raster_to_pmtiles(self, layer, output_dir, name, bounds):
+        """Tile one raster layer to PMTiles: gdalwarp→3857 → MBTiles → overviews → pmtiles convert.
+
+        Handles RGB(A) imagery directly and paletted rasters via an ``-expand rgba`` retry.
+        Single-band continuous rasters (e.g. styled DEMs) may fail here — they'd need QGIS
+        rendering, which is a later stage. Returns True on success.
+        """
+        import tempfile
+        import shutil
+
+        src = layer.source() or ""
+        src_path = src.split("|")[0]  # strip GDAL "|option=..." suffixes
+        if not os.path.exists(src_path):
+            self.log_message.emit(f"  Raster source not found: {src_path}", "error")
+            return False
+
+        west, south, east, north = bounds
+        tmp = tempfile.mkdtemp(prefix="mapsplat_raster_")
+        warped = os.path.join(tmp, f"{name}_3857.tif")
+        mbtiles = os.path.join(tmp, f"{name}.mbtiles")
+        pmtiles_out = os.path.join(output_dir, "data", f"{name}.pmtiles")
+        try:
+            # 1) Reproject to Web Mercator, clipped to the export extent (bounds are EPSG:4326).
+            ok, err = self._run_cmd([
+                "gdalwarp", "-overwrite", "-t_srs", "EPSG:3857", "-r", "bilinear",
+                "-te", str(west), str(south), str(east), str(north), "-te_srs", "EPSG:4326",
+                src_path, warped,
+            ])
+            if not ok:
+                self.log_message.emit(f"  gdalwarp failed: {err}", "error")
+                return False
+
+            # 2) Tile into an MBTiles pyramid. Retry paletted rasters via -expand rgba.
+            ok, err = self._run_cmd(
+                ["gdal_translate", "-of", "MBTiles", "-co", "TILE_FORMAT=PNG", warped, mbtiles])
+            if not ok:
+                rgba = os.path.join(tmp, f"{name}_rgba.tif")
+                exp_ok, _ = self._run_cmd(["gdal_translate", "-expand", "rgba", warped, rgba])
+                if exp_ok:
+                    ok, err = self._run_cmd(
+                        ["gdal_translate", "-of", "MBTiles", "-co", "TILE_FORMAT=PNG", rgba, mbtiles])
+            if not ok:
+                self.log_message.emit(f"  Raster tiling failed (gdal_translate MBTiles): {err}", "error")
+                return False
+
+            # 3) Build overviews so lower zoom levels aren't blank.
+            self._run_cmd(["gdaladdo", "-r", "average", mbtiles, "2", "4", "8", "16", "32"])
+
+            # 4) MBTiles → PMTiles.
+            ok, err = self._run_cmd(["pmtiles", "convert", mbtiles, pmtiles_out])
+            if not ok:
+                self.log_message.emit(f"  pmtiles convert failed: {err}", "error")
+                return False
+
+            if os.path.exists(pmtiles_out):
+                size_mb = os.path.getsize(pmtiles_out) / (1024 * 1024)
+                self.log_message.emit(f"  Tiled raster '{layer.name()}' ({size_mb:.1f} MB)", "success")
+            return True
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def _export_raster_layers(self, raster_layers, output_dir, style_json, bounds):
+        """Tile selected local raster layers to PMTiles and add raster sources to the style.
+
+        Gated behind the 'Include raster layers' option (off by default — tiling is slow and needs
+        GDAL's MBTiles driver). Raster layers are placed below the vector layers.
+        """
+        if not raster_layers:
+            return
+        if not self.settings.get("include_rasters"):
+            self.log_message.emit(
+                f"  {len(raster_layers)} raster layer(s) selected but 'Include raster layers' is off "
+                f"— skipped.", "warning")
+            for layer in raster_layers:
+                self._failed_layers.append((layer.name(), "raster export disabled ('Include raster layers' off)"))
+            return
+        if not self._check_gdal_mbtiles():
+            self.log_message.emit(
+                "  GDAL MBTiles driver not available — cannot tile rasters. Install/upgrade GDAL: "
+                "https://gdal.org", "error")
+            for layer in raster_layers:
+                self._failed_layers.append((layer.name(), "GDAL MBTiles driver missing"))
+            return
+
+        sources = style_json.setdefault("sources", {})
+        below = []
+        for layer in raster_layers:
+            name = self._sanitize_layer_name(layer.name())
+            self.log_message.emit(f"  Tiling raster '{layer.name()}' (this can take a while)...", "info")
+            if self._raster_to_pmtiles(layer, output_dir, name, bounds):
+                src_id = f"raster_{name}"
+                sources[src_id] = {"type": "raster", "url": f"pmtiles://data/{name}.pmtiles",
+                                   "tileSize": 256}
+                below.append({
+                    "id": f"raster_{name}_layer",
+                    "type": "raster",
+                    "source": src_id,
+                    "paint": {"raster-opacity": round(float(layer.opacity()), 3)},
+                })
+            else:
+                self._failed_layers.append((layer.name(), "raster tiling failed"))
+        if below:
+            arr = style_json.setdefault("layers", [])
+            insert_at = 1 if (arr and arr[0].get("type") == "background") else 0
+            arr[insert_at:insert_at] = below
 
     def _xyz_url_from_raster(self, layer):
         """Extract the ``{z}/{x}/{y}`` URL template from an XYZ/WMS raster layer source.

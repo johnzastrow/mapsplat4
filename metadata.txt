@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.35.0
+version=0.36.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,13 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.36.0 - Raster layer support (Story 15)
+    - Selected raster layers can now be tiled into the map: gdalwarp -> EPSG:3857 (clipped to the
+      export extent) -> gdal_translate -of MBTiles (with overviews) -> pmtiles convert, added as a
+      raster source below the vector layers with the layer's opacity. RGB/RGBA and paletted rasters
+      are supported (paletted via an -expand rgba retry). Enable with the new "Include raster layers"
+      checkbox (off by default; needs GDAL's MBTiles driver). Styled single-band rasters (e.g. DEMs)
+      may not tile yet. Intermediate files are cleaned up; failures fold into the export summary.
     0.35.0 - Basemap extract caching (Story 17)
     - Basemap extracts are now cached by source + extent + max zoom, so repeat exports of the same
       area reuse the previous download instead of re-extracting. Transient network failures retry 3×,

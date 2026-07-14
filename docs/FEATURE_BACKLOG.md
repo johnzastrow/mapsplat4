@@ -227,18 +227,18 @@ tool is active. Off by default; toggle each in the Viewer tab.
 - [x] Add checkbox "Verify PMTiles after export" in Advanced Options (default: **unchecked**)
 - [x] Run verify for each PMTiles file in separate-file mode and aggregate results
 
-### PMTiles Convert (Raster Support) *(Story 15)*
-- [ ] Detect raster layers in selection and prompt: "Convert raster layers to PMTiles?"
-- [ ] Use `gdalwarp -t_srs EPSG:3857` to reproject raster to Web Mercator (required — QGIS layers can be any CRS)
-- [ ] Use `gdal_translate` to produce intermediate GeoTIFF with correct NoData/alpha
-- [ ] Use `pmtiles convert` to convert GeoTIFF → PMTiles
-- [ ] Determine raster tile zoom range from layer pixel size (avoid over-sampled or blurry tiles)
-- [ ] Handle multi-band rasters: RGB imagery vs single-band DEM vs indexed color (different MapLibre paint styles)
-- [ ] Place raster PMTiles below vector layers in style.json using `"type": "raster"` source + paint layer (separate code path from vector style generation)
+### PMTiles Convert (Raster Support) *(Story 15)* ✅ *Done — v0.36.0 (RGB/paletted; DEM later)*
+- [x] Detect raster layers; opt-in via 'Include raster layers' (skipped-with-notice if off)
+- [x] `gdalwarp -t_srs EPSG:3857` reproject (clipped to export extent)
+- [x] `gdal_translate -of MBTiles` tiling (+ `-expand rgba` retry for paletted)
+- [x] `gdaladdo` overviews + `pmtiles convert` MBTiles → PMTiles
+- [x] Zoom range from resolution (MBTiles driver) + overviews for low zooms
+- [~] RGB/RGBA + paletted handled; single-band DEM styling deferred (needs QGIS render)
+- [x] Raster PMTiles below vector layers: `type: raster` source + paint layer
 - [ ] Show progress: "Converting raster: 50%"
-- [ ] Add to UI: checkbox "Include raster layers" in Export Options
-- [ ] Error handling: if GDAL raster support missing, show message with install link
-- [ ] Delete intermediate GeoTIFF after PMTiles conversion
+- [x] 'Include raster layers' checkbox in Export Options
+- [x] Error if GDAL MBTiles driver missing (with gdal.org link)
+- [x] Delete intermediate files after conversion
 
 ### XYZ Tile Source Support *(Story 16)*
 

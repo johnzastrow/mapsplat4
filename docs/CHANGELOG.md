@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — raster layer support (0.36.0, Story 15)
+- **Raster layers tile into the map.** Enable *Include raster layers* (Export Options, off by default)
+  and selected local rasters are tiled to PMTiles and shown below the vector layers. Pipeline:
+  `gdalwarp -t_srs EPSG:3857` (clipped to the export extent) → `gdal_translate -of MBTiles` →
+  `gdaladdo` (overviews so lower zooms aren't blank) → `pmtiles convert`; then a `type: "raster"`
+  source (`pmtiles://…`) + raster paint layer using `layer.opacity()`. RGB/RGBA and **paletted**
+  rasters are supported (paletted via an `-expand rgba` retry). Needs GDAL's MBTiles driver (a clear
+  error otherwise). Styled single-band rasters (e.g. DEMs) may not tile yet (they'd need QGIS
+  rendering — a later stage). Intermediates are cleaned up; per-raster failures fold into the export
+  summary. **Verified end-to-end** on a real synthetic raster: the full pipeline produced a valid
+  raster PMTiles that renders in MapLibre.
+
 ### Added — basemap extract caching (0.35.0, Story 17)
 - **Cached basemap extracts.** The clipped basemap is cached by `sha256(source + bbox + maxzoom)`
   under the active QGIS profile (`.../mapsplat/basemap_cache/`). A cache **hit** copies the previous
