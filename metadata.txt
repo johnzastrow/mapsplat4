@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.39.5
+version=0.39.6
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,9 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.39.6 - Fix missing base64 import (0.39.5 regression)
+    - 0.39.5 added the favicon using base64 but the module import was missing, so HTML generation
+      raised NameError and no viewer could be written. Added the import; full test suite green again.
     0.39.5 - Resilient viewer: one bad layer no longer blanks the whole map
     - The viewer now adds data layers one at a time and skips (logs) any layer MapLibre rejects, so a
       single invalid layer can't reject the entire style and leave a blank map.

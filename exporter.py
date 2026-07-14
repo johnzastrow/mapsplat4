@@ -13,6 +13,7 @@ __version__ = "0.13.0"
 import os
 import sys
 import json
+import base64
 import shutil
 import subprocess
 import datetime
