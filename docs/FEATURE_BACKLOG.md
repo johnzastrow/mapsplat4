@@ -1,6 +1,6 @@
 # MapSplat4 - Feature Backlog
 
-Unordered list of desired usability improvements. Prioritization and implementation details are in [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md).
+Unordered list of desired usability improvements. Prioritization and implementation details are in [IMPLEMENTATION_PLAN.md](design/IMPLEMENTATION_PLAN.md).
 
 ---
 

@@ -50,6 +50,7 @@ Full walk-through with pictures: **[User Guide](docs/USER_GUIDE.md)** · screens
 | 📝 [Changelog](docs/CHANGELOG.md) | Release history |
 | 🎬 [Tutorial script](docs/TUTORIAL_SCRIPT.md) | Storyboard for a demo video |
 | 🧭 [Roadmap / backlog](docs/FEATURE_BACKLOG.md) | What's planned next |
+| 🗃️ [Design archive](docs/design/README.md) | Historical planning & design notes |
 
 ---
 
