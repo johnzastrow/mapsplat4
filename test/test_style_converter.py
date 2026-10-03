@@ -1299,5 +1299,107 @@ class TestGetZoomRange(unittest.TestCase):
         self.assertLess(minzoom, maxzoom)
 
 
+class TestRuleZoomRanges(unittest.TestCase):
+    """Per-rule scale ranges of a rule-based renderer become per-style-layer zooms (issue #3).
+
+    Modelled on OS Open Zoomstack Woodland: one layer, three rules on "type", each with its
+    own scale band (National 1:2M-1:320k, Regional 1:320k-1:80k, Local 1:80k-1:1).
+    """
+
+    def setUp(self):
+        from style_converter import StyleConverter
+        self.sc = StyleConverter([], {})
+        # Isolate the zoom logic: one style layer per symbol, filter passed through.
+        self.sc._symbol_to_layers = (
+            lambda symbol, layer_id, *args: [{"id": layer_id, "filter": args[-1]}])
+        self.sc._convert_qgis_expression_to_maplibre = lambda expr: expr or None
+
+    @staticmethod
+    def _rule(min_scale=0, max_scale=0, filt="", symbol=True, children=(), active=True):
+        from unittest.mock import MagicMock
+        r = MagicMock()
+        r.minimumScale.return_value = min_scale
+        r.maximumScale.return_value = max_scale
+        r.filterExpression.return_value = filt
+        r.symbol.return_value = MagicMock() if symbol else None
+        r.children.return_value = list(children)
+        r.active.return_value = active
+        return r
+
+    def _convert(self, root):
+        layers = []
+        self.sc._process_rule(root, layers, "woodland", 2, "mapsplat", 0)
+        return layers
+
+    def _zoomstack(self):
+        return self._rule(symbol=False, children=[
+            self._rule(2000000, 320000, "National"),
+            self._rule(320000, 80000, "Regional"),
+            self._rule(80000, 1, "Local"),
+        ])
+
+    def test_each_rule_gets_its_own_zoom_band(self):
+        out = {ly["filter"]: ly for ly in self._convert(self._zoomstack())}
+        z = self.sc._scale_to_zoom
+        self.assertEqual((out["National"]["minzoom"], out["National"]["maxzoom"]),
+                         (z(2000000), z(320000)))
+        self.assertEqual((out["Regional"]["minzoom"], out["Regional"]["maxzoom"]),
+                         (z(320000), z(80000)))
+        self.assertEqual((out["Local"]["minzoom"], out["Local"]["maxzoom"]), (z(80000), z(1)))
+
+    def test_bands_are_contiguous_and_ordered(self):
+        out = {ly["filter"]: ly for ly in self._convert(self._zoomstack())}
+        self.assertLess(out["National"]["minzoom"], out["National"]["maxzoom"])
+        self.assertEqual(out["National"]["maxzoom"], out["Regional"]["minzoom"])
+        self.assertEqual(out["Regional"]["maxzoom"], out["Local"]["minzoom"])
+
+    def test_rule_without_scale_range_has_no_zoom_keys(self):
+        out = self._convert(self._rule(symbol=False, children=[self._rule(filt="All")]))
+        self.assertNotIn("minzoom", out[0])
+        self.assertNotIn("maxzoom", out[0])
+
+    def test_child_rule_is_narrowed_by_parent_range(self):
+        # Parent visible 1:1M-1:10k; child asks for 1:5M-1:50k -> effective 1:1M-1:50k.
+        root = self._rule(symbol=False, children=[
+            self._rule(1000000, 10000, symbol=False, children=[
+                self._rule(5000000, 50000, "child")])])
+        out = self._convert(root)[0]
+        z = self.sc._scale_to_zoom
+        self.assertEqual((out["minzoom"], out["maxzoom"]), (z(1000000), z(50000)))
+
+    def test_child_without_range_inherits_parent_range(self):
+        root = self._rule(symbol=False, children=[
+            self._rule(1000000, 10000, symbol=False, children=[self._rule(filt="child")])])
+        out = self._convert(root)[0]
+        z = self.sc._scale_to_zoom
+        self.assertEqual((out["minzoom"], out["maxzoom"]), (z(1000000), z(10000)))
+
+    def test_inactive_rule_is_skipped(self):
+        root = self._rule(symbol=False, children=[
+            self._rule(2000000, 320000, "National", active=False),
+            self._rule(80000, 1, "Local")])
+        self.assertEqual([ly["filter"] for ly in self._convert(root)], ["Local"])
+
+
+class TestIntersectZoomRanges(unittest.TestCase):
+    """Layer-level visibility narrows, never overwrites, a rule's own range (issue #3)."""
+
+    def setUp(self):
+        from style_converter import StyleConverter
+        self.f = StyleConverter._intersect_zoom_ranges
+
+    def test_unbounded_both(self):
+        self.assertEqual(self.f((None, None), (None, None)), (None, None))
+
+    def test_one_side_bounded(self):
+        self.assertEqual(self.f((None, None), (7.0, 9.0)), (7.0, 9.0))
+        self.assertEqual(self.f((5.0, None), (None, None)), (5.0, None))
+
+    def test_intersection_takes_later_min_and_earlier_max(self):
+        # Layer visible z7.1-24 (the Woodland layer's own 1:2M limit); Local rule z11.8-24.
+        self.assertEqual(self.f((7.13, 24.0), (11.77, 24.0)), (11.77, 24.0))
+        self.assertEqual(self.f((8.0, 12.0), (7.0, 10.0)), (8.0, 10.0))
+
+
 if __name__ == "__main__":
     unittest.main()

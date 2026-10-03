@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.0] — 2026-10-02
+
+### Added — rule scale ranges (issue #3)
+- **Rule-based styles honour each rule's own scale range.** A rule's min/max scale becomes the
+  `minzoom`/`maxzoom` of its style layers, narrowed by any parent rule's range and by the
+  layer's own scale-based visibility (previously the layer range overwrote everything, and
+  rule ranges were ignored). Zoom-dependent rules such as OS Open Zoomstack's National /
+  Regional / Local woodland now appear only in their band instead of all at every zoom.
+
+### Fixed — layer order in single-file PMTiles mode (issue #4)
+- **Layers stack in QGIS layer-tree order in single-file mode too.** Ordering matched style
+  layers to the tree by `source`, but in single-file mode every vector layer shares the one
+  `mapsplat` source, so none matched: they kept an arbitrary order at the bottom, and online
+  XYZ basemaps (which did match) were drawn on top of all data. Layers are now matched by
+  `source-layer` when the source is shared; per-layer mode is unchanged.
+- **The layer list interleaves groups and ungrouped layers as in the QGIS panel.** It used to
+  list every group first, so ungrouped layers above a group appeared below it (both modes).
+
 ## [0.43.1] — 2026-07-14
 
 ### Changed — republish for the QGIS plugin repository (0.43.1)

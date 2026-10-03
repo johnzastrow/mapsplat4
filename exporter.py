@@ -8,7 +8,7 @@ This module handles the actual export process:
 - Generating the HTML viewer
 """
 
-__version__ = "0.43.1"
+__version__ = "0.44.0"
 
 import os
 import sys
@@ -1020,20 +1020,19 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             const grouped = new Set();
             const _isBaseSrc = (s) => (s || '').startsWith('tile_') || (s || '').startsWith('raster_')
                 || s === 'protomaps' || s === 'basemap_xyz';
-            legendGroups.forEach(g => {{
+            // Which QGIS group (index into legendGroups) each data layer belongs to.
+            const _groupOf = {{}};
+            legendGroups.forEach((g, gi) => {{
                 if (!g.name) return;
-                const det = makeGroupSection(g.name);
                 (g.layers || []).forEach(sl => {{
                     _slOrder.forEach(key => {{
-                        if (grouped.has(key)) return;
+                        if (key in _groupOf) return;
                         const gl = _slGroups[key];
                         if (gl && gl[0] && !_isBaseSrc(gl[0].source) && key.split('\x1f').pop() === sl) {{
-                            const item = renderLayerItem(key);
-                            if (item) {{ det.appendChild(item); grouped.add(key); }}
+                            _groupOf[key] = gi;
                         }}
                     }});
                 }});
-                if (det.children.length > 1) layerToggles.appendChild(det);
             }});
 
             // Base layers — styled vector tiles (e.g. Carto) and the basemap — go into their own
@@ -1062,11 +1061,22 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 _makeSourceGroup(_bmGroup.name || 'Basemap', (s) => _bmSet.has(s));
             }}
 
-            // Your data layers (ungrouped) in the middle, in render order.
-            _slOrder.forEach(sourceLayer => {{
-                if (grouped.has(sourceLayer)) return;
-                const item = renderLayerItem(sourceLayer);
-                if (item) layerToggles.appendChild(item);
+            // Your data layers in render order (top first), which follows the QGIS layer tree.
+            // A group's section goes where its top-most member is, so ungrouped layers and
+            // groups interleave exactly as in the QGIS panel instead of all groups coming first.
+            const _groupSections = {{}};
+            _slOrder.forEach(key => {{
+                if (grouped.has(key)) return;
+                const item = renderLayerItem(key);
+                if (!item) return;
+                const gi = _groupOf[key];
+                if (gi === undefined) {{ layerToggles.appendChild(item); return; }}
+                if (!_groupSections[gi]) {{
+                    _groupSections[gi] = makeGroupSection(legendGroups[gi].name);
+                    layerToggles.appendChild(_groupSections[gi]);
+                }}
+                _groupSections[gi].appendChild(item);
+                grouped.add(key);
             }});
 
             // Base sections at the very bottom.
@@ -1177,6 +1187,36 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
     <!-- <----- END MAPSPLAT <body> section ----- -->
 </body>
 </html>'''
+
+
+def sort_layers_by_tree_order(style_layers, order):
+    """Return MapLibre style layers sorted to match the QGIS layer tree.
+
+    :param style_layers: style layers (no background), in their current order
+    :param order: sanitized QGIS layer names, top-most panel layer first
+    :returns: a new list; MapLibre draws bottom-to-top, so the top-most tree layer comes LAST
+
+    A style layer is matched to its tree position by ``source`` first -- a per-layer PMTiles
+    source, or a ``tile_``/``raster_`` online or raster source, is named after its layer -- and
+    otherwise by ``source-layer``. In single-file mode every vector layer shares the one
+    ``mapsplat`` source, so only ``source-layer`` identifies it; matching on ``source`` alone
+    left all of them unranked, sunk below every ranked online base layer (issue #4).
+    The sort is stable, so the several style layers of one QGIS layer (rules, labels) keep
+    their relative order.
+    """
+    rank = {}
+    for i, san in enumerate(order):  # i = 0 is the top-most layer in the panel
+        for sid in (san, f"tile_{san}", f"raster_{san}"):
+            rank.setdefault(sid, i)
+    bottom = 1 << 30  # layers not in the tree (unexpected) sink to the bottom
+
+    def tree_rank(ly):
+        src = ly.get("source")
+        if src in rank:
+            return rank[src]
+        return rank.get(ly.get("source-layer"), bottom)
+
+    return sorted(style_layers, key=lambda ly: -tree_rank(ly))
 
 
 class MapSplatExporter(QObject):
@@ -1953,14 +1993,7 @@ class MapSplatExporter(QObject):
             order = []
 
         if order:
-            rank = {}
-            for i, san in enumerate(order):  # i = 0 is the top-most layer in the panel
-                for sid in (san, f"tile_{san}", f"raster_{san}"):
-                    rank.setdefault(sid, i)
-            _BOTTOM = 1 << 30  # sources not in the tree (unexpected) sink to the bottom
-            # MapLibre draws bottom-to-top, so the top-most tree layer (rank 0) must be LAST.
-            rest.sort(key=lambda ly: -rank.get(ly.get("source"), _BOTTOM))
-            style_json["layers"] = bg + rest
+            style_json["layers"] = bg + sort_layers_by_tree_order(rest, order)
             return
 
         # Fallback (no tree order): imagery/tile bases at the bottom, vector data on top.

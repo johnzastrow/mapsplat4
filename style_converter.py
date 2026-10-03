@@ -199,10 +199,14 @@ class StyleConverter:
             rtype = renderer.type() if renderer else "none"
             layer_styles = self._convert_layer(layer)
             for ls in layer_styles:
-                if minzoom is not None:
-                    ls["minzoom"] = minzoom
-                if maxzoom is not None:
-                    ls["maxzoom"] = maxzoom
+                # Intersect rather than overwrite: a rule-based layer's style layers may already
+                # carry the rule's own (narrower) zoom range (issue #3).
+                lo, hi = self._intersect_zoom_ranges(
+                    (minzoom, maxzoom), (ls.get("minzoom"), ls.get("maxzoom")))
+                if lo is not None:
+                    ls["minzoom"] = lo
+                if hi is not None:
+                    ls["maxzoom"] = hi
             style["layers"].extend(layer_styles)
 
             # Add labels if enabled
@@ -374,6 +378,30 @@ class StyleConverter:
         minzoom = self._scale_to_zoom(layer.minimumScale())
         maxzoom = self._scale_to_zoom(layer.maximumScale())
         return (minzoom, maxzoom)
+
+    def _get_rule_zoom_range(self, rule):
+        """Return (minzoom, maxzoom) for one rule of a rule-based renderer.
+
+        Same mapping as :meth:`_get_zoom_range`: ``minimumScale()`` is the most-zoomed-out
+        limit (largest denominator) -> ``minzoom``; ``maximumScale()`` the most-zoomed-in ->
+        ``maxzoom``. A rule with no scale range set returns 0 for both, i.e. (None, None).
+        """
+        try:
+            return (self._scale_to_zoom(rule.minimumScale()),
+                    self._scale_to_zoom(rule.maximumScale()))
+        except (AttributeError, TypeError):
+            return (None, None)
+
+    @staticmethod
+    def _intersect_zoom_ranges(outer, inner):
+        """Intersect two (minzoom, maxzoom) ranges; None means unbounded on that side.
+
+        Used to narrow a layer's or parent rule's visibility by a rule's own range: the result
+        starts at the later minzoom and ends at the earlier maxzoom.
+        """
+        mins = [z for z in (outer[0], inner[0]) if z is not None]
+        maxs = [z for z in (outer[1], inner[1]) if z is not None]
+        return (max(mins) if mins else None, min(maxs) if maxs else None)
 
     def _label_quadrant(self, settings):
         """QGIS label quadrant (0..8) via QGIS-4 pointSettings(), falling back for QGIS 3.
@@ -1288,8 +1316,16 @@ class StyleConverter:
 
         return layers if layers else self._create_default_style(layer, source_layer, geom_type, source_name)
 
-    def _process_rule(self, rule, layers, source_layer, geom_type, source_name, depth):
-        """Recursively process rule-based renderer rules."""
+    def _process_rule(self, rule, layers, source_layer, geom_type, source_name, depth,
+                      zoom_range=(None, None)):
+        """Recursively process rule-based renderer rules.
+
+        :param zoom_range: (minzoom, maxzoom) inherited from the parent rules; a rule is only
+                           drawn inside its own scale range AND every ancestor's (issue #3).
+        """
+        # A rule's scale range narrows its parent's; children inherit the narrowed range.
+        zoom_range = self._intersect_zoom_ranges(zoom_range, self._get_rule_zoom_range(rule))
+
         # Process this rule if it has a symbol
         if rule.symbol():
             filter_expr = self._convert_qgis_expression_to_maplibre(rule.filterExpression())
@@ -1301,12 +1337,19 @@ class StyleConverter:
                 source_name,
                 filter_expr
             )
+            minzoom, maxzoom = zoom_range
+            for ls in rule_layers:
+                if minzoom is not None:
+                    ls["minzoom"] = minzoom
+                if maxzoom is not None:
+                    ls["maxzoom"] = maxzoom
             layers.extend(rule_layers)
 
         # Process child rules
         for child in rule.children():
             if child.active():
-                self._process_rule(child, layers, source_layer, geom_type, source_name, depth + 1)
+                self._process_rule(child, layers, source_layer, geom_type, source_name, depth + 1,
+                                   zoom_range)
 
     def _convert_qgis_expression_to_maplibre(self, expr_str):
         """Convert a QGIS filter expression to MapLibre filter.

@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.43.1
+version=0.44.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,13 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.44.0 - Rule scale ranges; single-file layer order
+    - Rule-based styles: each rule's own min/max scale is now honoured in the web map, so
+      zoom-dependent rules (e.g. OS Open Zoomstack's National / Regional / Local woodland)
+      appear only in their scale band instead of all at once.
+    - Single-file PMTiles mode: layers now stack in QGIS layer-tree order. Ungrouped layers were
+      pushed below every group and online basemaps (XYZ) were drawn on top of everything.
+    - The layer list interleaves groups and ungrouped layers exactly as in the QGIS panel.
     0.43.1 - Republish for the QGIS plugin repository
     - Version bump to publish the validated build (Qt6 scoped enums and the lint/security gates
       cleared). The generated viewer's version stamp now reflects the real plugin version. No
