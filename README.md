@@ -25,7 +25,7 @@ backend, no additional stack. Your QGIS styling, labels, and layer order are pre
 1. **Install** — download the latest `mapsplat.zip` from [Releases](https://github.com/johnzastrow/mapsplat4/releases)
    and add it in QGIS via **Plugins → Manage and Install Plugins → Install from ZIP**. For offline
    basemaps and raster export, also put the [pmtiles CLI](https://github.com/protomaps/go-pmtiles/releases)
-   on your PATH (not needed for basemap **Stream** mode).
+   on your PATH (not needed for XYZ basemaps or for streaming a PMTiles file you host).
 2. **Style your layers in QGIS** as you want them online, and zoom to your starting view.
 3. **Open the MapSplat dock** and tick the layers to export (**Inputs** tab).
 4. *(Optional)* Enable a basemap and keep the max zoom small to start (**Options** tab).
@@ -61,7 +61,7 @@ Full walk-through with pictures: **[User Guide](docs/USER_GUIDE.md)** · screens
 | QGIS | 4.0+ | This project targets QGIS 4 (Qt6) |
 | GDAL | 3.8+ | PMTiles via `ogr2ogr`; MBTiles driver needed for raster export |
 | Python | 3.9+ | Bundled with QGIS |
-| pmtiles CLI | any | Basemap **bundle** mode + raster export (not **Stream** mode) |
+| pmtiles CLI | any | Basemap **Download & clip** mode + raster export (not **Stream** or **XYZ**) |
 
 ## Installation
 

@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MapSplat Basemap Guide</title>
+<meta name="description" content="How to add a Protomaps PMTiles background to a map exported with the MapSplat QGIS plugin.">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --panel: #f6f8fa;
+    --accent: #8a2be2; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --code-bg: #eff2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #30363d; --panel: #161b22;
+      --accent: #c297ff; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --code-bg: #1f2630;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.6 -apple-system, "Segoe UI", Roboto, "Noto Sans", Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 8px; }
+  header .kicker { color: var(--accent); font-weight: 600; letter-spacing: .02em; font-size: 14px; }
+  h1 { font-size: 30px; line-height: 1.25; margin: 4px 0 8px; }
+  h2 { font-size: 22px; margin: 40px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  h3 { font-size: 17px; margin: 24px 0 6px; }
+  p, li { max-width: 72ch; }
+  a { color: var(--link); }
+  .muted { color: var(--muted); }
+  nav.toc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
+  nav.toc ol { margin: 4px 0 0; padding-left: 20px; }
+  code, kbd {
+    font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px 14px; overflow-x: auto; font-size: 14px;
+  }
+  pre code { background: none; padding: 0; }
+  /* Long URLs and inline code wrap on narrow screens instead of widening the page. */
+  a, :not(pre) > code { overflow-wrap: anywhere; }
+  .ui { font-weight: 600; white-space: nowrap; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; font-size: 15px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); }
+  .table-scroll { overflow-x: auto; }
+  .note {
+    border-left: 4px solid var(--accent); background: var(--panel); border-radius: 0 8px 8px 0;
+    padding: 10px 14px; margin: 14px 0;
+  }
+  .note.warn { border-left-color: var(--warn); }
+  .note.ok { border-left-color: var(--ok); }
+  ol.steps > li { margin-bottom: 8px; }
+  footer { margin-top: 48px; border-top: 1px solid var(--line); padding-top: 12px; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">MapSplat for QGIS</div>
+  <h1>Adding a basemap to your exported map</h1>
+  <p class="muted">How to put a Protomaps PMTiles background (streets, places, water, land use)
+  underneath your own layers. Covers MapSplat 0.45 and later. This guide is bundled with the plugin
+  and also published at
+  <a href="https://johnzastrow.github.io/mapsplat4/basemaps.html">johnzastrow.github.io/mapsplat4/basemaps.html</a>.</p>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#choose">Choose a basemap mode</a></li>
+    <li><a href="#quick">Quick start: download and clip</a></li>
+    <li><a href="#stream">Streaming a PMTiles file you host</a></li>
+    <li><a href="#cli">Installing the pmtiles tool</a></li>
+    <li><a href="#preclip">Clip once, reuse many times</a></li>
+    <li><a href="#styles">Basemap styles</a></li>
+    <li><a href="#size">Max zoom and download size</a></li>
+    <li><a href="#hosting">Viewing and hosting the map</a></li>
+    <li><a href="#trouble">Troubleshooting</a></li>
+    <li><a href="#credits">Attribution and licences</a></li>
+  </ol>
+</nav>
+
+<h2 id="choose">1. Choose a basemap mode</h2>
+<p>All basemap settings are on the <span class="ui">Options</span> tab under
+<span class="ui">Basemap Overlay</span>. Expand it and tick <span class="ui">Enable basemap</span>,
+then pick a <span class="ui">Mode</span>:</p>
+<div class="table-scroll">
+<table>
+  <tr><th>Mode</th><th>Use it for</th><th>Needs the pmtiles tool?</th><th>Needs internet to view?</th></tr>
+  <tr><td><span class="ui">Download &amp; clip offline</span></td>
+      <td><strong>Protomaps basemaps (recommended).</strong> Cuts your area out of a Protomaps planet
+      build and stores it in the export as <code>data/basemap.pmtiles</code>.</td>
+      <td>Yes</td><td>For the basemap: no. Labels and icons: see <a href="#styles">styles</a>.</td></tr>
+  <tr><td><span class="ui">Stream from URL</span></td>
+      <td>A PMTiles basemap <strong>you host</strong> on a server that allows cross-site access
+      (CORS). The map reads it live.</td>
+      <td>No</td><td>Yes</td></tr>
+  <tr><td><span class="ui">XYZ raster</span></td>
+      <td>Image tiles from an online provider (OpenStreetMap, Carto, imagery and others).</td>
+      <td>No</td><td>Yes</td></tr>
+</table>
+</div>
+<div class="note warn"><strong>Protomaps' daily builds cannot be streamed.</strong>
+<code>build.protomaps.com</code> lets only Protomaps' own viewer read its files from a browser, so a
+map that streams a daily build shows no basemap, wherever it is hosted. The builds are meant to be
+downloaded and clipped, which is what <span class="ui">Download &amp; clip offline</span> does.
+MapSplat warns you if you try to stream one, and its <span class="ui">Test</span> button checks any
+URL for you.</div>
+
+<h2 id="quick">2. Quick start: download and clip</h2>
+<ol class="steps">
+  <li>Install the pmtiles tool (<a href="#cli">section 4</a>) and restart QGIS. This is a one-time step.</li>
+  <li>On the <span class="ui">Options</span> tab, expand <span class="ui">Basemap Overlay</span>,
+      tick <span class="ui">Enable basemap</span> and choose
+      <span class="ui">Mode: Download &amp; clip offline</span>. If MapSplat cannot find the tool,
+      it shows a note with a download link.</li>
+  <li>Leave <span class="ui">Source: Remote URL</span> and click <span class="ui">Latest</span>.
+      MapSplat fills in the newest Protomaps daily build, for example
+      <code>https://build.protomaps.com/20261003.pmtiles</code>.</li>
+  <li>Pick a <span class="ui">Basemap style</span>, such as <span class="ui">Protomaps Light</span>.
+      The built-in styles need no file.</li>
+  <li>Set <span class="ui">Max zoom</span> (see <a href="#size">sizes</a>) and, if you like, an
+      <span class="ui">Export extent</span>. The clip covers your selected layers, or that extent,
+      plus a small margin.</li>
+  <li>Export as usual. MapSplat downloads only your area, and your layers are drawn on top of it.</li>
+</ol>
+<p>Clips are cached by source, area and max zoom, so exporting the same area again skips the
+download. To force a fresh download or free disk space, use
+<span class="ui">Refresh basemap cache</span> and <span class="ui">Clear basemap cache</span> under
+<span class="ui">Advanced Options</span> on the <span class="ui">Inputs</span> tab.</p>
+<div class="note">Protomaps keeps only about the last two months of daily builds, so a dated URL
+eventually returns HTTP 404. That only matters when you export: your finished map keeps its own
+clipped copy. Click <span class="ui">Latest</span> again before the next export.</div>
+
+<h2 id="stream">3. Streaming a PMTiles file you host</h2>
+<p>Streaming suits a basemap you publish once and share across many maps, for example a regional
+clip on your own server or cloud bucket. The map then reads only the tiles it needs, live.</p>
+<ol class="steps">
+  <li>Make a clip (see <a href="#preclip">section 5</a>) or obtain a <code>.pmtiles</code> file.</li>
+  <li>Upload it to a host that supports HTTP range requests and send these CORS headers for it:
+<pre><code>Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: Range
+Access-Control-Expose-Headers: Content-Range, Content-Length, ETag</code></pre>
+      Object stores such as Amazon S3, Cloudflare R2 and Google Cloud Storage support this through
+      their CORS settings; see the
+      <a href="https://docs.protomaps.com/pmtiles/cloud-storage">Protomaps cloud storage guide</a>.</li>
+  <li>Choose <span class="ui">Mode: Stream from URL</span>, paste the file's URL and click
+      <span class="ui">Test</span>. It reports whether browsers on other sites may read the file.</li>
+  <li>Pick a <span class="ui">Basemap style</span> and export.</li>
+</ol>
+
+<h2 id="cli">4. Installing the pmtiles tool</h2>
+<p>The tool is a single program from the
+<a href="https://github.com/protomaps/go-pmtiles/releases">go-pmtiles releases page</a>. MapSplat
+never downloads or installs it for you.</p>
+<ol class="steps">
+  <li>Download the archive for your system from the releases page: <code>Windows_x86_64</code>,
+      <code>Darwin_arm64</code> (Apple silicon), <code>Darwin_x86_64</code> (Intel Mac) or
+      <code>Linux_x86_64</code>; ARM builds exist for Windows and Linux too.</li>
+  <li>Unpack it. It contains one program: <code>pmtiles</code> (<code>pmtiles.exe</code> on Windows).</li>
+  <li>Put that program in a folder on your <code>PATH</code>, for example
+      <code>~/.local/bin</code> or <code>/usr/local/bin</code> on macOS and Linux. On Windows, add its
+      folder in <em>Settings &gt; System &gt; About &gt; Advanced system settings &gt;
+      Environment Variables &gt; Path</em>.</li>
+  <li>Check it from a new terminal: <code>pmtiles version</code></li>
+  <li><strong>Restart QGIS</strong> so it sees the updated <code>PATH</code>.</li>
+</ol>
+<div class="note">On macOS, if the system blocks the program the first time, allow it under
+<em>System Settings &gt; Privacy &amp; Security</em>, or install it with Homebrew if you use it.</div>
+
+<h2 id="preclip">5. Clip once, reuse many times</h2>
+<p>If you export the same area often, or want to control the download yourself, clip the basemap
+once and point MapSplat at the result:</p>
+<ol class="steps">
+  <li>Select your layers (or set an <span class="ui">Export extent</span>) and a
+      <span class="ui">Max zoom</span>, and choose <span class="ui">Download &amp; clip offline</span>.</li>
+  <li>Click <span class="ui">Copy extract command</span>. MapSplat copies the exact command it would
+      run for that area, for example:
+<pre><code>pmtiles extract https://build.protomaps.com/20261003.pmtiles basemap.pmtiles --bbox=-70.32,43.62,-70.18,43.72 --maxzoom=14</code></pre></li>
+  <li>Paste it into a terminal and run it.</li>
+  <li>In MapSplat choose <span class="ui">Source: Local file</span> and select the new
+      <code>basemap.pmtiles</code>.</li>
+</ol>
+<p>To work out a bounding box by hand, <a href="https://bboxfinder.com">bboxfinder.com</a> gives
+<code>west,south,east,north</code> coordinates, and
+<a href="https://pmtiles.io">pmtiles.io</a> previews any <code>.pmtiles</code> file in your browser.
+The tool can also clip to a polygon with <code>--region=area.geojson</code>; see the
+<a href="https://docs.protomaps.com/pmtiles/cli">pmtiles CLI documentation</a>.</p>
+
+<h2 id="styles">6. Basemap styles</h2>
+<p>A style decides how the basemap looks. MapSplat ships five, generated from Protomaps' official
+<code>@protomaps/basemaps</code> package:</p>
+<div class="table-scroll">
+<table>
+  <tr><th>Style</th><th>Good for</th></tr>
+  <tr><td><span class="ui">Protomaps Light</span></td><td>General use; the default.</td></tr>
+  <tr><td><span class="ui">Protomaps Dark</span></td><td>Bright data layers, dark interfaces.</td></tr>
+  <tr><td><span class="ui">Protomaps White</span></td><td>Minimal background so your data stands out.</td></tr>
+  <tr><td><span class="ui">Protomaps Grayscale</span></td><td>Neutral background for coloured thematic maps.</td></tr>
+  <tr><td><span class="ui">Protomaps Black</span></td><td>High-contrast dark background.</td></tr>
+</table>
+</div>
+<p>To use a different look, choose <span class="ui">Custom style.json...</span> and browse to a
+Protomaps-compatible MapLibre style. The <em>Get style JSON</em> button on
+<a href="https://maps.protomaps.com">maps.protomaps.com</a> produces one for any flavour and language.
+MapSplat points the style's vector source at your chosen basemap automatically.</p>
+<div class="note warn"><strong>Labels and icons come from the internet.</strong> The built-in
+styles load their fonts and icons from <code>protomaps.github.io</code> when the map is viewed. With
+<em>Download &amp; clip</em> the basemap's shapes work offline, but place names and icons need a
+connection. For a fully offline map, use a custom style whose <code>glyphs</code> and
+<code>sprite</code> URLs point at copies on your own server; Protomaps publishes them in the
+<a href="https://github.com/protomaps/basemaps-assets">basemaps-assets</a> repository.</div>
+
+<h2 id="size">7. Max zoom and download size</h2>
+<p>Each extra zoom level shows more detail and roughly multiplies the clip size. Protomaps builds
+contain detail up to zoom 15; above that the map simply magnifies. Clip sizes measured from a
+2026 planet build (the whole planet is about 138 GB):</p>
+<div class="table-scroll">
+<table>
+  <tr><th>Area</th><th>Max zoom</th><th>Basemap clip</th></tr>
+  <tr><td>A city (Portland, Maine)</td><td>14</td><td>about 2.3 MB</td></tr>
+  <tr><td>A county (Cumberland County, Maine)</td><td>13</td><td>about 6 MB</td></tr>
+  <tr><td>A state (Maine)</td><td>10</td><td>about 11 MB</td></tr>
+  <tr><td>A state (Maine)</td><td>12</td><td>about 37 MB</td></tr>
+</table>
+</div>
+<p>To see the size before downloading, add <code>--dry-run</code> to a copied extract command.</p>
+
+<h2 id="hosting">8. Viewing and hosting the map</h2>
+<p>PMTiles are read with HTTP <em>range requests</em>, which browsers do not make for files opened
+directly from disk. To view an export on your own computer, run the bundled server in the export
+folder:</p>
+<pre><code>python serve.py</code></pre>
+<p>To publish, upload the whole export folder to any static web host that supports range requests,
+for example GitHub Pages, Netlify, Caddy or nginx. The export's <code>README.txt</code> lists the
+details, including the CORS headers needed if the tiles are on a different host.</p>
+
+<h2 id="trouble">9. Troubleshooting</h2>
+<div class="table-scroll">
+<table>
+  <tr><th>What you see</th><th>Cause and fix</th></tr>
+  <tr><td><span class="ui">Test</span> reports HTTP 404 for the basemap URL</td>
+      <td>That daily build has expired. Click <span class="ui">Latest</span>.</td></tr>
+  <tr><td><span class="ui">Test</span> says the server "does not let browsers on other sites read it"</td>
+      <td>The file cannot be streamed. For a Protomaps daily build, switch to
+      <span class="ui">Download &amp; clip offline</span>; for your own file, enable CORS on its host
+      (<a href="#stream">section 3</a>).</td></tr>
+  <tr><td>The note "The pmtiles tool was not found on your PATH"</td>
+      <td>Install it (<a href="#cli">section 4</a>) and restart QGIS. Without it, only
+      <span class="ui">Stream from URL</span> (a file you host) or <span class="ui">XYZ raster</span>
+      can add a basemap.</td></tr>
+  <tr><td>Your layers show but the basemap area is blank</td>
+      <td>Open the map through <code>serve.py</code> or a web server, not by double-clicking
+      <code>index.html</code>. A streamed map shows no basemap if its source does not allow CORS,
+      which includes every Protomaps daily build; use <span class="ui">Download &amp; clip offline</span>.</td></tr>
+  <tr><td>The basemap shows but place names or icons are missing</td>
+      <td>The viewer cannot reach <code>protomaps.github.io</code>; see the note in
+      <a href="#styles">section 6</a>.</td></tr>
+  <tr><td>A custom style draws nothing</td>
+      <td>The style must be Protomaps-compatible (for the Protomaps tile schema). Styles for other
+      tile schemas do not match its layer names.</td></tr>
+  <tr><td>The export is slow</td>
+      <td>Lower <span class="ui">Max zoom</span>, narrow the <span class="ui">Export extent</span>, or
+      <a href="#preclip">clip once and reuse</a> a local file.</td></tr>
+</table>
+</div>
+
+<h2 id="credits">10. Attribution and licences</h2>
+<ul>
+  <li>Basemap data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
+      contributors (ODbL), packaged by <a href="https://protomaps.com">Protomaps</a>. MapSplat adds
+      the attribution to the map automatically.</li>
+  <li>The built-in styles are generated from
+      <a href="https://github.com/protomaps/basemaps">@protomaps/basemaps</a> (code BSD-3-Clause;
+      visual design CC0). The licence ships with the plugin in
+      <code>basemap_styles/LICENSE-protomaps-basemaps.md</code>.</li>
+  <li>Protomaps documentation:
+      <a href="https://docs.protomaps.com/guide/getting-started">Getting started</a>,
+      <a href="https://docs.protomaps.com/basemaps/downloads">Basemap downloads</a>,
+      <a href="https://maps.protomaps.com/builds/">Daily builds</a>.</li>
+</ul>
+
+<footer class="muted">
+  MapSplat &middot; <a href="https://github.com/johnzastrow/mapsplat4">github.com/johnzastrow/mapsplat4</a>
+  &middot; Questions and problems: <a href="https://github.com/johnzastrow/mapsplat4/issues">issues</a>
+</footer>
+
+</div>
+</body>
+</html>

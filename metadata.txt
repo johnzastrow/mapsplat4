@@ -3,7 +3,7 @@ name=MapSplat
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.44.0
+version=0.45.0
 author=John Zastrow
 email=mapsplat@example.com
 
@@ -23,6 +23,15 @@ repository=https://github.com/johnzastrow/mapsplat4
 hasProcessingProvider=no
 
 changelog=
+    0.45.0 - Basemap help, built-in Protomaps styles, Latest build
+    - A ? button beside Basemap Overlay opens a bundled step-by-step basemap guide (also online).
+    - Five built-in Protomaps basemap styles (Light, Dark, White, Grayscale, Black): no style file needed.
+    - Latest fills in the newest Protomaps daily build; Copy extract command gives the exact
+      pmtiles extract command for your area; the Options tab says when the pmtiles tool is missing.
+    - Protomaps daily builds cannot be streamed by browsers (no CORS): Test now checks for this, and
+      exporting one in Stream mode asks first. Download & clip is the supported path.
+    - Fixed: XYZ basemaps no longer require a style file; Stream/XYZ exports no longer demand the
+      pmtiles tool; Test no longer reports Protomaps URLs as unreachable (HTTP 403).
     0.44.0 - Rule scale ranges; single-file layer order
     - Rule-based styles: each rule's own min/max scale is now honoured in the web map, so
       zoom-dependent rules (e.g. OS Open Zoomstack's National / Regional / Local woodland)

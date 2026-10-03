@@ -12,6 +12,9 @@ Current as of **v0.43.0**. See also [Features](FEATURES.md) and [Troubleshooting
 - **`python -m http.server` won't work** — it doesn't reliably support HTTP Range requests; use the
   bundled `serve.py` or a proper web server (see [Hosting](HOSTING.md)).
 - **Basemap bundle mode & raster export need the `pmtiles` CLI** on your PATH (Stream mode does not).
+- **Protomaps daily builds cannot be streamed.** `build.protomaps.com` refuses browser reads from other
+  sites (no CORS), so use *Download & clip* for them; *Stream from URL* needs a PMTiles file you host
+  with CORS enabled.
 
 ## Renderers
 
