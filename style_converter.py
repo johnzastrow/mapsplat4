@@ -201,8 +201,7 @@ class StyleConverter:
             for ls in layer_styles:
                 # Intersect rather than overwrite: a rule-based layer's style layers may already
                 # carry the rule's own (narrower) zoom range (issue #3).
-                lo, hi = self._intersect_zoom_ranges(
-                    (minzoom, maxzoom), (ls.get("minzoom"), ls.get("maxzoom")))
+                lo, hi = self._intersect_zoom_ranges((minzoom, maxzoom), (ls.get("minzoom"), ls.get("maxzoom")))
                 if lo is not None:
                     ls["minzoom"] = lo
                 if hi is not None:
@@ -387,8 +386,7 @@ class StyleConverter:
         ``maxzoom``. A rule with no scale range set returns 0 for both, i.e. (None, None).
         """
         try:
-            return (self._scale_to_zoom(rule.minimumScale()),
-                    self._scale_to_zoom(rule.maximumScale()))
+            return (self._scale_to_zoom(rule.minimumScale()), self._scale_to_zoom(rule.maximumScale()))
         except (AttributeError, TypeError):
             return (None, None)
 
@@ -1316,8 +1314,7 @@ class StyleConverter:
 
         return layers if layers else self._create_default_style(layer, source_layer, geom_type, source_name)
 
-    def _process_rule(self, rule, layers, source_layer, geom_type, source_name, depth,
-                      zoom_range=(None, None)):
+    def _process_rule(self, rule, layers, source_layer, geom_type, source_name, depth, zoom_range=(None, None)):
         """Recursively process rule-based renderer rules.
 
         :param zoom_range: (minzoom, maxzoom) inherited from the parent rules; a rule is only
@@ -1348,8 +1345,7 @@ class StyleConverter:
         # Process child rules
         for child in rule.children():
             if child.active():
-                self._process_rule(child, layers, source_layer, geom_type, source_name, depth + 1,
-                                   zoom_range)
+                self._process_rule(child, layers, source_layer, geom_type, source_name, depth + 1, zoom_range)
 
     def _convert_qgis_expression_to_maplibre(self, expr_str):
         """Convert a QGIS filter expression to MapLibre filter.
