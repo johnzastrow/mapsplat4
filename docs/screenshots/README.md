@@ -1,7 +1,7 @@
 # MapSplat Screenshots
 
 A walk-through of MapSplat, from a styled QGIS project to a finished, self-contained web map.
-Screenshots are from MapSplat **v0.43.0**.
+Screenshots are from MapSplat **v0.43.0**, except the Options tab (**v0.45.0**).
 
 ---
 
@@ -25,11 +25,14 @@ name and output folder, then **Export Web Map**. Save/Load Config lets you itera
 
 ## 3. Options tab — export & basemap
 
-![The Options tab: PMTiles mode, max zoom, basemap overlay](tab2.png)
+![The Options tab: PMTiles mode, max zoom, and the Basemap Overlay set to Download & clip with a built-in style](tab2.png)
 
 Choose single-file or separate PMTiles per layer, a max zoom (with a live tile-count estimate),
-whether to include raster layers, and the export extent. Add a **basemap**: stream a Protomaps
-PMTiles URL, download-and-clip it for offline use, or use an **XYZ raster** provider.
+whether to include raster layers, and the export extent. Add a **basemap**: *Download & clip* a
+Protomaps build into the export (**Latest** fills in today's build, **Copy extract command** shows
+the exact `pmtiles` command), stream a PMTiles file you host, or use an **XYZ raster** provider.
+Pick one of five built-in **Basemap styles** or your own `style.json`. The **?** button opens the
+step-by-step [basemap guide](https://johnzastrow.github.io/mapsplat4/basemaps.html).
 
 ## 4. Viewer tab — map controls & tools
 

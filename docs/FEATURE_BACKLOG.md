@@ -22,6 +22,8 @@ Unordered list of desired usability improvements. Prioritization and implementat
 | v0.30.0 | Plugin tool framework + Export tool (JPG/PDF) + adjustable units/colours | — |
 | v0.30.1 | Export captures drawings + scale bar | — |
 | v0.31.0 | Native-style 29×29 tool buttons; right-click to finish; identify suppressed during tools | — |
+| v0.44.0 | Per-rule scale ranges in rule-based styles; single-file layer order and legend follow the QGIS tree | Story 7 ext., GitHub #3, #4 |
+| v0.45.0 | Basemap guide (? button, GitHub Pages), built-in Protomaps styles, Latest build, Copy extract command, pmtiles CLI note, CORS-aware Test | Story 19 |
 
 ---
 
@@ -172,6 +174,8 @@ tool is active. Off by default; toggle each in the Viewer tab.
 - [x] Read `scaleDependentVisibility`, `minScale`, `maxScale` from QGIS layers
 - [x] Apply as `minzoom`/`maxzoom` in MapLibre layer definitions
 - [x] Zoom constant corrected to `279541132` (= 559082264 ÷ 2) for MapLibre 512px tiles
+- [x] Per-rule scale ranges in rule-based renderers, narrowed by parent rules and intersected with the
+      layer range (v0.44.0, GitHub #3)
 
 ---
 
@@ -307,7 +311,8 @@ Before packaging any tile source for offline use, users must verify their provid
   rehosting are explicitly forbidden without a specific licence tier.
 - Self-hosted sources (GeoServer, MapServer, pg_tileserv, your own PMTiles): no
   restriction — bulk packaging is fine.
-- Protomaps daily builds: CC-BY licence; redistribution permitted with attribution.
+- Protomaps basemap builds: ODbL Produced Work (OpenStreetMap attribution required); copying
+  extracts to your own storage is what Protomaps recommends (hotlinking is discouraged).
 
 The UI must surface a clear warning and require acknowledgment before any download step.
 Pass-through mode (Mode A below) carries no ToS risk because no data is copied.
@@ -428,6 +433,20 @@ from qgis.core import QgsMapBoxGlStyleConverter
 converter = QgsMapBoxGlStyleConverter()
 # (convert QGIS renderer → GL style fragment — API details TBD)
 ```
+
+---
+
+## Basemap Setup *(Story 19)* *Done — v0.45.0, except as noted*
+- [x] Basemap guide: `help/basemaps.html` (bundled, opened by the ? button) + GitHub Pages copy
+- [x] Built-in Protomaps styles (Light, Dark, White, Grayscale, Black) from `@protomaps/basemaps`
+- [x] **Latest** daily build lookup (`build-metadata.protomaps.dev/builds.json`)
+- [x] **Copy extract command** for the current export area
+- [x] Inline note when the `pmtiles` CLI is missing (Download & clip only)
+- [x] **Test** checks CORS for Stream mode; streaming a Protomaps daily build asks first
+- [ ] **Fully offline basemap labels/icons** — bundle the glyph ranges and sprite the chosen style
+      needs into the export (from `protomaps/basemaps-assets`) and point the style at them. Today the
+      built-in styles fetch fonts and sprites from `protomaps.github.io` at view time.
+- [ ] Optional: a "Basemap style" preview thumbnail per flavor
 
 ---
 

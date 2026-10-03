@@ -11,7 +11,8 @@ __version__ = "0.45.0"
 import json
 import os
 
-# Protomaps publishes a daily planet build and keeps roughly the last two months of them.
+# Protomaps publishes a daily planet build and keeps the past week of them (plus the latest build
+# of each patch version), so a dated build URL stops working within days.
 PROTOMAPS_BUILDS_JSON = "https://build-metadata.protomaps.dev/builds.json"
 PROTOMAPS_BUILD_BASE = "https://build.protomaps.com/"
 PROTOMAPS_BUILDS_PAGE = "https://maps.protomaps.com/builds/"

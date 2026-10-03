@@ -1,6 +1,6 @@
 # MapSplat Features
 
-Current as of **v0.43.0**. For how to use these, see the [User Guide](USER_GUIDE.md); for what isn't
+Current as of **v0.45.0**. For how to use these, see the [User Guide](USER_GUIDE.md); for what isn't
 supported, see [Limitations](LIMITATIONS.md).
 
 ---
@@ -10,15 +10,19 @@ supported, see [Limitations](LIMITATIONS.md).
 - **Vector layers → PMTiles** — selected vector layers are tiled in one step (`ogr2ogr -f PMTiles`).
 - **Single file or per-layer** — combine everything in one `.pmtiles`, or produce one per layer.
 - **Auto-reprojection** — every layer is reprojected to Web Mercator (EPSG:3857) on export.
-- **Layer order follows QGIS** — the exported stack matches your QGIS layer tree; the top layer in
-  the panel renders on top. Rearrange in QGIS and the export follows.
+- **Layer order follows QGIS** — the exported stack matches your QGIS layer tree in both PMTiles
+  modes; the top layer in the panel renders on top, and online base layers stay at the bottom.
+  Rearrange in QGIS and the export follows.
 - **Export summary** — a per-run report of which layers succeeded/failed, with reasons.
-- **Optional PMTiles verification** — run `pmtiles verify` on each written file (Advanced Options).
+- **Optional PMTiles verification** — run `pmtiles verify` on each written file (Advanced Options, Inputs tab).
 
 ## Style conversion
 
 - **Renderers** — Single Symbol, Categorized, Graduated, and Rule-based renderers → MapLibre GL
   Style JSON. Categorized/graduated polygon fills become data-driven `match`/`step` expressions.
+- **Scale-dependent visibility** — a layer's scale range, and each rule's own min/max scale in a
+  rule-based style (narrowed by parent rules), become MapLibre zoom ranges, so zoom-banded rules
+  (e.g. OS Open Zoomstack's National / Regional / Local) appear only in their band.
 - **Labels** — text field, font, size, colour, halo, placement, and offsets from QGIS label settings.
 - **Dashed & styled lines** — custom dash patterns and Qt preset dashes, width-correct; marker/hash
   decorative lines are omitted rather than approximated as a solid line.
@@ -45,19 +49,26 @@ supported, see [Limitations](LIMITATIONS.md).
 
 ## Basemap
 
-- **Protomaps** — overlay your data on a Protomaps basemap: **download & clip** it offline from the
-  latest daily build (**Latest** button) or a local `.pmtiles`, or **stream** a PMTiles file you host
-  with CORS. Five built-in Protomaps styles; a bundled step-by-step basemap guide (**?** button).
+- **Protomaps** — overlay your data on a Protomaps basemap: **download & clip** your area into the
+  export from the latest daily build (**Latest** button) or a local `.pmtiles`, or **stream** a
+  PMTiles file you host with CORS.
+- **Built-in styles** — Protomaps Light, Dark, White, Grayscale and Black ship with the plugin; or
+  use any Protomaps-compatible `style.json`.
+- **Setup helpers** — a bundled step-by-step basemap guide (**?** button; also
+  [online](https://johnzastrow.github.io/mapsplat4/basemaps.html)), **Copy extract command** for
+  clipping once yourself, a note when the `pmtiles` tool is missing, and a **Test** button that
+  checks a URL is reachable and, for streaming, that browsers may read it (CORS).
 - **XYZ raster basemap** — OpenStreetMap, Carto, OpenTopoMap, Esri World Imagery, or a custom
   `{z}/{x}/{y}` URL, with attribution added automatically.
 - **Extract cache** — clipped basemap extracts are cached (by source + extent + zoom); repeat exports
-  reuse them. Refresh/Clear from Advanced Options.
+  reuse them. Refresh/Clear from Advanced Options on the Inputs tab.
 
 ## The viewer (`index.html`)
 
 - **Self-contained** MapLibre + PMTiles page — click-to-identify popups, your QGIS styling reproduced.
 - **Layer list** — collapsible groups matching your QGIS layer tree (incl. QGIS **groups** like
-  "My Layers"), the basemap and vector-tile bases in their own collapsible sections at the bottom.
+  "My Layers"), interleaved with ungrouped layers in the same order as the QGIS panel; the basemap
+  and vector-tile bases in their own collapsible sections at the bottom.
 - **Per-layer and per-group on/off toggles** — a checkbox on each layer *and* each group header.
 - **Resilient loading** — layers are added individually, so one invalid layer can't blank the map.
 - **Configurable controls** (Viewer tab) — scale bar, geolocate, fullscreen, coordinate & zoom

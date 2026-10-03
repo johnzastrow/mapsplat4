@@ -23,13 +23,28 @@ For Caddy/nginx configuration examples, see the [User Guide](USER_GUIDE.md).
 | XYZ raster basemap / online XYZ raster layers | Tiles live on the **provider's** server; the browser fetches them cross-origin |
 | Online **MVT** vector tile layers | Same — served by the provider |
 | WMS / WMTS | Requires an OGC server |
-| Streamed Protomaps basemap | The remote `.pmtiles` is fetched from its host, not yours |
+| Streamed Protomaps basemap | The remote `.pmtiles` is fetched from its host, not yours. That host must allow CORS; Protomaps' daily builds do not, so use *Download & clip* for them |
+| Basemap labels and icons (built-in styles) | Fonts and sprites load from `protomaps.github.io`, even with a clipped basemap. Self-host them with a custom style for a fully offline map (see the [basemap guide](https://johnzastrow.github.io/mapsplat4/basemaps.html#styles)) |
 
 > **Rule of thumb:** a raw MBTiles or any remote tile service can't be served by a plain web server.
 > MapSplat converts local files to PMTiles so a static host can serve them; remote services are kept
 > as live-streaming references and clearly flagged — the export log notes any source that needs
 > internet. Pulling remote services *into* the offline PMTiles bundle is a planned, terms-of-service-
 > gated feature.
+
+## Hosting a streamable basemap
+
+To use *Stream from URL* with your own PMTiles basemap, host the file on a Range-capable server or
+bucket and send these CORS headers for it:
+
+```
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: Range
+Access-Control-Expose-Headers: Content-Range, Content-Length, ETag
+```
+
+The plugin's **Test** button reports whether a URL allows this. See the
+[Protomaps cloud storage guide](https://docs.protomaps.com/pmtiles/cloud-storage) for S3, R2 and GCS.
 
 ## Serving the map
 

@@ -86,7 +86,7 @@ class MapSplatDockWidget(QDockWidget):
 
     closingPlugin = pyqtSignal()
 
-    # Protomaps builds are dated and expire after ~2 months, so never show a fixed date. They can
+    # Protomaps builds are dated and kept for about a week, so never show a fixed date. They can
     # only be downloaded & clipped; streaming needs a PMTiles file hosted with CORS.
     _PROTOMAPS_PLACEHOLDER = "https://build.protomaps.com/YYYYMMDD.pmtiles  (click Latest)"
     _STREAM_PLACEHOLDER = "https://your-host/basemap.pmtiles  (must allow CORS - click Test)"
@@ -590,7 +590,7 @@ class MapSplatDockWidget(QDockWidget):
         self.btn_basemap_latest.setMaximumWidth(56)
         self.btn_basemap_latest.setToolTip(
             "Fill in the URL of the newest Protomaps daily planet build, to clip your area from.\n"
-            "Protomaps keeps only about two months of builds, so an old dated URL\n"
+            "Protomaps keeps daily builds for only about a week, so an old dated URL\n"
             "eventually stops working (HTTP 404) - click this to refresh it."
         )
         self.btn_basemap_latest.clicked.connect(self._fill_latest_build)

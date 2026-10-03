@@ -1,71 +1,42 @@
 # MapSplat Plugin Deployment Script for Windows (PowerShell)
-# Deploys the plugin to QGIS 3.x plugins directory
+# Copies the plugin into a QGIS 4 profile for local testing. Ships the same files as the
+# release zip (scripts/build_plugin.sh); keep the two lists in step.
+#   Usage: .\deploy.ps1                 # default profile
+#          .\deploy.ps1 -Profile work   # another profile
+
+param([string]$Profile = "default")
 
 $PluginName = "mapsplat"
-$QgisDir = "$env:APPDATA\QGIS\QGIS3\profiles\default\python\plugins"
+$QgisDir = "$env:APPDATA\QGIS\QGIS4\profiles\$Profile\python\plugins"
 $TargetDir = "$QgisDir\$PluginName"
 
+$Files = @(
+    "__init__.py", "mapsplat.py", "mapsplat_dockwidget.py", "exporter.py", "style_converter.py",
+    "config_manager.py", "log_utils.py", "basemap_helpers.py",
+    "metadata.txt", "icon.png", "LICENSE",
+    "help\MapSplat_User_Guide.pdf", "help\basemaps.html",
+    "basemap_styles\protomaps-light.json", "basemap_styles\protomaps-dark.json",
+    "basemap_styles\protomaps-white.json", "basemap_styles\protomaps-grayscale.json",
+    "basemap_styles\protomaps-black.json", "basemap_styles\LICENSE-protomaps-basemaps.md"
+)
+
 Write-Host "Deploying MapSplat to $TargetDir" -ForegroundColor Cyan
-
-# Create directories
-New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
-New-Item -ItemType Directory -Force -Path "$TargetDir\templates" | Out-Null
-New-Item -ItemType Directory -Force -Path "$TargetDir\lib" | Out-Null
-
-# Python files to copy
-$PyFiles = @(
-    "__init__.py",
-    "mapsplat.py",
-    "mapsplat_dockwidget.py",
-    "exporter.py",
-    "style_converter.py"
-)
-
-# Extra files to copy
-$Extras = @(
-    "metadata.txt",
-    "icon.png",
-    "resources.qrc"
-)
-
-# Copy Python files
-Write-Host "Copying Python files..." -ForegroundColor Yellow
-foreach ($file in $PyFiles) {
-    if (Test-Path $file) {
-        Copy-Item $file -Destination $TargetDir -Force
-        Write-Host "  $file" -ForegroundColor Gray
+$missing = 0
+foreach ($file in $Files) {
+    if (-not (Test-Path $file)) {
+        Write-Host "  MISSING: $file" -ForegroundColor Red
+        $missing++
+        continue
     }
+    $dest = Join-Path $TargetDir $file
+    New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
+    Copy-Item $file -Destination $dest -Force
+    Write-Host "  $file" -ForegroundColor Gray
 }
-
-# Copy extras
-Write-Host "Copying metadata and resources..." -ForegroundColor Yellow
-foreach ($file in $Extras) {
-    if (Test-Path $file) {
-        Copy-Item $file -Destination $TargetDir -Force
-        Write-Host "  $file" -ForegroundColor Gray
-    }
-}
-
-# Copy resources.py if it exists
-if (Test-Path "resources.py") {
-    Copy-Item "resources.py" -Destination $TargetDir -Force
-    Write-Host "  resources.py" -ForegroundColor Gray
-}
-
-# Copy templates if they exist
-if (Test-Path "templates\*") {
-    Copy-Item "templates\*" -Destination "$TargetDir\templates" -Recurse -Force
-    Write-Host "  templates\" -ForegroundColor Gray
-}
-
-# Copy lib if it exists
-if (Test-Path "lib\*") {
-    Copy-Item "lib\*" -Destination "$TargetDir\lib" -Recurse -Force
-    Write-Host "  lib\" -ForegroundColor Gray
+if ($missing -gt 0) {
+    Write-Host "Deployment incomplete: $missing file(s) missing. Run from the repository root." -ForegroundColor Red
+    exit 1
 }
 
 Write-Host ""
-Write-Host "Done! Plugin deployed to:" -ForegroundColor Green
-Write-Host $TargetDir -ForegroundColor White
-Write-Host ""
-Write-Host "Restart QGIS and enable MapSplat in Plugin Manager." -ForegroundColor Cyan
+Write-Host "Done. Restart QGIS 4 and enable MapSplat in the Plugin Manager." -ForegroundColor Green
