@@ -109,7 +109,8 @@ then pick a <span class="ui">Mode</span>:</p>
 <div class="note warn"><strong>Protomaps' daily builds cannot be streamed.</strong>
 <code>build.protomaps.com</code> lets only Protomaps' own viewer read its files from a browser, so a
 map that streams a daily build shows no basemap, wherever it is hosted. The builds are meant to be
-downloaded and clipped, which is what <span class="ui">Download &amp; clip offline</span> does.
+downloaded and clipped (Protomaps discourages hotlinking them), which is what
+<span class="ui">Download &amp; clip offline</span> does.
 MapSplat warns you if you try to stream one, and its <span class="ui">Test</span> button checks any
 URL for you.</div>
 
@@ -134,9 +135,10 @@ URL for you.</div>
 download. To force a fresh download or free disk space, use
 <span class="ui">Refresh basemap cache</span> and <span class="ui">Clear basemap cache</span> under
 <span class="ui">Advanced Options</span> on the <span class="ui">Inputs</span> tab.</p>
-<div class="note">Protomaps keeps only about the last two months of daily builds, so a dated URL
-eventually returns HTTP 404. That only matters when you export: your finished map keeps its own
-clipped copy. Click <span class="ui">Latest</span> again before the next export.</div>
+<div class="note">Protomaps keeps daily builds for only about a week (plus the latest build of
+each tile-schema patch version), so a dated URL soon returns HTTP 404. With Download &amp; clip that
+only matters when you export, because your finished map keeps its own clipped copy: click
+<span class="ui">Latest</span> again before the next export.</div>
 
 <h2 id="stream">3. Streaming a PMTiles file you host</h2>
 <p>Streaming suits a basemap you publish once and share across many maps, for example a regional

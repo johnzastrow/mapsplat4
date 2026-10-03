@@ -12,7 +12,7 @@ that you can open in any browser or deploy to any static web host. No tile serve
 |---|---|---|
 | **QGIS 4.0+** | The plugin runs inside QGIS | PyQt6 build |
 | **GDAL 3.8+** | Converts your vector layers to PMTiles | Ships with QGIS; nothing to install |
-| **`pmtiles` CLI** | **Only** for the optional *Basemap Overlay* | Install from the [releases page](https://github.com/protomaps/go-pmtiles/releases) and put it on your `PATH`. Core export does **not** need it. |
+| **`pmtiles` CLI** | **Only** for Protomaps basemaps (*Download & clip*) and raster export | Install from the [releases page](https://github.com/protomaps/go-pmtiles/releases) and put it on your `PATH`. Core export, XYZ basemaps and streaming do **not** need it. |
 
 You do **not** need Node, a database, or any web stack.
 
@@ -41,8 +41,9 @@ That is the complete required workflow. Everything below is optional and has sen
   layer's kind (`[Polygon]`, `[Line]`, `[Point]`, `[VectorTile]`, `[Online]`); an online tag marks layers
   that stream live and need internet (see [Hosting](HOSTING.md)).
 - **Options** — *Export Options* (PMTiles mode, max zoom, tile-count estimate, **Include raster
-  layers**, style.json, export extent) and *Basemap Overlay* (Protomaps stream/bundle, or an **XYZ
-  raster** provider). Defaults are fine for most maps.
+  layers**, style.json, export extent) and *Basemap Overlay* (a Protomaps basemap clipped into the
+  export or streamed from your own host, with built-in styles, or an **XYZ raster** provider; the
+  **?** button opens the basemap guide). Defaults are fine for most maps.
 - **Viewer** — what the generated web map shows: scale bar, geolocate, fullscreen, coordinate/zoom
   readouts, reset/north buttons, label placement, legend, attribution, map dimensions, and the
   optional on-map **tools** — *Measure* (distance/area), *Draw/sketch* (export GeoJSON/KML), and
@@ -50,8 +51,10 @@ That is the complete required workflow. Everything below is optional and has sen
 - **Offline** — bundle MapLibre/PMTiles JS + CSS into the export so the viewer works with no internet.
 - **Log** — progress, messages, the export **summary**, and the **version stamp** (bottom-right).
 
-The **layer order and groups in the web map follow your QGIS layer tree** — arrange your layers (and
-groups like "My Layers") in QGIS and the exported map's list and stacking match. In the viewer, each
+The **layer order and groups in the web map follow your QGIS layer tree** in both PMTiles modes —
+arrange your layers (and groups like "My Layers") in QGIS and the exported map's stacking and layer
+list match, with groups and ungrouped layers in the same order as the QGIS panel. A rule-based
+style's per-rule scale ranges carry over too, so zoom-dependent rules appear only in their band. In the viewer, each
 layer and each group has an on/off checkbox; the basemap and vector-tile bases collapse into their own
 sections at the bottom.
 

@@ -19,8 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   BSD-3-Clause licence shipped in `basemap_styles/`). *Custom style.json...* keeps the old behaviour.
   The choice persists in QGIS settings and in saved configs (`[basemap] style`); configs and settings
   from before 0.45 that name a style file load as *Custom*.
-- **Latest** fills in the newest Protomaps daily build (Protomaps keeps about two months of builds;
-  the dock's example URL had expired and returned HTTP 404).
+- **Latest** fills in the newest Protomaps daily build (Protomaps keeps daily builds for a week, plus
+  the latest build of each patch version; the dock's example URL had expired and returned HTTP 404).
 - **Copy extract command** copies the exact `pmtiles extract` command for the current export area
   and max zoom, for clipping once and reusing a local file.
 - **pmtiles CLI note.** In *Download & clip* mode the Options tab says when the `pmtiles` tool is not
@@ -38,6 +38,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validation skips it.
 - **Stream and XYZ exports were blocked by the "pmtiles CLI not found" dialog** although only
   *Download & clip* uses the tool; the check now runs only in that mode.
+- **Windows deploy scripts** (`deploy.ps1`, `deploy.bat`) installed into the QGIS 3 profile and
+  omitted `config_manager.py` and `log_utils.py`, so the deployed plugin failed to import. They now
+  target QGIS 4, copy the release file list, and `test/test_deploy_lists.py` keeps them in step.
+
+### Documentation
+- Basemap documentation rewritten around *Download & clip* (BASEMAPS, User Guide and its PDF,
+  HOSTING, LIMITATIONS, TROUBLESHOOTING, FEATURES, README, tutorial script, screenshot tour with a
+  new Options-tab screenshot). README now leads with installing from the QGIS Plugin Repository.
+- Corrected two facts: Protomaps keeps daily builds for about a week (not months), and the basemap
+  data is an ODbL Produced Work (not CC-BY).
+- `CLAUDE.md` brought up to date: Makefile targets, test tiers, all eight modules, the settings
+  dictionary, basemap modes, and which files carry the release version.
 
 ## [0.44.0] — 2026-10-02
 

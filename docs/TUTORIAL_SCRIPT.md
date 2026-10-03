@@ -23,15 +23,14 @@ scratch."
 ## Scene 1 — Install (0:15–1:00)
 
 **Screen actions:**
-1. Browser → the MapSplat **Releases** page; download `mapsplat.zip`.
-2. QGIS → **Plugins → Manage and Install Plugins → Install from ZIP** → pick `mapsplat.zip` → Install.
-3. Show the MapSplat toolbar icon; click it to open the dock.
-4. Terminal: `pmtiles version` to show the CLI is on PATH. (Note: only needed for basemap *bundle*
-   mode and raster export.)
+1. QGIS → **Plugins → Manage and Install Plugins** → search **MapSplat** → Install. (Alternative:
+   **Install from ZIP** with `mapsplat.zip` from the Releases page.)
+2. Show the MapSplat toolbar icon; click it to open the dock.
+3. Terminal: `pmtiles version` to show the CLI is on PATH. (Note: only needed for Protomaps
+   basemaps (*Download & clip*) and raster export.)
 
-**VO:** "Grab the zip from Releases and install it from ZIP — no repository needed. For offline
-basemaps you'll also want the `pmtiles` CLI on your PATH; if you skip it, you can still stream a
-basemap from a URL."
+**VO:** "Install MapSplat from the QGIS Plugin Manager. For Protomaps basemaps you'll also want the
+`pmtiles` CLI on your PATH; without it you can still publish your data, or use an XYZ basemap."
 
 **Callout card:** *"pmtiles CLI → github.com/protomaps/go-pmtiles/releases"*
 
@@ -70,14 +69,16 @@ how many tiles you're about to generate. Raster layers are opt-in under Export O
 ## Scene 4 — Basemap (3:00–3:45)
 
 **Screen actions:**
-1. Expand **Basemap Overlay**, enable it.
-2. Show **Stream from URL** vs **Download & clip offline**; pick Stream for the demo (fast, no CLI).
-3. Paste a Protomaps build URL and a basemap style path.
-4. Mention the cache: repeat exports of the same area reuse the extract (**Refresh** / **Clear** in
-   Advanced Options).
+1. Expand **Basemap Overlay**, enable it, and briefly show the **?** button opening the basemap guide.
+2. Choose **Download & clip offline**; click **Latest** to fill in today's Protomaps build.
+3. Pick a built-in **Basemap style** (e.g. *Protomaps Light*); no style file needed.
+4. Optional: **Copy extract command** and paste it into a terminal to show what MapSplat runs.
+5. Mention the cache: repeat exports of the same area reuse the extract (**Refresh** / **Clear** in
+   Advanced Options on the Inputs tab).
 
-**VO:** "A basemap is optional. Stream it live from a URL, or download-and-clip it offline. MapSplat
-caches the clipped basemap, so re-exporting the same area is fast."
+**VO:** "A basemap is optional. Click Latest, pick a style, and MapSplat clips just your area out of
+the Protomaps planet and ships it with your map. It caches the clip, so re-exporting is fast. The
+question-mark button has the full guide, including streaming a basemap you host yourself."
 
 ---
 
@@ -129,12 +130,12 @@ minutes."
 ## Shot list checklist
 
 - [ ] Cold-open beauty shot of a finished map (with a tool in use)
-- [ ] Install-from-ZIP flow
+- [ ] Plugin Manager install
 - [ ] `pmtiles version` in a terminal
 - [ ] Styled QGIS project + starting view
 - [ ] Layer selection with type tags
 - [ ] Export options + tile estimate
-- [ ] Basemap stream/bundle choice
+- [ ] Basemap: ? guide, Download & clip, Latest, built-in style
 - [ ] Viewer-tools toggles
 - [ ] Export run + Log tab + completion dialog
 - [ ] `serve.py` opening the browser

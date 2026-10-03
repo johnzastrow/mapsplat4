@@ -6,7 +6,7 @@
 
 [![QGIS](https://img.shields.io/badge/QGIS-4.0%2B-green.svg)](https://qgis.org)
 [![License](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.43.1-orange.svg)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.45.0-orange.svg)](docs/CHANGELOG.md)
 
 MapSplat is a QGIS plugin that exports your project layers to a self-contained web map you can host
 on any static target — a web server, cloud storage, or your local machine. No tile server, no
@@ -22,13 +22,16 @@ backend, no additional stack. Your QGIS styling, labels, and layer order are pre
 
 ## Quick start
 
-1. **Install** — download the latest `mapsplat.zip` from [Releases](https://github.com/johnzastrow/mapsplat4/releases)
-   and add it in QGIS via **Plugins → Manage and Install Plugins → Install from ZIP**. For offline
-   basemaps and raster export, also put the [pmtiles CLI](https://github.com/protomaps/go-pmtiles/releases)
-   on your PATH (not needed for XYZ basemaps or for streaming a PMTiles file you host).
+1. **Install** — in QGIS, **Plugins → Manage and Install Plugins**, search for **MapSplat** and
+   install it (or install a `mapsplat.zip` from [Releases](https://github.com/johnzastrow/mapsplat4/releases)).
+   For Protomaps basemaps and raster export, also put the
+   [pmtiles CLI](https://github.com/protomaps/go-pmtiles/releases) on your PATH (not needed for XYZ
+   basemaps or for streaming a PMTiles file you host).
 2. **Style your layers in QGIS** as you want them online, and zoom to your starting view.
 3. **Open the MapSplat dock** and tick the layers to export (**Inputs** tab).
-4. *(Optional)* Enable a basemap and keep the max zoom small to start (**Options** tab).
+4. *(Optional)* Add a basemap on the **Options** tab: under **Basemap Overlay** choose *Download &
+   clip offline*, click **Latest**, pick a built-in style, and keep the max zoom small to start.
+   The **?** button opens the step-by-step [basemap guide](https://johnzastrow.github.io/mapsplat4/basemaps.html).
 5. **Export**, then open the output folder and run `python serve.py` — your browser opens the map.
 
 Full walk-through with pictures: **[User Guide](docs/USER_GUIDE.md)** · screenshot tour:
@@ -42,7 +45,8 @@ Full walk-through with pictures: **[User Guide](docs/USER_GUIDE.md)** · screens
 |---|---|
 | [User Guide](docs/USER_GUIDE.md) | Step-by-step: prepare → export → view → deploy, with Caddy/nginx config |
 | [Features](docs/FEATURES.md) | Everything MapSplat does (export, styling, tools, tiles, basemaps) |
-|  [Basemaps](docs/BASEMAPS.md) | Protomaps, XYZ providers, and the extract cache |
+| [Basemap guide](https://johnzastrow.github.io/mapsplat4/basemaps.html) | Step-by-step Protomaps basemaps (also bundled: the **?** button in the plugin) |
+|  [Basemaps](docs/BASEMAPS.md) | Basemap options, built-in styles, XYZ providers, and the extract cache |
 | [Hosting & self-hosting scope](docs/HOSTING.md) | What's bundled (PMTiles) vs streamed live, and how to serve it |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and fixes |
 |  [Limitations](docs/LIMITATIONS.md) | Known gaps and unsupported symbology |
@@ -65,12 +69,15 @@ Full walk-through with pictures: **[User Guide](docs/USER_GUIDE.md)** · screens
 
 ## Installation
 
-**From ZIP (recommended):** download `mapsplat.zip` from
-[Releases](https://github.com/johnzastrow/mapsplat4/releases) → QGIS **Plugins → Manage and Install
-Plugins → Install from ZIP** → restart QGIS.
+**From the QGIS Plugin Repository (recommended):** QGIS **Plugins → Manage and Install Plugins**,
+search for **MapSplat**, and install ([plugin page](https://plugins.qgis.org/plugins/mapsplat/)).
 
-**From source (development):** clone the repo and copy/symlink the plugin folder into your QGIS
-profile's `python/plugins/` directory, then enable it in the Plugin Manager.
+**From ZIP:** download `mapsplat.zip` from
+[Releases](https://github.com/johnzastrow/mapsplat4/releases) → QGIS **Plugins → Manage and Install
+Plugins → Install from ZIP** → restart QGIS. Releases can appear here before the plugin repository.
+
+**From source (development):** clone the repo, then `make build` and install the zip, or run
+`deploy.ps1` / `deploy.bat` on Windows to copy it into your QGIS 4 profile.
 
 ---
 

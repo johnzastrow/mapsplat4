@@ -15,6 +15,9 @@ Current as of **v0.43.0**. See also [Features](FEATURES.md) and [Troubleshooting
 - **Protomaps daily builds cannot be streamed.** `build.protomaps.com` refuses browser reads from other
   sites (no CORS), so use *Download & clip* for them; *Stream from URL* needs a PMTiles file you host
   with CORS enabled.
+- **Basemap labels and icons need internet.** The built-in Protomaps styles load fonts and sprites from
+  `protomaps.github.io`, so a clipped basemap draws offline but without place names or icons. Use a
+  custom style that points at self-hosted copies for a fully offline map.
 
 ## Renderers
 
