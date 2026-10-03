@@ -6,6 +6,8 @@ Common issues and fixes. See also [Hosting](HOSTING.md), [Limitations](LIMITATIO
 | Symptom | Cause & fix |
 |---|---|
 | **"pmtiles CLI not found"** on export | The `pmtiles` binary isn't on QGIS's PATH. Install it from the [go-pmtiles releases](https://github.com/protomaps/go-pmtiles/releases) and restart QGIS — or set the basemap to **Stream from URL** (no CLI needed). |
+| **Protomaps basemap is blank (Stream mode)** | Protomaps' daily builds refuse browser reads from other sites (no CORS), so they can't be streamed. Switch the basemap to **Download & clip offline**, or stream a PMTiles file you host with CORS. **Test** checks a URL; the **?** basemap guide explains both. |
+| **Basemap URL returns HTTP 404** | Protomaps keeps about two months of daily builds; that date has expired. Click **Latest**. |
 | **Map is blank / white** | PMTiles need HTTP **Range** requests, which `file://` doesn't provide. Don't open `index.html` directly — run `python serve.py` in the output folder and use the `http://localhost:…` URL. |
 | **A layer is missing from the map** | Only layers that tiled successfully are included. Check the **export summary dialog** / the Log tab for the failed layer and its reason. If it was there a moment ago, you may be viewing a **stale server** — stop old `serve.py` processes and re-run. |
 | **One layer breaks the whole map** | It won't — the viewer adds layers individually and skips any MapLibre rejects (see the browser console). If a layer is missing, that's why. |

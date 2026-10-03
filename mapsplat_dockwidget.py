@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.44.0"
+__version__ = "0.45.0"
 
 import os
 
@@ -18,6 +18,11 @@ try:
     from . import config_manager
 except ImportError:
     import config_manager  # test environment (no package)
+
+try:
+    from . import basemap_helpers
+except ImportError:
+    import basemap_helpers  # test environment (no package)
 
 from qgis.PyQt.QtCore import pyqtSignal, Qt, QUrl, QTimer, QStandardPaths
 from qgis.PyQt.QtGui import QDesktopServices
@@ -80,6 +85,11 @@ class MapSplatDockWidget(QDockWidget):
     """Dockable widget for MapSplat plugin."""
 
     closingPlugin = pyqtSignal()
+
+    # Protomaps builds are dated and expire after ~2 months, so never show a fixed date. They can
+    # only be downloaded & clipped; streaming needs a PMTiles file hosted with CORS.
+    _PROTOMAPS_PLACEHOLDER = "https://build.protomaps.com/YYYYMMDD.pmtiles  (click Latest)"
+    _STREAM_PLACEHOLDER = "https://your-host/basemap.pmtiles  (must allow CORS - click Test)"
 
     # XYZ raster basemap providers: name -> (url template, attribution). Streaming a personal map
     # is generally fine with attribution; heavy/bulk use may violate a provider's tile-usage policy.
@@ -150,6 +160,14 @@ class MapSplatDockWidget(QDockWidget):
         self._refresh_pending = False
         self.refresh_layer_list()
 
+    def _open_basemap_guide(self):
+        """Open the bundled basemap guide (help/basemaps.html); fall back to the online copy."""
+        guide = os.path.join(os.path.dirname(os.path.abspath(__file__)), basemap_helpers.GUIDE_RELATIVE_PATH)
+        if os.path.isfile(guide):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(guide))
+        else:
+            QDesktopServices.openUrl(QUrl(basemap_helpers.GUIDE_ONLINE_URL))
+
     def _open_user_guide(self):
         """Open the bundled PDF user guide (fall back to the online docs)."""
         pdf = os.path.join(os.path.dirname(os.path.abspath(__file__)), "help", "MapSplat_User_Guide.pdf")
@@ -187,6 +205,7 @@ class MapSplatDockWidget(QDockWidget):
         self.btn_help.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         help_menu = QMenu(self.btn_help)
         help_menu.addAction("Open User Guide (PDF)", self._open_user_guide)
+        help_menu.addAction("Basemap guide (PMTiles backgrounds)", self._open_basemap_guide)
         help_menu.addAction(
             "Online docs / source",
             lambda: QDesktopServices.openUrl(QUrl("https://github.com/johnzastrow/mapsplat4")),
@@ -430,7 +449,29 @@ class MapSplatDockWidget(QDockWidget):
             "Add a Protomaps basemap (streets, terrain, etc.) beneath your layers.\n"
             "Expand to configure the basemap source and style."
         )
-        scroll_layout.addWidget(self._bm_toggle)
+        # Help beside the section toggle: click opens the bundled guide; the arrow menu also
+        # offers the online copy (GitHub Pages), e.g. to share a link.
+        self.btn_basemap_help = QToolButton()
+        self.btn_basemap_help.setText("?")
+        self.btn_basemap_help.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self.btn_basemap_help.setToolTip(
+            "Basemap guide: how to add a Protomaps PMTiles background to your exported map -\n"
+            "finding the latest build, the pmtiles tool, clipping your area, and styles.\n"
+            "Click to open the guide bundled with the plugin; use the arrow for the online copy."
+        )
+        self.btn_basemap_help.clicked.connect(self._open_basemap_guide)
+        bm_help_menu = QMenu(self.btn_basemap_help)
+        bm_help_menu.addAction("Open basemap guide (bundled, works offline)", self._open_basemap_guide)
+        bm_help_menu.addAction(
+            "Open basemap guide online",
+            lambda: QDesktopServices.openUrl(QUrl(basemap_helpers.GUIDE_ONLINE_URL)),
+        )
+        self.btn_basemap_help.setMenu(bm_help_menu)
+        bm_toggle_row = QHBoxLayout()
+        bm_toggle_row.setContentsMargins(0, 0, 0, 0)
+        bm_toggle_row.addWidget(self._bm_toggle, 1)
+        bm_toggle_row.addWidget(self.btn_basemap_help)
+        scroll_layout.addLayout(bm_toggle_row)
 
         self.basemap_group = QGroupBox("Enable basemap")
         self.basemap_group.setCheckable(True)
@@ -446,8 +487,10 @@ class MapSplatDockWidget(QDockWidget):
         mode_layout.addWidget(QLabel("Mode:"))
         self.radio_basemap_stream = QRadioButton("Stream from URL 🌐")
         self.radio_basemap_stream.setToolTip(
-            "No install needed. The published map loads the basemap live from the remote URL\n"
-            "when viewed. NEEDS INTERNET — not served by your own static host (Caddy)."
+            "No install needed. The published map loads the basemap live from a PMTiles URL\n"
+            "when viewed. NEEDS INTERNET. The file must be hosted with CORS enabled (your own\n"
+            "bucket or server): Protomaps' daily builds refuse browsers on other sites, so they\n"
+            "cannot be streamed - use 'Download & clip offline' for those. Click Test to check."
         )
         self.radio_basemap_bundle = QRadioButton("Download && clip offline")
         self.radio_basemap_bundle.setToolTip(
@@ -470,6 +513,24 @@ class MapSplatDockWidget(QDockWidget):
         mode_layout.addWidget(self.radio_basemap_xyz)
         mode_layout.addStretch()
         basemap_layout.addLayout(mode_layout)
+
+        # Download & clip needs the pmtiles CLI. Say so up front (instead of only at export time)
+        # with a link to the official releases - no installer, per plugin-repository rules.
+        self.lbl_pmtiles_cli = QLabel(
+            "The <b>pmtiles</b> tool was not found on your PATH. Download &amp; clip needs it: get it "
+            f"from <a href='{basemap_helpers.PMTILES_CLI_RELEASES}'>github.com/protomaps/go-pmtiles"
+            "/releases</a>, put it on your PATH, then restart QGIS. Without it, use <i>XYZ raster</i>, "
+            "or <i>Stream from URL</i> with a PMTiles file you host."
+        )
+        self.lbl_pmtiles_cli.setWordWrap(True)
+        self.lbl_pmtiles_cli.setOpenExternalLinks(True)
+        self.lbl_pmtiles_cli.setStyleSheet("color: #b35900; font-size: 11px;")
+        self.lbl_pmtiles_cli.setToolTip(
+            "MapSplat runs 'pmtiles extract' to clip the basemap to your export area.\n"
+            "The tool is a single program from the go-pmtiles project; see the basemap guide (?)."
+        )
+        self.lbl_pmtiles_cli.setVisible(False)
+        basemap_layout.addWidget(self.lbl_pmtiles_cli)
 
         # XYZ provider preset (visible only in XYZ mode) — fills the source URL + attribution.
         self._basemap_xyz_widget = QWidget()
@@ -511,13 +572,12 @@ class MapSplatDockWidget(QDockWidget):
         # Source URL / file path row
         basemap_src_layout = QHBoxLayout()
         self.txt_basemap_source = QLineEdit()
-        self.txt_basemap_source.setPlaceholderText(
-            "https://build.protomaps.com/20260217.pmtiles"
-        )
+        self.txt_basemap_source.setPlaceholderText(self._STREAM_PLACEHOLDER)  # stream is the default
         self.txt_basemap_source.setToolTip(
-            "URL or local path to a Protomaps .pmtiles archive.\n"
-            "Tiles within the export bounding box will be extracted\n"
-            "to data/basemap.pmtiles in the output folder."
+            "The basemap .pmtiles archive.\n"
+            "Download & clip: a Protomaps build URL (click Latest) or a local file; the area you\n"
+            "export is extracted to data/basemap.pmtiles in the output folder.\n"
+            "Stream from URL: a PMTiles file you host with CORS enabled (click Test to check)."
         )
         self.btn_basemap_test = QPushButton("Test")
         self.btn_basemap_test.setMaximumWidth(48)
@@ -526,11 +586,20 @@ class MapSplatDockWidget(QDockWidget):
             "before you export."
         )
         self.btn_basemap_test.clicked.connect(self._test_basemap_source)
+        self.btn_basemap_latest = QPushButton("Latest")
+        self.btn_basemap_latest.setMaximumWidth(56)
+        self.btn_basemap_latest.setToolTip(
+            "Fill in the URL of the newest Protomaps daily planet build, to clip your area from.\n"
+            "Protomaps keeps only about two months of builds, so an old dated URL\n"
+            "eventually stops working (HTTP 404) - click this to refresh it."
+        )
+        self.btn_basemap_latest.clicked.connect(self._fill_latest_build)
         self.btn_basemap_browse = QPushButton("Browse...")
         self.btn_basemap_browse.setVisible(False)
         self.btn_basemap_browse.clicked.connect(self._browse_basemap_file)
         basemap_src_layout.addWidget(self.txt_basemap_source, 1)
         basemap_src_layout.addWidget(self.btn_basemap_test)
+        basemap_src_layout.addWidget(self.btn_basemap_latest)
         basemap_src_layout.addWidget(self.btn_basemap_browse)
         basemap_layout.addLayout(basemap_src_layout)
 
@@ -540,21 +609,55 @@ class MapSplatDockWidget(QDockWidget):
         self.lbl_basemap_source_error.setWordWrap(True)
         basemap_layout.addWidget(self.lbl_basemap_source_error)
 
-        # Basemap style.json row
-        basemap_style_layout = QHBoxLayout()
+        # Download & clip: the exact `pmtiles extract` command for the current export area, for
+        # users who prefer to clip once themselves and then point MapSplat at the local file.
+        self._basemap_extract_widget = QWidget()
+        extract_layout = QHBoxLayout(self._basemap_extract_widget)
+        extract_layout.setContentsMargins(0, 0, 0, 0)
+        self.btn_copy_extract_cmd = QPushButton("Copy extract command")
+        self.btn_copy_extract_cmd.setToolTip(
+            "Copy the 'pmtiles extract' command for your selected layers' area (or the chosen\n"
+            "export extent) and Max zoom. Run it once in a terminal, then choose Source: Local file\n"
+            "and pick the result - later exports reuse it with no download."
+        )
+        self.btn_copy_extract_cmd.clicked.connect(self._copy_extract_command)
+        extract_layout.addWidget(self.btn_copy_extract_cmd)
+        extract_layout.addStretch()
+        self._basemap_extract_widget.setVisible(False)
+        basemap_layout.addWidget(self._basemap_extract_widget)
+
+        # Basemap style row: a built-in Protomaps flavor (shipped with the plugin) or a custom
+        # style.json. Not used in XYZ mode, so the whole row hides there.
+        self._basemap_style_widget = QWidget()
+        basemap_style_layout = QHBoxLayout(self._basemap_style_widget)
+        basemap_style_layout.setContentsMargins(0, 0, 0, 0)
         basemap_style_layout.addWidget(QLabel("Basemap style:"))
+        self.combo_basemap_style = QComboBox()
+        for _label, _flavor in basemap_helpers.BUILTIN_FLAVORS.items():
+            self.combo_basemap_style.addItem(_label, _flavor)
+        self.combo_basemap_style.addItem(basemap_helpers.CUSTOM_STYLE_LABEL, "custom")
+        self.combo_basemap_style.setToolTip(
+            "How the basemap looks. The Protomaps styles are bundled with MapSplat (generated from\n"
+            "the official @protomaps/basemaps package), so no style file is needed. Their labels and\n"
+            "icons load from protomaps.github.io when the map is viewed.\n"
+            "Choose 'Custom style.json...' to use your own Protomaps-compatible MapLibre style."
+        )
+        self.combo_basemap_style.currentIndexChanged.connect(self._on_basemap_style_choice_changed)
+        basemap_style_layout.addWidget(self.combo_basemap_style)
         self.txt_basemap_style = QLineEdit()
         self.txt_basemap_style.setPlaceholderText("path/to/basemap_style.json")
         self.txt_basemap_style.setToolTip(
-            "Path to a Protomaps-compatible MapLibre style.json.\n"
-            "The basemap layers from this file are used as the base;\n"
+            "Path to a Protomaps-compatible MapLibre style.json (e.g. from 'Get style JSON' on\n"
+            "maps.protomaps.com). The basemap layers from this file are used as the base;\n"
             "your exported layers are overlaid on top."
         )
         self.btn_basemap_style_browse = QPushButton("Browse...")
+        self.btn_basemap_style_browse.setToolTip("Choose a custom basemap style.json file.")
         self.btn_basemap_style_browse.clicked.connect(self._browse_basemap_style)
         basemap_style_layout.addWidget(self.txt_basemap_style, 1)
         basemap_style_layout.addWidget(self.btn_basemap_style_browse)
-        basemap_layout.addLayout(basemap_style_layout)
+        basemap_layout.addWidget(self._basemap_style_widget)
+        self._on_basemap_style_choice_changed()
 
         bm_container = QWidget()
         bm_container.setVisible(False)
@@ -1346,6 +1449,7 @@ class MapSplatDockWidget(QDockWidget):
         s.setValue("basemap_source_type", "file" if self.radio_basemap_file.isChecked() else "url")
         s.setValue("basemap_source", self.txt_basemap_source.text().strip())
         s.setValue("basemap_style_path", self.txt_basemap_style.text().strip())
+        s.setValue("basemap_style_choice", self._basemap_style_choice())
         s.endGroup()
 
     def _restore_settings(self):
@@ -1438,6 +1542,11 @@ class MapSplatDockWidget(QDockWidget):
             style_path = s.value("basemap_style_path", "")
             if style_path:
                 self.txt_basemap_style.setText(style_path)
+            style_choice = s.value("basemap_style_choice", "")
+            if not style_choice:
+                style_choice = "custom" if style_path else basemap_helpers.DEFAULT_FLAVOR
+            self._set_basemap_style_choice(style_choice)
+            self._on_basemap_style_choice_changed()
 
             attribution = s.value("viewer_attribution", "")
             if attribution:
@@ -1547,12 +1656,20 @@ class MapSplatDockWidget(QDockWidget):
         """Show/hide browse button based on source type selection."""
         is_file = self.radio_basemap_file.isChecked()
         self.btn_basemap_browse.setVisible(is_file)
-        if is_file:
-            self.txt_basemap_source.setPlaceholderText("path/to/basemap.pmtiles")
-        else:
-            self.txt_basemap_source.setPlaceholderText(
-                "https://build.protomaps.com/20260401.pmtiles"
-            )
+        if hasattr(self, "btn_basemap_latest"):
+            # Daily builds can only be downloaded and clipped (not streamed), so Latest belongs
+            # to Download & clip with a URL source.
+            self.btn_basemap_latest.setVisible(self.radio_basemap_bundle.isChecked() and not is_file)
+        if not self.radio_basemap_xyz.isChecked():
+            self.txt_basemap_source.setPlaceholderText(self._source_placeholder())
+
+    def _source_placeholder(self):
+        """Placeholder for the source field in the current Protomaps mode."""
+        if self.radio_basemap_file.isChecked() and self.radio_basemap_bundle.isChecked():
+            return "path/to/basemap.pmtiles"
+        if self.radio_basemap_stream.isChecked():
+            return self._STREAM_PLACEHOLDER
+        return self._PROTOMAPS_PLACEHOLDER
 
     def _basemap_mode(self):
         """Current basemap mode string: 'stream' | 'bundle' | 'xyz'."""
@@ -1580,18 +1697,115 @@ class MapSplatDockWidget(QDockWidget):
             return
         stream = self.radio_basemap_stream.isChecked()
         xyz = self.radio_basemap_xyz.isChecked()
+        bundle = not stream and not xyz
         self._basemap_xyz_widget.setVisible(xyz)
-        self._basemap_srctype_widget.setVisible((not stream) and (not xyz))
+        self._basemap_srctype_widget.setVisible(bundle)
+        self._basemap_style_widget.setVisible(not xyz)  # XYZ rasters need no vector style
+        self._basemap_extract_widget.setVisible(bundle)
+        self._update_pmtiles_cli_note()
         if xyz:
             self.txt_basemap_source.setPlaceholderText("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
             self._on_xyz_preset_changed(self.combo_xyz_preset.currentText())
         else:
-            self.txt_basemap_source.setPlaceholderText("https://build.protomaps.com/20260217.pmtiles")
             if stream:
                 self.radio_basemap_url.setChecked(True)  # streaming always reads a URL
+            self.txt_basemap_source.setPlaceholderText(self._source_placeholder())
         self._on_basemap_source_type_changed()
         if not self._restoring:
             self._save_settings()
+
+    def _update_pmtiles_cli_note(self):
+        """Show the 'pmtiles tool not found' note only in Download & clip mode, when it's missing."""
+        import shutil
+        bundle = self.radio_basemap_bundle.isChecked()
+        self.lbl_pmtiles_cli.setVisible(bundle and shutil.which("pmtiles") is None)
+
+    def _basemap_style_choice(self):
+        """Built-in flavor id (e.g. 'light') or 'custom'."""
+        return self.combo_basemap_style.currentData() or "custom"
+
+    def _set_basemap_style_choice(self, choice):
+        """Select a built-in flavor id or 'custom' in the style combo (unknown -> unchanged)."""
+        idx = self.combo_basemap_style.findData(choice)
+        if idx >= 0:
+            self.combo_basemap_style.setCurrentIndex(idx)
+
+    def _resolved_basemap_style_path(self):
+        """The style.json the exporter should use: the shipped flavor file or the custom path."""
+        choice = self._basemap_style_choice()
+        if choice == "custom":
+            return self.txt_basemap_style.text().strip()
+        plugin_dir = os.path.dirname(os.path.abspath(__file__))
+        return basemap_helpers.builtin_style_path(choice, plugin_dir)
+
+    def _on_basemap_style_choice_changed(self, *_):
+        """Show the path field and Browse button only for a custom style.json."""
+        custom = self._basemap_style_choice() == "custom"
+        self.txt_basemap_style.setVisible(custom)
+        self.btn_basemap_style_browse.setVisible(custom)
+        if not getattr(self, "_restoring", True):
+            self._save_settings()
+
+    def _fill_latest_build(self):
+        """Look up the newest Protomaps daily build and put its URL in the source field."""
+        from qgis.core import QgsNetworkAccessManager
+        from qgis.PyQt.QtNetwork import QNetworkRequest, QNetworkReply
+
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            # QGIS's network manager honours the user's proxy settings.
+            nam = QgsNetworkAccessManager.instance()
+            if nam is None:
+                raise ValueError("QGIS network manager unavailable")
+            reply = nam.blockingGet(QNetworkRequest(QUrl(basemap_helpers.PROTOMAPS_BUILDS_JSON)))
+            if reply.error() != QNetworkReply.NetworkError.NoError:
+                raise ValueError(reply.errorString() or "network error")
+            url = basemap_helpers.latest_build_url(reply.content().data())
+        except Exception as e:
+            self._show_basemap_test(
+                f"Could not look up the latest Protomaps build ({e}). Find one at "
+                f"{basemap_helpers.PROTOMAPS_BUILDS_PAGE}",
+                ok=False,
+            )
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+        self.radio_basemap_url.setChecked(True)
+        self.txt_basemap_source.setText(url)
+        self._show_basemap_test(f"Latest Protomaps build: {url.rsplit('/', 1)[-1]}", ok=True)
+        self._save_settings()
+
+    def _copy_extract_command(self):
+        """Copy the `pmtiles extract` command for the current export area to the clipboard."""
+        # A build URL or a local .pmtiles both work as the extract source; with none entered,
+        # leave a placeholder for the user to fill in (see the Latest button).
+        source = self.txt_basemap_source.text().strip() or "https://build.protomaps.com/YYYYMMDD.pmtiles"
+        layer_ids = [item.data(_UserRole) for item in self.layer_list.selectedItems()]
+        extent_choice = self.combo_extent_layer.currentData()
+        settings = {
+            "layer_ids": layer_ids,
+            "extent_layer_id": None if extent_choice == "__map_view__" else extent_choice,
+            "max_zoom": self.spin_max_zoom.value(),
+        }
+        if extent_choice == "__map_view__":
+            settings["extent_bounds"] = self._capture_canvas_bounds()
+        try:
+            # Same bounds the export uses (extent setting, then a 0.5% margin).
+            exp = MapSplatExporter(self.iface, settings)
+            layers = exp._get_selected_layers()
+            if not settings.get("extent_bounds") and not settings["extent_layer_id"] and not layers["vector"]:
+                raise ValueError("select at least one vector layer, or choose an export extent")
+            bounds = exp._expand_bounds(exp._get_bounds(layers))
+            cmd = basemap_helpers.extract_command(source, bounds, settings["max_zoom"])
+        except Exception as e:
+            self._show_basemap_test(f"Could not build the extract command: {e}", ok=False)
+            return
+        clipboard = QApplication.clipboard()
+        if clipboard is None:
+            self._show_basemap_test(f"Clipboard unavailable. Command: {cmd}", ok=False)
+            return
+        clipboard.setText(cmd)
+        self._show_basemap_test(f"Copied to clipboard: {cmd}", ok=True)
 
     def _test_basemap_source(self):
         """Check the basemap source is reachable (URL) or exists (file); report inline."""
@@ -1601,13 +1815,38 @@ class MapSplatDockWidget(QDockWidget):
             return
         if source.startswith(("http://", "https://")):
             import urllib.request
+            stream = self.radio_basemap_stream.isChecked()
             try:
-                req = urllib.request.Request(source, method="HEAD")
-                with urllib.request.urlopen(req, timeout=6):  # nosec B310 - scheme checked above
-                    pass
-                self._show_basemap_test("Reachable — the URL responds.", ok=True)
+                if stream:
+                    # Ask the way a browser on another site would: a ranged GET with an Origin.
+                    req = urllib.request.Request(
+                        source,
+                        headers={
+                            "Origin": basemap_helpers.CORS_PROBE_ORIGIN,
+                            "Range": "bytes=0-0",
+                            "User-Agent": basemap_helpers.USER_AGENT,
+                        },
+                    )
+                else:
+                    req = urllib.request.Request(
+                        source, method="HEAD", headers={"User-Agent": basemap_helpers.USER_AGENT}
+                    )
+                with urllib.request.urlopen(req, timeout=6) as resp:  # nosec B310 - scheme checked above
+                    allow = resp.headers.get("Access-Control-Allow-Origin")
             except Exception as exc:
                 self._show_basemap_test(f"Not reachable: {exc}", ok=False)
+                return
+            if stream and not basemap_helpers.allows_cross_origin(allow):
+                self._show_basemap_test(
+                    "Reachable, but this server does not let browsers on other sites read it (no "
+                    "CORS), so a streamed map cannot load it. Use 'Download & clip offline', or "
+                    "host the file with CORS enabled. See the basemap guide (?).",
+                    ok=False,
+                )
+            elif stream:
+                self._show_basemap_test("Reachable, and browsers may read it (CORS) - it can be streamed.", ok=True)
+            else:
+                self._show_basemap_test("Reachable — the URL responds.", ok=True)
         elif os.path.isfile(source):
             self._show_basemap_test("File found.", ok=True)
         else:
@@ -1721,21 +1960,38 @@ class MapSplatDockWidget(QDockWidget):
                                         "Stream mode needs a basemap URL (http/https).\n"
                                         "Use 'Download & clip offline' mode for a local file.")
                     return False
+                if basemap_helpers.is_protomaps_daily_build(basemap_source):
+                    answer = QMessageBox.question(
+                        self,
+                        "Protomaps Build Cannot Be Streamed",
+                        "Protomaps' daily builds only allow their own viewer to read them in a "
+                        "browser, so a map that streams one will show no basemap.\n\n"
+                        "Switch Mode to 'Download & clip offline' to include your area in the "
+                        "export instead (see the basemap guide, ?).\n\nExport anyway?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        QMessageBox.StandardButton.No,
+                    )
+                    if answer != QMessageBox.StandardButton.Yes:
+                        return False
             elif self.radio_basemap_file.isChecked() and not os.path.isfile(basemap_source):
                 QMessageBox.warning(self, "Invalid Basemap File",
                                     "The basemap PMTiles file does not exist.")
                 return False
 
-            basemap_style = self.txt_basemap_style.text().strip()
-            if not basemap_style:
-                QMessageBox.warning(self, "No Basemap Style",
-                                    "Please select a basemap style.json file.")
-                return False
+            # XYZ rasters need no vector style; Protomaps modes do (built-in or custom).
+            if not self.radio_basemap_xyz.isChecked():
+                basemap_style = self._resolved_basemap_style_path()
+                if not basemap_style:
+                    QMessageBox.warning(
+                        self, "No Basemap Style", "Please choose a basemap style, or select a custom style.json file."
+                    )
+                    return False
 
-            if not os.path.isfile(basemap_style):
-                QMessageBox.warning(self, "Invalid Basemap Style",
-                                    "The basemap style.json file does not exist.")
-                return False
+                if not os.path.isfile(basemap_style):
+                    QMessageBox.warning(
+                        self, "Invalid Basemap Style", f"The basemap style file does not exist:\n{basemap_style}"
+                    )
+                    return False
 
         return True
 
@@ -1791,7 +2047,7 @@ class MapSplatDockWidget(QDockWidget):
             "basemap_attribution": self._xyz_attribution,
             "basemap_source_type": "file" if self.radio_basemap_file.isChecked() else "url",
             "basemap_source": self.txt_basemap_source.text().strip(),
-            "basemap_style_path": self.txt_basemap_style.text().strip(),
+            "basemap_style_path": self._resolved_basemap_style_path(),
             "viewer_scale_bar": self.chk_viewer_scale_bar.isChecked(),
             "viewer_geolocate": self.chk_viewer_geolocate.isChecked(),
             "viewer_fullscreen": self.chk_viewer_fullscreen.isChecked(),
@@ -1823,7 +2079,12 @@ class MapSplatDockWidget(QDockWidget):
             settings["extent_bounds"] = self._capture_canvas_bounds()
 
         # Check pmtiles CLI early on main thread so we can show a dialog
-        if self.basemap_group.isChecked() and not self.chk_style_only.isChecked():
+        # Only Download & clip runs the pmtiles tool; Stream and XYZ need no install.
+        if (
+            self.basemap_group.isChecked()
+            and self.radio_basemap_bundle.isChecked()
+            and not self.chk_style_only.isChecked()
+        ):
             if not self._check_pmtiles_cli():
                 return
 
@@ -1988,6 +2249,7 @@ class MapSplatDockWidget(QDockWidget):
                 "mode": self._basemap_mode(),
                 "source_type": "file" if self.radio_basemap_file.isChecked() else "url",
                 "source": self.txt_basemap_source.text().strip(),
+                "style": self._basemap_style_choice(),
                 "style_path": self.txt_basemap_style.text().strip(),
             },
             "viewer": {
@@ -2166,6 +2428,13 @@ class MapSplatDockWidget(QDockWidget):
             self.txt_basemap_style.setText(basemap["style_path"])
             applied += 1
 
+        if "style" in basemap or "style_path" in basemap:
+            choice = basemap.get("style") or ("custom" if basemap.get("style_path") else basemap_helpers.DEFAULT_FLAVOR)
+            self._set_basemap_style_choice(choice)
+            self._on_basemap_style_choice_changed()
+            if "style" in basemap:
+                applied += 1
+
         # --- [viewer] section ---
         viewer = config_dict.get("viewer", {})
         viewer_map = {
@@ -2249,7 +2518,7 @@ class MapSplatDockWidget(QDockWidget):
         if is_url:
             import urllib.request
             try:
-                req = urllib.request.Request(source, method="HEAD")
+                req = urllib.request.Request(source, method="HEAD", headers={"User-Agent": basemap_helpers.USER_AGENT})
                 with urllib.request.urlopen(req, timeout=3):  # nosec B310 - scheme restricted to http/https above
                     pass
                 self.lbl_basemap_source_error.setVisible(False)

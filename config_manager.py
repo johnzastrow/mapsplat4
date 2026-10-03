@@ -29,7 +29,8 @@ _COMMENTS = {
         "mode": 'Basemap mode: "stream" = load from URL in the viewer (no CLI), "bundle" = clip+embed offline (needs pmtiles CLI)',
         "source_type": 'Source type: "url" or "file" (bundle mode)',
         "source": "URL or local path to Protomaps .pmtiles",
-        "style_path": "Path to Protomaps-compatible basemap style.json",
+        "style": 'Basemap style: a built-in Protomaps flavor ("light", "dark", "white", "grayscale", "black") or "custom" (uses style_path)',
+        "style_path": 'Path to a custom Protomaps-compatible basemap style.json (used when style = "custom")',
     },
     "viewer": {
         "scale_bar": "Controls shown in the HTML viewer",
@@ -68,6 +69,7 @@ _SECTION_KEYS = {
         "mode",
         "source_type",
         "source",
+        "style",
         "style_path",
     ],
     "viewer": [

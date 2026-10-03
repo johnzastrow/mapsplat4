@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.0] — 2026-10-03
+
+### Added — basemap help and setup (Options tab)
+- **Basemap guide.** A **?** button beside *Basemap Overlay* (and *Help ▸ Basemap guide*) opens
+  `help/basemaps.html`, a self-contained step-by-step guide bundled with the plugin. The same file is
+  published to GitHub Pages (https://johnzastrow.github.io/mapsplat4/basemaps.html) by
+  `.github/workflows/pages.yml`, so the two copies cannot drift.
+- **Built-in Protomaps styles.** *Basemap style* offers Light, Dark, White, Grayscale and Black,
+  generated from the official `@protomaps/basemaps` 5.7.2 package (`scripts/gen_basemap_styles.mjs`;
+  BSD-3-Clause licence shipped in `basemap_styles/`). *Custom style.json...* keeps the old behaviour.
+  The choice persists in QGIS settings and in saved configs (`[basemap] style`); configs and settings
+  from before 0.45 that name a style file load as *Custom*.
+- **Latest** fills in the newest Protomaps daily build (Protomaps keeps about two months of builds;
+  the dock's example URL had expired and returned HTTP 404).
+- **Copy extract command** copies the exact `pmtiles extract` command for the current export area
+  and max zoom, for clipping once and reusing a local file.
+- **pmtiles CLI note.** In *Download & clip* mode the Options tab says when the `pmtiles` tool is not
+  on PATH, with a link to its releases (no installer, per plugin-repository rules).
+
+### Fixed
+- **Streaming Protomaps daily builds cannot work, and MapSplat now says so.** `build.protomaps.com`
+  sends no CORS permission to other sites (it allows only `maps.protomaps.com`), so a map streaming a
+  daily build always showed a blank basemap. *Test* in Stream mode now checks whether browsers on
+  other sites may read the URL; exporting a daily build in Stream mode asks for confirmation; *Latest*
+  appears only in *Download & clip*; the guide leads with *Download & clip*.
+- **Test reported valid Protomaps URLs as unreachable.** Python's default user agent gets HTTP 403
+  from `build.protomaps.com`; the source checks now identify as MapSplat.
+- **XYZ basemaps demanded a style.json** they never use; the style row now hides in XYZ mode and
+  validation skips it.
+- **Stream and XYZ exports were blocked by the "pmtiles CLI not found" dialog** although only
+  *Download & clip* uses the tool; the check now runs only in that mode.
+
 ## [0.44.0] — 2026-10-02
 
 ### Added — rule scale ranges (issue #3)

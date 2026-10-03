@@ -84,31 +84,30 @@ option streams live and needs no `pmtiles` CLI, but the map then needs internet 
 
 ### Protomaps basemap
 
-MapSplat uses **Protomaps** — free, OpenStreetMap-derived vector basemaps in PMTiles format.
+MapSplat uses **Protomaps**: free, OpenStreetMap-derived vector basemaps in PMTiles format. Click the
+**?** button beside **Basemap Overlay** for the full step-by-step basemap guide (bundled with the
+plugin; also online at [johnzastrow.github.io/mapsplat4/basemaps.html](https://johnzastrow.github.io/mapsplat4/basemaps.html)).
 
-**Where to get the tiles.** Protomaps publishes daily global builds and an area extractor at
-**[build.protomaps.com](https://build.protomaps.com/)**:
+**Recommended: Download & clip offline.** On **Options ▸ Basemap Overlay**, enable the basemap, choose
+**Download & clip offline**, and click **Latest** to fill in the newest Protomaps daily planet build.
+At export MapSplat runs **`pmtiles extract --bbox`** to clip just your area into the export, then
+overlays your layers on top. **Copy extract command** gives you the same command to run yourself, so
+you can clip once and reuse the file via **Source: Local file**.
 
-- *Small area (recommended)* — use the map on that page to draw your region and download a **trimmed
-  `.pmtiles`** for just that area. Small and fast.
-- *Whole planet* — download the full dated build (e.g. `20260401.pmtiles`). Large; MapSplat will clip it.
+**Styles.** Pick a **Basemap style**: five Protomaps styles (Light, Dark, White, Grayscale, Black)
+ship with MapSplat, so no file is needed. **Custom style.json...** accepts any Protomaps-compatible
+MapLibre style, for example from *Get style JSON* on [maps.protomaps.com](https://maps.protomaps.com).
+The built-in styles load fonts and icons from `protomaps.github.io` when the map is viewed.
 
-Point MapSplat at either a **local file** you downloaded or a **remote build URL**.
+**Streaming.** *Stream from URL* reads a PMTiles file live, so it needs a file **you host with CORS
+enabled**. Protomaps' daily builds only allow their own viewer to read them from a browser, so they
+cannot be streamed; MapSplat warns if you try, and **Test** checks any URL.
 
-**Where to get the style.** You also need a Protomaps-compatible MapLibre **`style.json`** (colours,
-fonts, which basemap layers to draw). Protomaps ships ready-made styles (light, dark, etc.) — see
-**[docs.protomaps.com/basemaps](https://docs.protomaps.com/basemaps/maplibre)**.
-
-**How MapSplat uses them.** On **Options ▸ Basemap Overlay**, enable it and set the **source** and
-**basemap style.json**. At export, MapSplat runs **`pmtiles extract --bbox`** to clip the basemap to
-your data's bounding box — so the offline map carries only the tiles it needs — then overlays your
-layers on top.
-
-> **This step needs the `pmtiles` CLI.** The clip shells out to the `pmtiles` command. MapSplat no
-> longer *bundles* that program (QGIS forbids shipping executables in plugins), so install it once
-> from the [go-pmtiles releases](https://github.com/protomaps/go-pmtiles/releases) and put it on your
-> `PATH`. Exporting *your* layers uses GDAL and needs **no** CLI — only the basemap overlay does. If
-> you'd rather not install it, just publish your data without a basemap.
+> **Download & clip needs the `pmtiles` CLI.** The clip shells out to the `pmtiles` command. MapSplat
+> does not bundle that program (QGIS forbids shipping executables in plugins), so install it once from
+> the [go-pmtiles releases](https://github.com/protomaps/go-pmtiles/releases) and put it on your
+> `PATH`; the Options tab shows a note with the link if it is missing. Exporting *your* layers uses
+> GDAL and needs **no** CLI; only the basemap clip does.
 
 ---
 

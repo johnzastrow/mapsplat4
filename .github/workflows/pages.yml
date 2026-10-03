@@ -1,0 +1,51 @@
+# Publish the basemap guide to GitHub Pages: https://johnzastrow.github.io/mapsplat4/basemaps.html
+#
+# The guide is the same self-contained file the plugin ships (help/basemaps.html), so the bundled
+# and online copies cannot drift. Only that page is published -- nothing else from the repo.
+# One-time setup: Settings > Pages > Build and deployment > Source = GitHub Actions.
+name: Publish basemap guide
+
+on:
+  push:
+    branches: [main]
+    paths: ["help/basemaps.html", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+# Least privilege: only what a Pages deployment needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}basemaps.html
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Stage the guide
+        run: |
+          mkdir -p site
+          cp help/basemaps.html site/basemaps.html
+          # The site root redirects to the guide.
+          printf '%s\n' '<!doctype html><meta charset="utf-8"><title>MapSplat</title>' \
+            '<meta http-equiv="refresh" content="0; url=basemaps.html">' \
+            '<a href="basemaps.html">MapSplat basemap guide</a>' > site/index.html
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v5

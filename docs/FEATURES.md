@@ -45,8 +45,9 @@ supported, see [Limitations](LIMITATIONS.md).
 
 ## Basemap
 
-- **Protomaps** — overlay your data on a Protomaps basemap from a local `.pmtiles` or remote URL;
-  **stream** it live or **download & clip** it offline (clipped to your data's extent).
+- **Protomaps** — overlay your data on a Protomaps basemap: **download & clip** it offline from the
+  latest daily build (**Latest** button) or a local `.pmtiles`, or **stream** a PMTiles file you host
+  with CORS. Five built-in Protomaps styles; a bundled step-by-step basemap guide (**?** button).
 - **XYZ raster basemap** — OpenStreetMap, Carto, OpenTopoMap, Esri World Imagery, or a custom
   `{z}/{x}/{y}` URL, with attribution added automatically.
 - **Extract cache** — clipped basemap extracts are cached (by source + extent + zoom); repeat exports
