@@ -30,6 +30,7 @@ changelog=
       pmtiles extract command for your area; the Options tab says when the pmtiles tool is missing.
     - Protomaps daily builds cannot be streamed by browsers (no CORS): Test now checks for this, and
       exporting one in Stream mode asks first. Download & clip is the supported path.
+    - Fixed: exports failed on layers with an 'ogc_fid' attribute (GDAL Arrow write path).
     - Fixed: XYZ basemaps no longer require a style file; Stream/XYZ exports no longer demand the
       pmtiles tool; Test no longer reports Protomaps URLs as unreachable (HTTP 403).
     0.44.0 - Rule scale ranges; single-file layer order
