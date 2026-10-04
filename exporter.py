@@ -198,6 +198,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
     _ICON_MEASURE = _svg_open + '<rect x="2" y="8" width="20" height="8" rx="1"/><path d="M6 8v3M10 8v4M14 8v3M18 8v4"/></svg>'
     _ICON_DRAW = _svg_open + '<path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>'
     _ICON_EXPORT = _svg_open + '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>'
+    _ICON_ANNOTATE = _svg_open + '<path d="M3 5V3h9v2M7.5 3v10"/><path d="M11 21l9-9M14 12h6v6"/></svg>'
 
     reset_view_html = (
         f'\n    <button id="reset-view" style="{_btn_css}top:{_tr_top}px;" title="Reset view">{_ICON_RESET}</button>'
@@ -225,8 +226,9 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
     # getCanvas, on/once, controls), so upgrading the MapLibre library does not touch the tools.
     _measure_on = settings.get('viewer_measure', False)
     _draw_on = settings.get('viewer_draw', False)
+    _annotate_on = settings.get('viewer_annotate', False)
     _export_on = settings.get('viewer_export', False)
-    _tools_any = _measure_on or _draw_on or _export_on
+    _tools_any = _measure_on or _draw_on or _annotate_on or _export_on
     # Author-set defaults; the viewer can change both at runtime.
     _measure_units = settings.get('measure_units', 'both')
     if _measure_units not in ('both', 'metric', 'imperial'):
@@ -234,6 +236,9 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
     _draw_color = settings.get('draw_color', '#1d6fe0')
     if not (isinstance(_draw_color, str) and _draw_color.startswith('#') and len(_draw_color) == 7):
         _draw_color = '#1d6fe0'
+    _annotate_color = settings.get('annotate_color', '#c62828')
+    if not (isinstance(_annotate_color, str) and _annotate_color.startswith('#') and len(_annotate_color) == 7):
+        _annotate_color = '#c62828'
     # preserveDrawingBuffer is required to read pixels back from the WebGL canvas (export tool),
     # but has a rendering cost — only enable it when the export tool is on.
     _preserve_buffer = 'true' if _export_on else 'false'
@@ -284,6 +289,10 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                     a.href = url; a.download = filename; document.body.appendChild(a); a.click();
                     document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000);
                 },
+                // Painters add items that are not in the WebGL canvas (e.g. text labels) to exported
+                // images: fn(ctx2d, dpr) is called by the Export tool after the map is drawn.
+                painters: [],
+                addExportPainter(fn) { this.painters.push(fn); },
                 registerDeactivator(name, fn) { deactivators[name] = fn; },
                 activateExclusive(name) { for (const k in deactivators) if (k !== name) try { deactivators[k](); } catch (e) {} },
                 freshCanvas(cb) { map.once('render', () => cb(map.getCanvas())); map.triggerRepaint(); }
@@ -395,6 +404,133 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             window.__mapsplatDraw = { setActive, setMode: (m) => { mode = m; pending = []; }, setColor: (c) => { color = c; }, addPoint: addVertex, finish: commitPending, count: () => features.length, toGeoJSON, toKML };
         }});""".replace('__COLOR__', _draw_color).replace('__ICON__', _ICON_DRAW)) if _draw_on else ""
 
+    _annotate_reg = ("""
+        // ----- Annotate plugin: text labels and arrows (included in JPG/PDF exports) -----
+        MapSplatTools.register({ id: 'annotate', setup(map, ctx) {
+            const SRC = 'mapsplat-annotate', HEAD = 'mapsplat-arrowhead', DEFAULT = '__COLOR__';
+            const SIZES = { S: 13, M: 17, L: 24 };
+            // White outline so labels stay readable on any background (matched in exports).
+            const HALO = ['-1.5px -1.5px', '1.5px -1.5px', '-1.5px 1.5px', '1.5px 1.5px', '0 -2px', '0 2px', '-2px 0', '2px 0'].map((o) => o + ' 0 #fff').join(',');
+            let active = false, mode = 'text', color = DEFAULT, size = 'M', arrows = [], pending = [], labels = [], history = [];
+            const btn = ctx.addButton({ icon: '__ICON__', title: 'Annotate: text labels & arrows', onClick: () => setActive(!active) });
+            const panel = ctx.makePanel(btn, 'width:178px;');
+            const fc = (f) => ({ type: 'FeatureCollection', features: f });
+            // Arrowhead: a triangle pointing east with its tip on the right edge, added as an SDF image
+            // so icon-color can tint it; each arrow rotates it to its final segment.
+            function arrowheadImage() {
+                const n = 32, c = document.createElement('canvas'); c.width = n; c.height = n;
+                const g = c.getContext('2d'); g.fillStyle = '#000';
+                g.beginPath(); g.moveTo(n, n / 2); g.lineTo(0, 3); g.lineTo(7, n / 2); g.lineTo(0, n - 3); g.closePath(); g.fill();
+                return g.getImageData(0, 0, n, n);
+            }
+            function ensureLayers() {
+                if (!map.hasImage(HEAD)) map.addImage(HEAD, arrowheadImage(), { sdf: true, pixelRatio: 2 });
+                if (map.getSource(SRC)) return;
+                map.addSource(SRC, { type: 'geojson', data: fc([]) });
+                const c = ['coalesce', ['get', 'color'], DEFAULT];
+                map.addLayer({ id: SRC + '-line', type: 'line', source: SRC, filter: ['==', ['get', 'kind'], 'shaft'], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': c, 'line-width': 3 } });
+                map.addLayer({ id: SRC + '-vertex', type: 'circle', source: SRC, filter: ['==', ['get', 'kind'], 'vertex'], paint: { 'circle-color': c, 'circle-radius': 4, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1.5 } });
+                map.addLayer({ id: SRC + '-head', type: 'symbol', source: SRC, filter: ['==', ['get', 'kind'], 'head'], layout: { 'icon-image': HEAD, 'icon-rotate': ['get', 'rot'], 'icon-rotation-alignment': 'map', 'icon-anchor': 'right', 'icon-allow-overlap': true, 'icon-ignore-placement': true }, paint: { 'icon-color': c } });
+            }
+            // Bearing of the last segment in Web Mercator, as a clockwise icon rotation (east = 0).
+            const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+            function arrowFeatures(coords, col) {
+                const n = coords.length, p = coords[n - 2], q = coords[n - 1];
+                const ang = Math.atan2(mercY(q[1]) - mercY(p[1]), (q[0] - p[0]) * Math.PI / 180) * 180 / Math.PI;
+                return [
+                    { type: 'Feature', properties: { kind: 'shaft', color: col }, geometry: { type: 'LineString', coordinates: coords } },
+                    { type: 'Feature', properties: { kind: 'head', color: col, rot: -ang }, geometry: { type: 'Point', coordinates: q } }
+                ];
+            }
+            function render() {
+                ensureLayers();
+                let f = [];
+                arrows.forEach((a) => { f = f.concat(arrowFeatures(a.coords, a.color)); });
+                if (pending.length >= 2) f = f.concat(arrowFeatures(pending, color));
+                else if (pending.length === 1) f.push({ type: 'Feature', properties: { kind: 'vertex', color: color }, geometry: { type: 'Point', coordinates: pending[0] } });
+                map.getSource(SRC).setData(fc(f));
+            }
+            // Set individual properties: replacing style.cssText would also wipe the transform that
+            // MapLibre's Marker uses to position the label, dropping it to the map's corner.
+            function styleLabel(el, l) {
+                el.textContent = l.text;
+                Object.assign(el.style, { font: '600 ' + SIZES[l.size] + 'px sans-serif', color: l.color, whiteSpace: 'nowrap',
+                    userSelect: 'none', textShadow: HALO, cursor: active ? 'move' : 'default' });
+            }
+            function setHint(msg) { hint.textContent = msg; }
+            function addLabel(lng, lat, textOverride) {
+                const text = (textOverride !== undefined ? textOverride : textIn.value).trim();
+                if (!text) { textIn.focus(); setHint('Type the label text above, then click the map.'); return null; }
+                const l = { text: text, color: color, size: size, lngLat: [lng, lat] };
+                const el = document.createElement('div'); el.className = 'mapsplat-annotation'; styleLabel(el, l);
+                l.el = el;
+                l.marker = new maplibregl.Marker({ element: el, anchor: 'center', draggable: active }).setLngLat(l.lngLat).addTo(map);
+                l.marker.on('dragend', () => { const p = l.marker.getLngLat(); l.lngLat = [p.lng, p.lat]; });
+                labels.push(l); history.push('label'); setHint('Drag a label to move it.');
+                return l;
+            }
+            function commitArrow() { if (pending.length >= 2) { arrows.push({ coords: pending.slice(), color: color }); history.push('arrow'); } pending = []; render(); }
+            function addVertex(lng, lat) { pending.push([lng, lat]); render(); }
+            function undo() {
+                if (pending.length) { pending.pop(); render(); return; }
+                const last = history.pop();
+                if (last === 'arrow') { arrows.pop(); render(); }
+                else if (last === 'label') { labels.pop().marker.remove(); }
+            }
+            function clearAll() { arrows = []; pending = []; history = []; labels.forEach((l) => l.marker.remove()); labels = []; if (map.getSource(SRC)) render(); }
+            // Labels are not in the WebGL canvas, so paint them into exported images at the same spot.
+            ctx.addExportPainter((g, dpr) => {
+                labels.forEach((l) => {
+                    const p = map.project(l.lngLat), x = p.x * dpr, y = p.y * dpr;
+                    g.save();
+                    g.font = '600 ' + (SIZES[l.size] * dpr) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+                    g.lineJoin = 'round'; g.lineWidth = 4 * dpr; g.strokeStyle = '#fff'; g.strokeText(l.text, x, y);
+                    g.fillStyle = l.color; g.fillText(l.text, x, y);
+                    g.restore();
+                });
+            });
+            // Panel: mode, label text, size, colour, actions.
+            const rowMode = document.createElement('div');
+            const modeBtns = [['text', 'Text'], ['arrow', 'Arrow']].map(([m, lbl]) => { const b = ctx.mkBtn(lbl, m === 'text' ? 'Click the map to place a text label' : 'Click points; right-click, Enter or Finish to end the arrow'); b.dataset.mode = m; b.onclick = () => setMode(m); rowMode.appendChild(b); return b; });
+            const textIn = document.createElement('input'); textIn.type = 'text'; textIn.placeholder = 'Label text'; textIn.maxLength = 120;
+            textIn.style.cssText = 'width:162px;margin:3px 2px;padding:2px 4px;font-size:12px;box-sizing:border-box;';
+            const rowSize = document.createElement('div'); const sizeLab = document.createElement('span'); sizeLab.textContent = 'Size '; sizeLab.style.fontSize = '12px'; rowSize.appendChild(sizeLab);
+            const sizeBtns = ['S', 'M', 'L'].map((z) => { const b = ctx.mkBtn(z, { S: 'Small', M: 'Medium', L: 'Large' }[z] + ' text'); b.dataset.size = z; b.onclick = () => { size = z; refresh(); }; rowSize.appendChild(b); return b; });
+            const rowCol = document.createElement('div'); rowCol.style.margin = '3px 2px';
+            const colLab = document.createElement('label'); colLab.textContent = 'Colour '; colLab.style.fontSize = '12px';
+            const colIn = document.createElement('input'); colIn.type = 'color'; colIn.value = DEFAULT; colIn.style.verticalAlign = 'middle';
+            colIn.oninput = () => { color = colIn.value; refresh(); render(); }; colLab.appendChild(colIn); rowCol.appendChild(colLab);
+            const rowAct = document.createElement('div');
+            const finB = ctx.mkBtn('Finish', 'Finish the arrow'); finB.onclick = commitArrow;
+            const undoB = ctx.mkBtn('Undo'); undoB.onclick = undo; const clrB = ctx.mkBtn('Clear'); clrB.onclick = clearAll;
+            rowAct.append(finB, undoB, clrB);
+            const hint = document.createElement('div'); hint.style.cssText = 'opacity:.65;font-size:11px;margin:2px;white-space:normal;';
+            panel.append(rowMode, textIn, rowSize, rowCol, rowAct, hint);
+            function refresh() {
+                modeBtns.forEach((b) => { const on = b.dataset.mode === mode; b.style.background = on ? color : '#fff'; b.style.color = on ? '#fff' : '#000'; });
+                sizeBtns.forEach((b) => { const on = b.dataset.size === size; b.style.background = on ? '#555' : '#fff'; b.style.color = on ? '#fff' : '#000'; });
+                textIn.style.display = rowSize.style.display = (mode === 'text') ? '' : 'none';
+                finB.style.display = (mode === 'arrow') ? '' : 'none';
+                setHint(mode === 'text' ? 'Type a label, then click the map. Drag labels to move them.' : 'Click points along the arrow; right-click or Enter to finish.');
+            }
+            function setMode(m) { mode = m; pending = []; render(); refresh(); }
+            function setActive(on) {
+                active = on; ctx.setActive(btn, on, DEFAULT); panel.style.display = on ? 'block' : 'none';
+                map.getCanvas().style.cursor = on ? 'crosshair' : '';
+                if (on) { ctx.activateExclusive('annotate'); map.doubleClickZoom.disable(); render(); refresh(); }
+                else { map.doubleClickZoom.enable(); pending = []; if (map.getSource(SRC)) render(); }
+                labels.forEach((l) => { l.marker.setDraggable(on); styleLabel(l.el, l); });
+                window.__mapsplatToolActive = on;
+            }
+            ctx.registerDeactivator('annotate', () => setActive(false));
+            map.on('click', (e) => { if (!active) return; if (mode === 'text') addLabel(e.lngLat.lng, e.lngLat.lat); else addVertex(e.lngLat.lng, e.lngLat.lat); });
+            map.on('contextmenu', (e) => { if (active && mode === 'arrow') { if (e.originalEvent) e.originalEvent.preventDefault(); commitArrow(); } });
+            document.addEventListener('keydown', (ev) => { if (!active) return; if (ev.key === 'Escape') { pending = []; render(); } else if (ev.key === 'Enter' && mode === 'arrow') commitArrow(); });
+            window.__mapsplatAnnotate = { setActive, setMode, setSize: (z) => { size = z; refresh(); }, setColor: (c) => { color = c; colIn.value = c; refresh(); },
+                addLabel: (lng, lat, text) => addLabel(lng, lat, text), addPoint: addVertex, finish: commitArrow, undo, clear: clearAll,
+                count: () => ({ labels: labels.length, arrows: arrows.length }) };
+        }});""".replace('__COLOR__', _annotate_color).replace('__ICON__', _ICON_ANNOTATE)) if _annotate_on else ""
+
     _export_reg = ("""
         // ----- Print / export plugin -----
         MapSplatTools.register({ id: 'export', setup(map, ctx) {
@@ -402,7 +538,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             const btn = ctx.addButton({ icon: '__ICON__', title: 'Export map image (JPG / PDF)', onClick: () => { panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none'; } });
             const panel = ctx.makePanel(btn, 'white-space:nowrap;');
             const jpgB = ctx.mkBtn('JPG'); const pdfB = ctx.mkBtn('PDF');
-            const note = document.createElement('div'); note.textContent = 'map + drawings' + (SCALEBAR ? ' + scale bar' : ''); note.style.cssText = 'opacity:.6;font-size:11px;margin-top:2px;';
+            const note = document.createElement('div'); note.textContent = 'map + drawings & labels' + (SCALEBAR ? ' + scale bar' : ''); note.style.cssText = 'opacity:.6;font-size:11px;margin-top:2px;';
             panel.append(jpgB, pdfB, note);
             function stamp() { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()); }
             function b64ToBytes(dataUrl) { const b64 = dataUrl.split(',')[1]; const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
@@ -433,7 +569,10 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             // onto a 2D canvas, then paint the scale bar (an HTML control, not part of the GL canvas).
             function composite(gl) {
                 const out = document.createElement('canvas'); out.width = gl.width; out.height = gl.height;
-                const g = out.getContext('2d'); g.drawImage(gl, 0, 0); drawScaleBar(g, out.width, out.height); return out;
+                const g = out.getContext('2d'); g.drawImage(gl, 0, 0);
+                const dpr = (out.width / map.getContainer().clientWidth) || 1;
+                ctx.painters.forEach((fn) => { try { fn(g, dpr); } catch (e) { console.error('MapSplat export painter', e); } });
+                drawScaleBar(g, out.width, out.height); return out;
             }
             function jpegToPdf(jpeg, w, h) {
                 const enc = new TextEncoder(); const parts = [], off = []; let pos = 0;
@@ -459,7 +598,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         }});""".replace('__SCALEBAR__', _export_scalebar).replace('__ICON__', _ICON_EXPORT)) if _export_on else ""
 
     tools_js = (
-        (_framework_js + _measure_reg + _draw_reg + _export_reg
+        (_framework_js + _measure_reg + _draw_reg + _annotate_reg + _export_reg
          + "\n        MapSplatTools.install(map);")
         if _tools_any else ""
     )
