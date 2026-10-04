@@ -25,7 +25,7 @@ except ImportError:
     import basemap_helpers  # test environment (no package)
 
 from qgis.PyQt.QtCore import pyqtSignal, Qt, QUrl, QTimer, QStandardPaths
-from qgis.PyQt.QtGui import QDesktopServices
+from qgis.PyQt.QtGui import QClipboard, QDesktopServices
 from qgis.PyQt.QtWidgets import (
     QDockWidget,
     QVBoxLayout,
@@ -607,22 +607,36 @@ class MapSplatDockWidget(QDockWidget):
         self.lbl_basemap_source_error.setStyleSheet("color: red; font-size: 11px;")
         self.lbl_basemap_source_error.setVisible(False)
         self.lbl_basemap_source_error.setWordWrap(True)
+        self.lbl_basemap_source_error.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         basemap_layout.addWidget(self.lbl_basemap_source_error)
 
         # Download & clip: the exact `pmtiles extract` command for the current export area, for
         # users who prefer to clip once themselves and then point MapSplat at the local file.
         self._basemap_extract_widget = QWidget()
-        extract_layout = QHBoxLayout(self._basemap_extract_widget)
-        extract_layout.setContentsMargins(0, 0, 0, 0)
+        extract_outer = QVBoxLayout(self._basemap_extract_widget)
+        extract_outer.setContentsMargins(0, 0, 0, 0)
+        extract_layout = QHBoxLayout()
         self.btn_copy_extract_cmd = QPushButton("Copy extract command")
         self.btn_copy_extract_cmd.setToolTip(
-            "Copy the 'pmtiles extract' command for your selected layers' area (or the chosen\n"
-            "export extent) and Max zoom. Run it once in a terminal, then choose Source: Local file\n"
-            "and pick the result - later exports reuse it with no download."
+            "Build the 'pmtiles extract' command for your selected layers' area (or the chosen\n"
+            "export extent) and Max zoom, show it below, and copy it to the clipboard (also the\n"
+            "middle-click selection on Linux). Run it once in a terminal, then choose Source: Local\n"
+            "file and pick the result - later exports reuse it with no download."
         )
         self.btn_copy_extract_cmd.clicked.connect(self._copy_extract_command)
         extract_layout.addWidget(self.btn_copy_extract_cmd)
         extract_layout.addStretch()
+        extract_outer.addLayout(extract_layout)
+        # The command itself, read-only but selectable, so it can be copied by hand too.
+        self.txt_extract_cmd = QLineEdit()
+        self.txt_extract_cmd.setReadOnly(True)
+        self.txt_extract_cmd.setPlaceholderText("Click 'Copy extract command' to show the command here")
+        self.txt_extract_cmd.setToolTip(
+            "The pmtiles extract command. Click in the field and press Ctrl+A, then Ctrl+C, or\n"
+            "select it with the mouse. Run it in a terminal from the folder where you want the file."
+        )
+        self.txt_extract_cmd.setVisible(False)
+        extract_outer.addWidget(self.txt_extract_cmd)
         self._basemap_extract_widget.setVisible(False)
         basemap_layout.addWidget(self._basemap_extract_widget)
 
@@ -1078,6 +1092,11 @@ class MapSplatDockWidget(QDockWidget):
         self.txt_viewer_background.editingFinished.connect(self._save_settings)
         self.basemap_group.toggled.connect(self._save_settings)
         self.txt_basemap_source.editingFinished.connect(self._save_settings)
+        # A shown extract command goes stale when its inputs change; hide it so it isn't run by mistake.
+        self.txt_basemap_source.textChanged.connect(self._clear_extract_command)
+        self.spin_max_zoom.valueChanged.connect(self._clear_extract_command)
+        self.combo_extent_layer.currentIndexChanged.connect(self._clear_extract_command)
+        self.layer_list.itemSelectionChanged.connect(self._clear_extract_command)
         self.txt_basemap_source.editingFinished.connect(self._validate_basemap_source)
         self.txt_basemap_style.editingFinished.connect(self._save_settings)
         self.radio_basemap_url.toggled.connect(self._save_settings)
@@ -1775,6 +1794,12 @@ class MapSplatDockWidget(QDockWidget):
         self._show_basemap_test(f"Latest Protomaps build: {url.rsplit('/', 1)[-1]}", ok=True)
         self._save_settings()
 
+    def _clear_extract_command(self, *_):
+        """Hide a previously shown extract command (its area, zoom or source changed)."""
+        if hasattr(self, "txt_extract_cmd") and self.txt_extract_cmd.text():
+            self.txt_extract_cmd.clear()
+            self.txt_extract_cmd.setVisible(False)
+
     def _copy_extract_command(self):
         """Copy the `pmtiles extract` command for the current export area to the clipboard."""
         # A build URL or a local .pmtiles both work as the extract source; with none entered,
@@ -1800,12 +1825,28 @@ class MapSplatDockWidget(QDockWidget):
         except Exception as e:
             self._show_basemap_test(f"Could not build the extract command: {e}", ok=False)
             return
+        # Always show the command in a selectable field, whatever happens with the clipboard.
+        self.txt_extract_cmd.setText(cmd)
+        self.txt_extract_cmd.setVisible(True)
+        # Select it all, backwards, so the field shows the start ("pmtiles extract ...").
+        self.txt_extract_cmd.setSelection(len(cmd), -len(cmd))
         clipboard = QApplication.clipboard()
         if clipboard is None:
-            self._show_basemap_test(f"Clipboard unavailable. Command: {cmd}", ok=False)
+            self._show_basemap_test("Clipboard unavailable - select the command below and copy it.", ok=False)
             return
         clipboard.setText(cmd)
-        self._show_basemap_test(f"Copied to clipboard: {cmd}", ok=True)
+        # On X11 terminals, middle-click and Shift+Insert paste the PRIMARY selection, not the
+        # clipboard; set both so the command pastes either way.
+        if clipboard.supportsSelection():
+            clipboard.setText(cmd, QClipboard.Mode.Selection)
+        if "YYYYMMDD" in cmd:
+            self._show_basemap_test(
+                "Copied, but the source is a placeholder: click Latest (or choose a local file) first, "
+                "or replace YYYYMMDD in the command with a build date.",
+                ok=False,
+            )
+        else:
+            self._show_basemap_test("Copied. Paste it into a terminal (Ctrl+Shift+V or middle-click).", ok=True)
 
     def _test_basemap_source(self):
         """Check the basemap source is reachable (URL) or exists (file); report inline."""

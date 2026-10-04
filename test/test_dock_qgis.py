@@ -264,6 +264,7 @@ class DockQgisTests(unittest.TestCase):
 
     def test_copy_extract_command(self):
         from qgis.core import QgsFeature, QgsGeometry
+        from qgis.PyQt.QtCore import Qt
         from qgis.PyQt.QtWidgets import QApplication
         d = self.dock
         lyr = _layer("Polygon", "area")
@@ -283,6 +284,22 @@ class DockQgisTests(unittest.TestCase):
         cmd = QApplication.clipboard().text()
         self.assertRegex(cmd, r"^pmtiles extract https://build\.protomaps\.com/20261003\.pmtiles "
                               r"basemap\.pmtiles --bbox=-70\.30\d*,43\.59\d*,-70\.19\d*,43\.70\d* --maxzoom=13$")
+        # The command is also shown in a read-only, selectable field (user request, 0.45.0).
+        self.assertFalse(d.txt_extract_cmd.isHidden())
+        self.assertTrue(d.txt_extract_cmd.isReadOnly())
+        self.assertEqual(d.txt_extract_cmd.text(), cmd)
+        self.assertEqual(d.txt_extract_cmd.selectedText(), cmd)
+        self.assertTrue(d.lbl_basemap_source_error.textInteractionFlags()
+                        & Qt.TextInteractionFlag.TextSelectableByMouse)
+        # Changing the zoom makes the shown command stale, so it is cleared and hidden.
+        d.spin_max_zoom.setValue(12)
+        self.assertTrue(d.txt_extract_cmd.isHidden())
+        self.assertEqual(d.txt_extract_cmd.text(), "")
+        # With no source entered, the command carries a placeholder and says so.
+        d.txt_basemap_source.setText("")
+        d._copy_extract_command()
+        self.assertIn("YYYYMMDD", d.txt_extract_cmd.text())
+        self.assertIn("placeholder", d.lbl_basemap_source_error.text())
 
     def test_style_choice_round_trips_through_config_file(self):
         import os

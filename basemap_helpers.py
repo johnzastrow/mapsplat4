@@ -97,6 +97,18 @@ def latest_build_url(builds_json):
     return PROTOMAPS_BUILD_BASE + max(keys)
 
 
+# Web Mercator covers longitudes -180..180 and latitudes -85.0511..85.0511. A map-view extent can run
+# past those when zoomed far out; pmtiles does not reject such a box but clips the wrong area.
+WEB_MERCATOR_MAX_LAT = 85.0511
+
+
+def clamp_bounds(bounds):
+    """Clamp [west, south, east, north] (EPSG:4326) to the Web Mercator world."""
+    west, south, east, north = (float(v) for v in bounds)
+    lat = WEB_MERCATOR_MAX_LAT
+    return [max(west, -180.0), max(south, -lat), min(east, 180.0), min(north, lat)]
+
+
 def extract_command(source, bounds, max_zoom, output="basemap.pmtiles"):
     """Compose the ``pmtiles extract`` command MapSplat runs for an export area.
 
@@ -109,7 +121,7 @@ def extract_command(source, bounds, max_zoom, output="basemap.pmtiles"):
     :param output: output file name
     :returns: a single command line; arguments containing spaces are double-quoted
     """
-    west, south, east, north = (round(float(v), 6) for v in bounds)
+    west, south, east, north = (round(v, 6) for v in clamp_bounds(bounds))
     if not (west < east and south < north):
         raise ValueError("bounds must be [west, south, east, north] with west < east, south < north")
 

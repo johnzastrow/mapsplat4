@@ -53,6 +53,11 @@ try:
 except ImportError:
     from style_converter import StyleConverter  # test environment (no package)
 
+try:
+    from . import basemap_helpers
+except ImportError:
+    import basemap_helpers  # test environment (no package)
+
 
 def generate_html_viewer(settings, style_json, bounds, use_external_style=False, bundle_offline=False):
     """Generate the HTML viewer as a standalone function (no Qt dependencies).
@@ -2344,7 +2349,9 @@ class MapSplatExporter(QObject):
 
         source = self.settings["basemap_source"]
         output_path = os.path.join(output_dir, "data", "basemap.pmtiles")
-        west, south, east, north = bounds
+        # A zoomed-out map-view extent can run past the Web Mercator world; pmtiles accepts such a
+        # box but clips the wrong area, so clamp it (as Copy extract command does).
+        west, south, east, north = basemap_helpers.clamp_bounds(bounds)
         bbox_str = f"{west},{south},{east},{north}"
         max_zoom = self.settings.get("max_zoom", 10)
 
