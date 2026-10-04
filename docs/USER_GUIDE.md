@@ -45,7 +45,8 @@ That is the complete required workflow. Everything below is optional and has sen
   export or streamed from your own host, with built-in styles, or an **XYZ raster** provider; the
   **?** button opens the basemap guide). Defaults are fine for most maps.
 - **Viewer** — what the generated web map shows: scale bar, geolocate, fullscreen, coordinate/zoom
-  readouts, reset/north buttons, label placement, legend, attribution, map dimensions, and the
+  readouts, reset/north buttons, label placement, legend, attribution, map dimensions (800 × 800 px
+  by default; choose *Full window* for a map that fills the browser), and the
   optional on-map **tools** — *Measure* (distance/area), *Draw/sketch* (export GeoJSON/KML), and
   *Export* (save the map as JPG/PDF). Tools are **off by default**; enable the ones you want.
 - **Offline** — bundle MapLibre/PMTiles JS + CSS into the export so the viewer works with no internet.

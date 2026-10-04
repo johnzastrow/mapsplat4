@@ -301,6 +301,26 @@ class DockQgisTests(unittest.TestCase):
         self.assertIn("YYYYMMDD", d.txt_extract_cmd.text())
         self.assertIn("placeholder", d.lbl_basemap_source_error.text())
 
+    def test_map_size_presets_follow_the_spinboxes(self):
+        """800 x 800 is a preset (the default); the combo shows whichever preset matches the
+        width/height, including values restored from settings, and Custom otherwise."""
+        d = self.dock
+        label = lambda: d.combo_dim_preset.currentText()  # noqa: E731
+        self.assertEqual(d.DEFAULT_MAP_SIZE, (800, 800))
+        self.assertIn("800 × 800 (default)", [d.combo_dim_preset.itemText(i) for i in range(d.combo_dim_preset.count())])
+        d.spin_map_width.setValue(800)
+        d.spin_map_height.setValue(800)
+        self.assertEqual(label(), "800 × 800 (default)")
+        d.spin_map_width.setValue(1024)
+        d.spin_map_height.setValue(768)
+        self.assertEqual(label(), "1024 × 768")
+        d.spin_map_width.setValue(640)
+        self.assertEqual(label(), "Custom")
+        d.combo_dim_preset.setCurrentIndex(0)  # Full window
+        self.assertEqual((d.spin_map_width.value(), d.spin_map_height.value()), (0, 0))
+        d.combo_dim_preset.setCurrentIndex(d._dimension_preset_index(800, 800))
+        self.assertEqual((d.spin_map_width.value(), d.spin_map_height.value()), (800, 800))
+
     def test_style_choice_round_trips_through_config_file(self):
         import os
         import tempfile
