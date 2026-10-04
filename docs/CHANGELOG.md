@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.45.0] — 2026-10-03
+## [0.45.0] — 2026-10-04
 
 ### Added — basemap help and setup (Options tab)
 - **Basemap guide.** A **?** button beside *Basemap Overlay* (and *Help ▸ Basemap guide*) opens
