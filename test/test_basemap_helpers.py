@@ -59,6 +59,13 @@ class TestExtractCommand(unittest.TestCase):
         cmd = bh.extract_command("/data/My Maps/planet.pmtiles", [0, 0, 1, 1], 8, "out file.pmtiles")
         self.assertIn('"/data/My Maps/planet.pmtiles" "out file.pmtiles"', cmd)
 
+    def test_clamps_to_web_mercator_world(self):
+        # A zoomed-out map view can exceed the world; pmtiles would clip the wrong area.
+        self.assertEqual(bh.clamp_bounds([-200, -95, 200, 95]), [-180.0, -85.0511, 180.0, 85.0511])
+        self.assertEqual(bh.clamp_bounds([-70.3, 43.6, -70.2, 43.7]), [-70.3, 43.6, -70.2, 43.7])
+        cmd = bh.extract_command("src.pmtiles", [-250.0, -89.9, 10.0, 89.9], 4)
+        self.assertIn("--bbox=-180.0,-85.0511,10.0,85.0511", cmd)
+
     def test_rejects_inverted_bounds(self):
         with self.assertRaises(ValueError):
             bh.extract_command("src", [10, 0, 5, 1], 8)

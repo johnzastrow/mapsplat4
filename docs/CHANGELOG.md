@@ -21,8 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from before 0.45 that name a style file load as *Custom*.
 - **Latest** fills in the newest Protomaps daily build (Protomaps keeps daily builds for a week, plus
   the latest build of each patch version; the dock's example URL had expired and returned HTTP 404).
-- **Copy extract command** copies the exact `pmtiles extract` command for the current export area
-  and max zoom, for clipping once and reusing a local file.
+- **Copy extract command** shows the exact `pmtiles extract` command for the current export area
+  and max zoom in a selectable, read-only field, and copies it to the clipboard and, on X11, to the
+  PRIMARY selection (so middle-click / Shift+Insert paste it in a terminal, not a stale selection).
+  The field clears when the area, zoom or source changes; a placeholder source is called out. The
+  bounding box is clamped to the Web Mercator world (also for the exporter's own clip): a zoomed-out
+  map view could otherwise exceed it, which pmtiles accepts but clips the wrong area.
 - **pmtiles CLI note.** In *Download & clip* mode the Options tab says when the `pmtiles` tool is not
   on PATH, with a link to its releases (no installer, per plugin-repository rules).
 

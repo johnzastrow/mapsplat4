@@ -182,10 +182,14 @@ once and point MapSplat at the result:</p>
 <ol class="steps">
   <li>Select your layers (or set an <span class="ui">Export extent</span>) and a
       <span class="ui">Max zoom</span>, and choose <span class="ui">Download &amp; clip offline</span>.</li>
-  <li>Click <span class="ui">Copy extract command</span>. MapSplat copies the exact command it would
-      run for that area, for example:
+  <li>Click <span class="ui">Copy extract command</span>. MapSplat shows the exact command it would
+      run for that area in a field under the button, where you can select it, and copies it to the
+      clipboard (on Linux also to the middle-click selection). For example:
 <pre><code>pmtiles extract https://build.protomaps.com/20261003.pmtiles basemap.pmtiles --bbox=-70.32,43.62,-70.18,43.72 --maxzoom=14</code></pre></li>
-  <li>Paste it into a terminal and run it.</li>
+  <li>Paste it into a terminal and run it: <kbd>Ctrl+Shift+V</kbd> or middle-click in most Linux
+      terminals, <kbd>Ctrl+V</kbd> in Windows Terminal and PowerShell, <kbd>Cmd+V</kbd> on macOS. The
+      file is written to the terminal's current folder. If the command contains
+      <code>YYYYMMDD</code>, click <span class="ui">Latest</span> first and copy it again.</li>
   <li>In MapSplat choose <span class="ui">Source: Local file</span> and select the new
       <code>basemap.pmtiles</code>.</li>
 </ol>
