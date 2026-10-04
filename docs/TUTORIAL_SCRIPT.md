@@ -85,12 +85,13 @@ question-mark button has the full guide, including streaming a basemap you host 
 ## Scene 5 — Viewer tools (3:45–4:30)
 
 **Screen actions:**
-1. **Viewer** tab: enable **Measure tool**, **Draw/sketch tool**, **Export tool**; set the label
-   placement; optionally a custom attribution.
+1. **Viewer** tab: enable **Measure tool**, **Draw/sketch tool**, **Annotate tool**, **Export
+   tool**; set the label placement; optionally a custom attribution.
 2. Briefly show the units toggle idea and the draw colour picker (these appear in the exported map).
 
 **VO:** "The Viewer tab adds optional on-map tools — measure distance and area, sketch and export
-points/lines/polygons to GeoJSON or KML, and save the map as a JPG or PDF. They're off by default;
+points/lines/polygons to GeoJSON or KML, add text labels and arrows, and save the map, annotations
+included, as a JPG or PDF. They're off by default;
 flip on what you need."
 
 ---

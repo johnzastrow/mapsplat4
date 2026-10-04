@@ -121,7 +121,37 @@ class TestMapDimensions(unittest.TestCase):
     def test_explicit_size(self):
         html = _make_html({"map_width": 1024, "map_height": 768})
         self.assertIn("width:1024px;height:768px;", html)
+
+
+
+class TestAnnotateTool(unittest.TestCase):
+    """The Annotate tool (text labels + arrows) is opt-in and feeds the Export tool's images."""
 
+    def test_off_by_default(self):
+        html = _make_html()
+        self.assertNotIn("id: 'annotate'", html)
+
+    def test_on_registers_tool(self):
+        html = _make_html({"viewer_annotate": True})
+        self.assertIn("id: 'annotate'", html)
+        self.assertIn("MapSplatTools.install(map)", html)
+        self.assertIn("mapsplat-arrowhead", html)
+
+    def test_labels_reach_exported_images(self):
+        html = _make_html({"viewer_annotate": True, "viewer_export": True})
+        self.assertIn("ctx.addExportPainter(", html)        # annotate registers a painter
+        self.assertIn("ctx.painters.forEach(", html)        # export composite calls painters
+        self.assertIn("preserveDrawingBuffer: true", html)
+
+    def test_label_styling_keeps_marker_position(self):
+        # Replacing style.cssText would wipe MapLibre's positioning transform (label jumps to 0,0).
+        html = _make_html({"viewer_annotate": True})
+        start = html.index("function styleLabel")
+        self.assertNotIn("cssText", html[start:start + 600])
+
+    def test_invalid_colour_falls_back(self):
+        html = _make_html({"viewer_annotate": True, "annotate_color": "red; }"})
+        self.assertIn("DEFAULT = '#c62828'", html)
 
 if __name__ == "__main__":
     unittest.main()

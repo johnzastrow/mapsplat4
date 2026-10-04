@@ -321,6 +321,23 @@ class DockQgisTests(unittest.TestCase):
         d.combo_dim_preset.setCurrentIndex(d._dimension_preset_index(800, 800))
         self.assertEqual((d.spin_map_width.value(), d.spin_map_height.value()), (800, 800))
 
+    def test_annotate_tool_round_trips_through_config_file(self):
+        import os
+        import tempfile
+        from unittest import mock
+        d = self.dock
+        path = os.path.join(tempfile.mkdtemp(), "ann.toml")
+        d.chk_viewer_annotate.setChecked(True)
+        with mock.patch.object(self.dockmod.QFileDialog, "getSaveFileName", return_value=(path, "")):
+            d._save_config()
+        with open(path, encoding="utf-8") as fh:
+            self.assertIn("annotate = true", fh.read())
+        d.chk_viewer_annotate.setChecked(False)
+        with mock.patch.object(self.dockmod.QFileDialog, "getOpenFileName", return_value=(path, "")):
+            d._load_config()
+        self.assertTrue(d.chk_viewer_annotate.isChecked())
+        d.chk_viewer_annotate.setChecked(False)
+
     def test_style_choice_round_trips_through_config_file(self):
         import os
         import tempfile

@@ -30,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **pmtiles CLI note.** In *Download & clip* mode the Options tab says when the `pmtiles` tool is not
   on PATH, with a link to its releases (no installer, per plugin-repository rules).
 
+### Added — Annotate tool (viewer)
+- **Text labels and arrows on the web map, included in JPG/PDF exports.** A new optional *Annotate*
+  tool (Viewer tab checkbox; `viewer_annotate`, `[viewer] annotate`) adds a toolbar button with
+  *Text* and *Arrow* modes, size S/M/L, colour, Undo, Clear. Labels are draggable map markers with a
+  white outline; the Export tool paints them into the image through a new export-painter hook in
+  the tool framework, so no font server is needed. Arrows are map layers with a generated SDF
+  arrowhead icon rotated to the final segment, so they export like drawings.
+- The config file now comments and orders the tool keys (`measure`, `draw`, `annotate`, `export`).
+
 ### Changed
 - **The exported map is 800 × 800 px by default** (new *800 × 800* preset on the Viewer tab;
   previously the map filled the whole browser window). *Full window (responsive)* is still available.

@@ -47,8 +47,16 @@ That is the complete required workflow. Everything below is optional and has sen
 - **Viewer** — what the generated web map shows: scale bar, geolocate, fullscreen, coordinate/zoom
   readouts, reset/north buttons, label placement, legend, attribution, map dimensions (800 × 800 px
   by default; choose *Full window* for a map that fills the browser), and the
-  optional on-map **tools** — *Measure* (distance/area), *Draw/sketch* (export GeoJSON/KML), and
-  *Export* (save the map as JPG/PDF). Tools are **off by default**; enable the ones you want.
+  optional on-map **tools** — *Measure* (distance/area), *Draw/sketch* (export GeoJSON/KML),
+  *Annotate* (text labels and arrows), and *Export* (save the map as JPG/PDF, including drawings and
+  annotations). Tools are **off by default**; enable the ones you want.
+
+  **Annotating a map image:** enable *Annotate* and *Export*. In the web map, click the Annotate
+  button (T with an arrow). In *Text* mode, type the label, pick a size and colour, and click the
+  map; drag labels to move them. In *Arrow* mode, click points along the arrow and right-click (or
+  press Enter, or *Finish*) to end it; the arrowhead points along the last segment. *Undo* and
+  *Clear* remove annotations. Then use the Export button to save a JPG or PDF with them included.
+  Annotations live only in that browser tab; they are not saved with the map.
 - **Offline** — bundle MapLibre/PMTiles JS + CSS into the export so the viewer works with no internet.
 - **Log** — progress, messages, the export **summary**, and the **version stamp** (bottom-right).
 

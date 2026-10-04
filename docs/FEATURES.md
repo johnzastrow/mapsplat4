@@ -83,7 +83,11 @@ supported, see [Limitations](LIMITATIONS.md).
   runtime units toggle.
 - **Draw / sketch** — points, lines, polygons with a per-feature colour picker; export to
   **GeoJSON or KML** (client-side download).
-- **Export image** — save the current map as **JPG or PDF** (includes drawings + a scale bar).
+- **Annotate** — place **text labels** (small / medium / large, any colour, white outline,
+  draggable) and draw **arrows** (click points; the arrowhead follows the last segment). Annotations
+  are included in images saved with the Export tool.
+- **Export image** — save the current map as **JPG or PDF** (includes drawings, annotations and a
+  scale bar).
 
 ## Config save / load
 
