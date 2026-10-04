@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **pmtiles CLI note.** In *Download & clip* mode the Options tab says when the `pmtiles` tool is not
   on PATH, with a link to its releases (no installer, per plugin-repository rules).
 
+### Changed
+- **The exported map is 800 × 800 px by default** (new *800 × 800* preset on the Viewer tab;
+  previously the map filled the whole browser window). *Full window (responsive)* is still available.
+  Saved QGIS settings and configs keep whatever size they already specify.
+- The map-size dropdown now shows the preset matching the width and height, including values
+  restored from settings or a config; it used to switch to *Custom* whenever the sizes were set.
+
 ### Fixed
 - **Export failed on layers with an `ogc_fid` attribute** ("Cannot find OGR field for Arrow array
   ogc_fid / WriteArrowBatch() failed"). ogr2ogr's Arrow write path (GDAL 3.12) cannot handle a field

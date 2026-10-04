@@ -482,8 +482,9 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
 
     # Map pixel dimensions — drives the outer container, not the map div itself.
     # All overlay controls are children of the container so they stay clipped.
-    map_w = settings.get('map_width', 0)
-    map_h = settings.get('map_height', 0)
+    # 800 x 800 by default (0 = responsive full window); the dock always passes both.
+    map_w = settings.get("map_width", 800)
+    map_h = settings.get("map_height", 800)
     if map_w > 0 or map_h > 0:
         w_css = f"{map_w}px" if map_w > 0 else "100%"
         h_css = f"{map_h}px" if map_h > 0 else "100vh"

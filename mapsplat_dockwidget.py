@@ -109,8 +109,10 @@ class MapSplatDockWidget(QDockWidget):
     }
 
     # (label, width, height) — width=0/height=0 means responsive
+    DEFAULT_MAP_SIZE = (800, 800)
     _DIMENSION_PRESETS = [
         ("Full window (responsive)", 0, 0),
+        ("800 × 800 (default)", 800, 800),
         ("800 × 600", 800, 600),
         ("800 × 900", 800, 900),
         ("1024 × 768", 1024, 768),
@@ -956,6 +958,7 @@ class MapSplatDockWidget(QDockWidget):
             "'Full window' makes the map fill the browser window responsively.\n"
             "Choose 'Custom' or edit the spinboxes directly for any other size."
         )
+        self.combo_dim_preset.setCurrentIndex(self._dimension_preset_index(*self.DEFAULT_MAP_SIZE))
         self.combo_dim_preset.currentIndexChanged.connect(self._on_dimension_preset_changed)
         preset_row.addWidget(self.combo_dim_preset, 1)
         dim_group_layout.addLayout(preset_row)
@@ -965,7 +968,7 @@ class MapSplatDockWidget(QDockWidget):
         dim_layout.addWidget(QLabel("Width:"))
         self.spin_map_width = QSpinBox()
         self.spin_map_width.setRange(0, 9999)
-        self.spin_map_width.setValue(0)
+        self.spin_map_width.setValue(self.DEFAULT_MAP_SIZE[0])
         self.spin_map_width.setSpecialValueText("responsive")
         self.spin_map_width.setSuffix(" px")
         self.spin_map_width.setToolTip("Map width in pixels. Set to 0 (responsive) to fill the browser window.")
@@ -975,7 +978,7 @@ class MapSplatDockWidget(QDockWidget):
         dim_layout.addWidget(QLabel("Height:"))
         self.spin_map_height = QSpinBox()
         self.spin_map_height.setRange(0, 9999)
-        self.spin_map_height.setValue(0)
+        self.spin_map_height.setValue(self.DEFAULT_MAP_SIZE[1])
         self.spin_map_height.setSpecialValueText("responsive")
         self.spin_map_height.setSuffix(" px")
         self.spin_map_height.setToolTip("Map height in pixels. Set to 0 (responsive) to fill the browser window.")
@@ -1663,13 +1666,26 @@ class MapSplatDockWidget(QDockWidget):
         self.spin_map_height.setValue(h)
         self._applying_preset = False
 
+    def _dimension_preset_index(self, width, height):
+        """Index of the preset matching width x height, or of 'Custom' when none does."""
+        for i, (_label, w, h) in enumerate(self._DIMENSION_PRESETS):
+            if (w, h) == (width, height):
+                return i
+        return len(self._DIMENSION_PRESETS) - 1
+
     def _on_dimension_spinbox_changed(self):
-        """Switch combo to Custom when the user edits a spinbox directly."""
+        """Keep the preset combo in step with the spinboxes: the matching preset, else Custom.
+
+        Runs for direct edits and for values restored from settings or a loaded config, so a
+        restored 800 x 800 shows its preset rather than 'Custom'.
+        """
         if getattr(self, '_applying_preset', False):
             return
-        custom_index = len(self._DIMENSION_PRESETS) - 1
-        if self.combo_dim_preset.currentIndex() != custom_index:
-            self.combo_dim_preset.setCurrentIndex(custom_index)
+        index = self._dimension_preset_index(self.spin_map_width.value(), self.spin_map_height.value())
+        if self.combo_dim_preset.currentIndex() != index:
+            self.combo_dim_preset.blockSignals(True)  # the values are already set
+            self.combo_dim_preset.setCurrentIndex(index)
+            self.combo_dim_preset.blockSignals(False)
 
     def _on_basemap_source_type_changed(self):
         """Show/hide browse button based on source type selection."""

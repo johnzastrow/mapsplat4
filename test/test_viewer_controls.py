@@ -105,5 +105,23 @@ class TestViewerControlsIndividuallyDisabled(unittest.TestCase):
         self.assertIn("north-reset", html)
 
 
+
+class TestMapDimensions(unittest.TestCase):
+    """The map defaults to an 800 x 800 container; 0 means fill the window (responsive)."""
+
+    def test_default_is_800_by_800(self):
+        html = _make_html()
+        self.assertIn("width:800px;height:800px;", html)
+
+    def test_zero_is_responsive_full_window(self):
+        html = _make_html({"map_width": 0, "map_height": 0})
+        self.assertIn("position:absolute;top:0;bottom:0;left:0;right:0;", html)
+        self.assertNotIn("width:800px", html)
+
+    def test_explicit_size(self):
+        html = _make_html({"map_width": 1024, "map_height": 768})
+        self.assertIn("width:1024px;height:768px;", html)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -106,6 +106,7 @@ tool is active. Off by default; toggle each in the Viewer tab.
 
 ### Quick Presets for Map Dimensions *(Story 5)* *Done — v0.7.1*
 - [x] Add dropdown with presets: "Full window (responsive)", "800x600", "800x900", "1024x768", "1920x1080", "Custom"
+- [x] 800 x 800 preset, the default since v0.45.0; the dropdown shows whichever preset matches the size
 - [x] Preset selection updates width/height spinboxes
 - [x] Manual spinbox edit switches combo to "Custom" automatically
 
