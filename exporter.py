@@ -1194,6 +1194,34 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
 </html>'''
 
 
+def ogr2ogr_pmtiles_args(pmtiles_path, gpkg_path, max_zoom):
+    """Arguments for the ``ogr2ogr`` call that tiles the intermediate GeoPackage to PMTiles.
+
+    - ``-s_srs``/``-t_srs EPSG:3857``: the GeoPackage is always written in EPSG:3857 by
+      ``_export_to_geopackage`` (QgsVectorFileWriter reprojects every layer). Declaring the source
+      CRS stops ogr2ogr reprojecting a second time when GDAL does not recognise the WKT QGIS stored
+      as exactly EPSG:3857, which visibly distorted geometry.
+    - ``OGR2OGR_USE_ARROW_API=NO``: ogr2ogr's Arrow fast path (``WriteArrowBatch``) fails on any
+      layer with an attribute literally named ``ogc_fid`` ("Cannot find OGR field for Arrow array
+      ogc_fid"; seen with GDAL 3.12.2). Such a field is common in data that passed through PostGIS
+      or ogr2ogr. The row-by-row path writes it correctly, and tiling dominates the run time, so the
+      fast path gains nothing here.
+    """
+    # Keep each option next to its value.
+    # fmt: off
+    return [
+        "--config", "OGR2OGR_USE_ARROW_API", "NO",
+        "-f", "PMTiles",
+        "-dsco", "MINZOOM=0",
+        "-dsco", f"MAXZOOM={max_zoom}",
+        "-s_srs", "EPSG:3857",
+        "-t_srs", "EPSG:3857",
+        pmtiles_path,
+        gpkg_path,
+    ]
+    # fmt: on
+
+
 def sort_layers_by_tree_order(style_layers, order):
     """Return MapLibre style layers sorted to match the QGIS layer tree.
 
@@ -1664,20 +1692,7 @@ class MapSplatExporter(QObject):
         self._output_dir = output_dir
         self._start_time = time.time()
 
-        # The GeoPackage is always written in EPSG:3857 by _export_to_geopackage
-        # (QgsVectorFileWriter applies options.ct to reproject every layer).
-        # Specifying -s_srs EPSG:3857 prevents ogr2ogr from attempting a second
-        # reprojection when the CRS WKT stored by QGIS is not recognised by GDAL
-        # as exactly EPSG:3857 — which would cause visible geometry distortion.
-        args = [
-            "-f", "PMTiles",
-            "-dsco", "MINZOOM=0",
-            "-dsco", f"MAXZOOM={max_zoom}",
-            "-s_srs", "EPSG:3857",
-            "-t_srs", "EPSG:3857",
-            pmtiles_path,
-            gpkg_path
-        ]
+        args = ogr2ogr_pmtiles_args(pmtiles_path, gpkg_path, max_zoom)
 
         self.log_message.emit(f"  Command: ogr2ogr {' '.join(args)}", "info")
 

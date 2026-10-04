@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on PATH, with a link to its releases (no installer, per plugin-repository rules).
 
 ### Fixed
+- **Export failed on layers with an `ogc_fid` attribute** ("Cannot find OGR field for Arrow array
+  ogc_fid / WriteArrowBatch() failed"). ogr2ogr's Arrow write path (GDAL 3.12) cannot handle a field
+  of that name, which is common in data that passed through PostGIS or ogr2ogr. The PMTiles
+  conversion now runs with `--config OGR2OGR_USE_ARROW_API NO`; the row-by-row path keeps the
+  attribute and was no slower in tests (tiling dominates).
 - **Streaming Protomaps daily builds cannot work, and MapSplat now says so.** `build.protomaps.com`
   sends no CORS permission to other sites (it allows only `maps.protomaps.com`), so a map streaming a
   daily build always showed a blank basemap. *Test* in Stream mode now checks whether browsers on
